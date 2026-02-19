@@ -2,11 +2,13 @@ import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 
 const isPublicRoute = createRouteMatcher([
   "/",
+  "/reserve",                      // Pre-launch reservation page
   "/pricing",
   "/sign-up(.*)",
   "/sign-in(.*)",
   "/privacy",
   "/terms",
+  "/api/reserve",                // Reservation form submission
   "/api/health",                 // Health check endpoint for Railway
   "/api/webhook(.*)",
   "/api/webhooks/(.*)",          // All webhook endpoints including n8n
@@ -35,6 +37,7 @@ const isPublicRoute = createRouteMatcher([
   "/api/panels/money",           // Panel endpoint
   "/api/panels/motion",          // Panel endpoint
   "/not-authorized",
+  "/app(.*)",                     // TODO: Remove this when ready for beta launch (re-enable Clerk auth)
   "/api/dashboard/(.*)",         // Dashboard API endpoints
   // REMOVED: /api/test and /api/debug/(.*) - these should require auth
 ]);

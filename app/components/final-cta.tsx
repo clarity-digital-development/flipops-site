@@ -1,17 +1,13 @@
 'use client';
 
+import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { ArrowRight, Play } from 'lucide-react';
 
 export function FinalCTA() {
-  const openCalendly = () => {
-    const calendlyUrl = process.env.NEXT_PUBLIC_CALENDLY_URL || '#';
-    window.open(calendlyUrl, '_blank');
-  };
-
   return (
-    <section className="py-16 lg:py-24 bg-gray-100 dark:bg-zinc-800">
+    <section className="py-16 lg:py-24 bg-gray-100 dark:bg-black">
       <div className="container mx-auto px-4">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -21,27 +17,25 @@ export function FinalCTA() {
           className="text-center max-w-3xl mx-auto"
         >
           <h2 className="text-3xl lg:text-5xl font-bold mb-6 text-gray-900 dark:text-white">
-            Ready to stop leaving money on the table?
+            Ready to stop guessing which leads are worth your time?
           </h2>
           <p className="text-xl text-muted-foreground mb-8">
-            Join dozens of investors who&apos;ve automated their way to better margins and faster deals.
-            The audit is free, and you&apos;ll walk away with actionable insights either way.
+            Join investors who use algorithmic intelligence to identify hot prospects before their competition does.
           </p>
-          
+
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Button size="lg" onClick={openCalendly} className="group">
-              Book Audit
-              <ArrowRight className="ml-2 h-4 w-4 group-hover:translate-x-1 transition-transform" />
-            </Button>
-            <Button size="lg" variant="outline">
+            <Button size="lg" className="group bg-gradient-to-r from-primary to-accent hover:brightness-110 shadow-lg shadow-primary/25">
               <Play className="mr-2 h-4 w-4" />
-              Watch 3-min Demo
+              Try Live Demo
             </Button>
+            <Link href="/reserve">
+              <Button size="lg" variant="outline" className="group">
+                Reserve Your Spot
+                <ArrowRight className="ml-2 h-4 w-4 group-hover:translate-x-1 transition-transform" />
+              </Button>
+            </Link>
           </div>
 
-          <p className="text-sm text-muted-foreground mt-8">
-            No credit card required • Results in 2-3 weeks • Cancel anytime
-          </p>
         </motion.div>
       </div>
     </section>

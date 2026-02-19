@@ -60,6 +60,7 @@ import { cn } from "@/lib/utils";
 import { useUser } from "@clerk/nextjs";
 import { type RepairItem } from "./seed-data";
 import { seedProperties as leadsSeedProperties } from "../leads/seed-data";
+import { MAOWaterfallPanel } from "@/components/deals/mao-waterfall";
 
 // ============================================================================
 // TYPES
@@ -1982,6 +1983,16 @@ export default function UnderwritingPage() {
                     )}
                   </TabsTrigger>
                   <TabsTrigger
+                    value="mao"
+                    className="rounded-t-lg border-0 px-5 py-2.5 text-gray-500 dark:text-gray-400 data-[state=active]:bg-teal-50 data-[state=active]:text-teal-600 dark:data-[state=active]:bg-teal-900/30 dark:data-[state=active]:text-teal-400 transition-colors"
+                  >
+                    <Calculator className="h-4 w-4 mr-2" />
+                    MAO
+                    <Badge variant="secondary" className="ml-2 h-5 px-1.5">
+                      {formatCurrency(mao)}
+                    </Badge>
+                  </TabsTrigger>
+                  <TabsTrigger
                     value="scenarios"
                     className="rounded-t-lg border-0 px-5 py-2.5 text-gray-500 dark:text-gray-400 data-[state=active]:bg-emerald-50 data-[state=active]:text-emerald-600 dark:data-[state=active]:bg-emerald-900/30 dark:data-[state=active]:text-emerald-400 transition-colors"
                   >
@@ -2210,6 +2221,18 @@ export default function UnderwritingPage() {
                           repairs={adjustedRepairs}
                         />
                       </div>
+                    </div>
+                  </ScrollArea>
+                </TabsContent>
+
+                {/* MAO Tab */}
+                <TabsContent value="mao" className="flex-1 min-h-0 m-0 p-0">
+                  <ScrollArea className="h-full">
+                    <div className="p-4">
+                      <MAOWaterfallPanel
+                        arv={adjustedARV}
+                        repairs={adjustedRepairs}
+                      />
                     </div>
                   </ScrollArea>
                 </TabsContent>

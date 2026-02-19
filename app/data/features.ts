@@ -88,19 +88,19 @@ export const processSteps = [
 
 export const metrics = [
   {
-    value: "2-4 hrs",
-    label: "saved per deal analysis"
+    value: "157M+",
+    label: "properties in national database"
   },
   {
-    value: "30%",
-    label: "fewer back-and-forth calls"
+    value: "15+",
+    label: "distress signals per property"
   },
   {
-    value: "7-14 days",
-    label: "faster draw approvals"
+    value: "Automated",
+    label: "skip tracing built-in"
   },
   {
-    value: "15%",
-    label: "reduction in holding costs"
+    value: "Real-time",
+    label: "MAO & ROI calculations"
   }
 ];

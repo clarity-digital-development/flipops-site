@@ -77,6 +77,11 @@ import { toast } from "sonner";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Slider } from "@/components/ui/slider";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { seedProperties } from "./seed-data";
 
@@ -159,6 +164,21 @@ function isReapiProperty(p: SearchProperty): p is ReapiProperty {
   return 'reapiId' in p;
 }
 
+// Score breakdown types for tooltip
+interface ScoreSignal {
+  signal: string;
+  weight: number;
+  present: boolean;
+  description: string;
+}
+
+interface ScoreBreakdown {
+  score: number;
+  grade: 'A' | 'B' | 'C' | 'D' | 'F';
+  signals: ScoreSignal[];
+  motivation: 'HIGH' | 'MEDIUM' | 'LOW' | 'NONE';
+}
+
 interface Property {
   id: string;
   address: string;
@@ -167,6 +187,7 @@ interface Property {
   zip: string;
   ownerName?: string;
   score?: number;
+  scoreBreakdown?: string; // JSON string with ScoreBreakdown
   dataSource: string;
   outreachStatus?: string;
   lastContactDate?: string;
@@ -239,10 +260,56 @@ function SortableHeader({
 }
 
 // =============================================================================
-// Score Visualization Component
+// Score Visualization Component with Breakdown Tooltip
 // =============================================================================
 
-function ScoreGauge({ score }: { score: number | undefined }) {
+// Parse scoreBreakdown JSON safely
+function parseScoreBreakdown(scoreBreakdownJson?: string): ScoreBreakdown | null {
+  if (!scoreBreakdownJson) return null;
+  try {
+    return JSON.parse(scoreBreakdownJson) as ScoreBreakdown;
+  } catch {
+    return null;
+  }
+}
+
+// Generate breakdown from property flags if no scoreBreakdown JSON exists
+function generateBreakdownFromFlags(property: Property): ScoreSignal[] {
+  const signals: ScoreSignal[] = [];
+
+  if (property.preForeclosure) {
+    signals.push({ signal: 'PRE_FORECLOSURE', weight: 25, present: true, description: 'Pre-foreclosure filing' });
+  }
+  if (property.foreclosure) {
+    signals.push({ signal: 'FORECLOSURE', weight: 25, present: true, description: 'Active foreclosure' });
+  }
+  if (property.taxDelinquent) {
+    signals.push({ signal: 'TAX_DELINQUENT', weight: 20, present: true, description: 'Tax delinquent property' });
+  }
+  if (property.vacant) {
+    signals.push({ signal: 'VACANT', weight: 15, present: true, description: 'Property is vacant' });
+  }
+
+  return signals;
+}
+
+// Format signal name for display
+function formatSignalName(signal: string): string {
+  return signal
+    .replace(/_/g, ' ')
+    .toLowerCase()
+    .replace(/\b\w/g, c => c.toUpperCase());
+}
+
+function ScoreGauge({
+  score,
+  scoreBreakdown,
+  property
+}: {
+  score: number | undefined;
+  scoreBreakdown?: string;
+  property?: Property;
+}) {
   if (!score) {
     return (
       <div className="flex items-center gap-2">
@@ -253,16 +320,22 @@ function ScoreGauge({ score }: { score: number | undefined }) {
   }
 
   const getScoreColor = (s: number) => {
-    if (s >= 70) return { bar: 'bg-emerald-500', text: 'text-emerald-600 dark:text-emerald-400' };
-    if (s >= 50) return { bar: 'bg-amber-500', text: 'text-amber-600 dark:text-amber-400' };
-    if (s >= 30) return { bar: 'bg-orange-500', text: 'text-orange-600 dark:text-orange-400' };
-    return { bar: 'bg-red-500', text: 'text-red-600 dark:text-red-400' };
+    if (s >= 70) return { bar: 'bg-emerald-500', text: 'text-emerald-600 dark:text-emerald-400', grade: 'A' };
+    if (s >= 50) return { bar: 'bg-amber-500', text: 'text-amber-600 dark:text-amber-400', grade: 'B' };
+    if (s >= 35) return { bar: 'bg-orange-500', text: 'text-orange-600 dark:text-orange-400', grade: 'C' };
+    if (s >= 20) return { bar: 'bg-red-400', text: 'text-red-500 dark:text-red-400', grade: 'D' };
+    return { bar: 'bg-red-500', text: 'text-red-600 dark:text-red-400', grade: 'F' };
   };
 
   const colors = getScoreColor(score);
 
-  return (
-    <div className="flex items-center gap-2">
+  // Try to parse score breakdown, or generate from property flags
+  const breakdown = parseScoreBreakdown(scoreBreakdown);
+  const signals = breakdown?.signals || (property ? generateBreakdownFromFlags(property) : []);
+  const hasBreakdown = signals.length > 0;
+
+  const scoreBar = (
+    <div className="flex items-center gap-2 cursor-help">
       <div className="w-16 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
         <div
           className={cn("h-full rounded-full transition-all", colors.bar)}
@@ -273,6 +346,64 @@ function ScoreGauge({ score }: { score: number | undefined }) {
         {score}
       </span>
     </div>
+  );
+
+  if (!hasBreakdown) {
+    return scoreBar;
+  }
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        {scoreBar}
+      </TooltipTrigger>
+      <TooltipContent
+        side="top"
+        className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 shadow-lg p-0 max-w-xs"
+      >
+        <div className="p-3">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">
+              Distress Score Breakdown
+            </span>
+            <Badge
+              className={cn(
+                "text-[10px] px-1.5",
+                score >= 70 ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" :
+                score >= 50 ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" :
+                "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-400"
+              )}
+            >
+              Grade {colors.grade}
+            </Badge>
+          </div>
+          <div className="space-y-1.5">
+            {signals.slice(0, 5).map((signal, idx) => (
+              <div
+                key={idx}
+                className="flex items-center justify-between gap-3 text-xs"
+              >
+                <span className="text-gray-600 dark:text-gray-400 truncate">
+                  {formatSignalName(signal.signal)}
+                </span>
+                <span className="font-semibold text-emerald-600 dark:text-emerald-400 tabular-nums flex-shrink-0">
+                  +{signal.weight}
+                </span>
+              </div>
+            ))}
+            {signals.length > 5 && (
+              <div className="text-[10px] text-muted-foreground pt-1 border-t border-gray-100 dark:border-gray-800">
+                +{signals.length - 5} more signals
+              </div>
+            )}
+          </div>
+          <div className="mt-2 pt-2 border-t border-gray-100 dark:border-gray-800 flex justify-between items-center">
+            <span className="text-xs text-gray-500">Total Score</span>
+            <span className={cn("text-sm font-bold", colors.text)}>{score}</span>
+          </div>
+        </div>
+      </TooltipContent>
+    </Tooltip>
   );
 }
 
@@ -1409,7 +1540,11 @@ export default function LeadsPage() {
                       </div>
                     </TableCell>
                     <TableCell onClick={() => openPropertyDrawer(property)}>
-                      <ScoreGauge score={property.score} />
+                      <ScoreGauge
+                        score={property.score}
+                        scoreBreakdown={property.scoreBreakdown}
+                        property={property}
+                      />
                     </TableCell>
                     <TableCell onClick={() => openPropertyDrawer(property)}>
                       <StatusBadge status={property.outreachStatus} />

@@ -1386,3 +1386,36 @@ model Activity {
   @@index([propertyId])
   @@index([dealId])
 }
+
+// =============================================================================
+// WAITLIST / PRE-LAUNCH RESERVATIONS
+// =============================================================================
+
+// Public signup for pre-launch reservation and beta access
+model Reservation {
+  id                String    @id @default(cuid())
+
+  // Contact info
+  email             String
+  phone             String?
+  city              String
+  state             String    // US state code (FL, AZ, etc.)
+
+  // Feature interest feedback (JSON array of feature keys)
+  featureInterests  String?   // JSON: ["lead_scoring", "comps_arv", ...]
+
+  // Free-text feedback
+  feedback          String?
+
+  // Incentive tracking
+  providedFeedback  Boolean   @default(false) // True if user filled out feedback
+  trialGranted      Boolean   @default(false) // True if 1-month trial applied
+  betaAccess        Boolean   @default(false) // True if full beta access granted
+
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@unique([email])
+  @@index([createdAt])
+  @@index([state])
+}

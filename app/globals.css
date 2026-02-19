@@ -18,7 +18,42 @@ html {
 @custom-variant dark (&:where(.dark, .dark *));
 
 /*
- * Theme colors - static values for utility generation
+ * Dynamic CSS custom properties for light/dark mode
+ * These change based on the .dark class on <html>
+ */
+:root {
+  --fo-background: oklch(1 0 0);
+  --fo-foreground: oklch(0.145 0 0);
+  --fo-card: oklch(1 0 0);
+  --fo-card-foreground: oklch(0.145 0 0);
+  --fo-popover: oklch(1 0 0);
+  --fo-popover-foreground: oklch(0.145 0 0);
+  --fo-secondary: oklch(0.97 0 0);
+  --fo-secondary-foreground: oklch(0.205 0 0);
+  --fo-muted: oklch(0.97 0 0);
+  --fo-muted-foreground: oklch(0.556 0 0);
+  --fo-border: oklch(0.922 0 0);
+  --fo-input: oklch(0.922 0 0);
+}
+
+.dark {
+  --fo-background: #000000;
+  --fo-foreground: oklch(0.95 0 0);
+  --fo-card: #111827;            /* gray-900 — matches page bg, blue tint */
+  --fo-card-foreground: oklch(0.95 0 0);
+  --fo-popover: #111827;         /* gray-900 */
+  --fo-popover-foreground: oklch(0.95 0 0);
+  --fo-secondary: #1f2937;       /* gray-800 */
+  --fo-secondary-foreground: oklch(0.9 0 0);
+  --fo-muted: #1f2937;           /* gray-800 — visible against cards */
+  --fo-muted-foreground: oklch(0.7 0 0);
+  --fo-border: #374151;          /* gray-700 */
+  --fo-input: #1f2937;           /* gray-800 */
+}
+
+/*
+ * Theme colors - reference dynamic CSS variables
+ * Tailwind v4 keeps var() references in generated CSS, making utilities reactive to dark mode
  */
 @theme {
   /* Font family */
@@ -36,19 +71,19 @@ html {
   --color-destructive: oklch(0.577 0.245 27.325);
   --color-destructive-foreground: oklch(0.985 0 0);
 
-  /* These need to be set for Tailwind to generate the utility classes */
-  --color-background: oklch(1 0 0);
-  --color-foreground: oklch(0.145 0 0);
-  --color-card: oklch(1 0 0);
-  --color-card-foreground: oklch(0.145 0 0);
-  --color-popover: oklch(1 0 0);
-  --color-popover-foreground: oklch(0.145 0 0);
-  --color-secondary: oklch(0.97 0 0);
-  --color-secondary-foreground: oklch(0.205 0 0);
-  --color-muted: oklch(0.97 0 0);
-  --color-muted-foreground: oklch(0.556 0 0);
-  --color-border: oklch(0.922 0 0);
-  --color-input: oklch(0.922 0 0);
+  /* Dynamic theme colors - react to light/dark mode automatically */
+  --color-background: var(--fo-background);
+  --color-foreground: var(--fo-foreground);
+  --color-card: var(--fo-card);
+  --color-card-foreground: var(--fo-card-foreground);
+  --color-popover: var(--fo-popover);
+  --color-popover-foreground: var(--fo-popover-foreground);
+  --color-secondary: var(--fo-secondary);
+  --color-secondary-foreground: var(--fo-secondary-foreground);
+  --color-muted: var(--fo-muted);
+  --color-muted-foreground: var(--fo-muted-foreground);
+  --color-border: var(--fo-border);
+  --color-input: var(--fo-input);
   --color-ring: oklch(0.596 0.154 162.243);
 
   --radius: 0.75rem;
@@ -62,7 +97,7 @@ html {
     border-color: oklch(0.922 0 0);
   }
   .dark * {
-    border-color: oklch(0.3 0 0);
+    border-color: #374151; /* gray-700 */
   }
   html {
     overflow-x: hidden;
@@ -79,81 +114,21 @@ html {
     line-height: 1.5;
   }
   .dark body {
-    background-color: oklch(0.08 0 0);
+    background-color: #000000;
     color: oklch(0.95 0 0);
   }
 }
 
 /*
- * Explicit dark mode overrides for components
- * Since Tailwind v4 @theme doesn't support dynamic CSS variables,
- * we override components directly
+ * Component overrides and utilities
+ * Theme colors are now dynamic via CSS custom properties (--fo-*),
+ * so bg-muted, text-foreground, etc. automatically react to dark mode.
  */
 @layer components {
-  /* Cards */
+  /* Cards - explicit data-slot override for shadcn Card component */
   [data-slot="card"] {
-    background-color: oklch(1 0 0);
-    color: oklch(0.145 0 0);
-  }
-  .dark [data-slot="card"] {
-    background-color: oklch(0.14 0 0);
-    color: oklch(0.95 0 0);
-  }
-
-  /* Muted backgrounds (sections with bg-muted/30 etc) */
-  .bg-muted\/30 {
-    background-color: oklch(0.97 0 0 / 30%);
-  }
-  .dark .bg-muted\/30 {
-    background-color: oklch(0.18 0 0 / 30%);
-  }
-
-  /* Background utilities */
-  .bg-background {
-    background-color: oklch(1 0 0);
-  }
-  .dark .bg-background {
-    background-color: oklch(0.08 0 0);
-  }
-  .bg-background\/95 {
-    background-color: oklch(1 0 0 / 95%);
-  }
-  .dark .bg-background\/95 {
-    background-color: oklch(0.08 0 0 / 95%);
-  }
-  .bg-background\/80 {
-    background-color: oklch(1 0 0 / 80%);
-  }
-  .dark .bg-background\/80 {
-    background-color: oklch(0.08 0 0 / 80%);
-  }
-
-  /* Card background */
-  .bg-card {
-    background-color: oklch(1 0 0);
-  }
-  .dark .bg-card {
-    background-color: oklch(0.14 0 0);
-  }
-
-  /* Text colors - use !important to override Tailwind utilities */
-  .text-foreground {
-    color: oklch(0.145 0 0) !important;
-  }
-  .dark .text-foreground {
-    color: oklch(0.95 0 0) !important;
-  }
-  .text-muted-foreground {
-    color: oklch(0.556 0 0) !important;
-  }
-  .dark .text-muted-foreground {
-    color: oklch(0.7 0 0) !important;
-  }
-  .text-card-foreground {
-    color: oklch(0.145 0 0) !important;
-  }
-  .dark .text-card-foreground {
-    color: oklch(0.95 0 0) !important;
+    background-color: var(--fo-card);
+    color: var(--fo-card-foreground);
   }
 
   /* Hide scrollbar utility */
@@ -260,4 +235,49 @@ html {
   100% {
     stroke-dashoffset: var(--target-offset);  /* fill back to original */
   }
+}
+
+/* Glow heading — text looks lit from above by lightbar */
+.dark .glow-heading-teal {
+  background-image: linear-gradient(to bottom, rgb(45, 212, 191) 0%, rgba(255, 255, 255, 1) 45%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  filter:
+    drop-shadow(0 1px 0 rgba(0, 0, 0, 0.35))
+    drop-shadow(0 2px 1px rgba(0, 0, 0, 0.2))
+    drop-shadow(0 4px 3px rgba(0, 0, 0, 0.12));
+}
+
+.dark .glow-heading-rose {
+  background-image: linear-gradient(to bottom, rgb(244, 63, 94) 0%, rgba(255, 255, 255, 1) 45%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+}
+
+.dark .glow-heading-emerald {
+  background-image: linear-gradient(to bottom, rgb(16, 185, 129) 0%, rgba(255, 255, 255, 1) 45%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+}
+
+.dark .glow-heading-orange {
+  background-image: linear-gradient(to bottom, rgb(249, 115, 22) 0%, rgba(255, 255, 255, 1) 45%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+}
+
+.dark .glow-heading-blue {
+  background-image: linear-gradient(to bottom, rgb(59, 130, 246) 0%, rgba(255, 255, 255, 1) 45%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
 }

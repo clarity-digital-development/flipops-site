@@ -1,6 +1,6 @@
 # FlipOps UI/UX Decisions & Fixes
 
-## Date: January 28, 2026 (Updated: February 3, 2026 - Overview/Settings pages)
+## Date: January 28, 2026 (Updated: February 14, 2026 - Homepage 3D Design System)
 
 ## Global UI Changes
 
@@ -1851,6 +1851,267 @@ DATABASE_URL="..." npx prisma db push
 
 ---
 
+## Underwriting Page - Profit Summary & MAO Waterfall (`app/app/underwriting/`)
+
+### Date: February 6, 2026
+
+### Deal Profit Summary Card
+**Decision:** Screenshot-worthy profit card with comprehensive ROI visualization.
+**Location:** `app/app/underwriting/deal-profit-summary.tsx`
+**Demo:** `/app/demo/profit-summary`
+**Implementation:**
+```tsx
+<DealProfitSummary
+  dealType="wholesale" | "flip" | "rental"
+  purchasePrice={number}
+  arv={number}
+  repairs={number}
+  holdingMonths={number}
+  assumptions={{ /* cost assumptions */ }}
+/>
+```
+
+**Features:**
+- **ROI Gauge** - SVG semi-circular gauge showing return percentage
+  - Color-coded thresholds: emerald (20%+), amber (10-20%), rose (<10%)
+  - Gradient fill with animated drawing effect
+  - Center text showing ROI percentage
+- **Timeline Stats Row** - 3-column grid showing:
+  - Purchase Price (blue icon container)
+  - Total Investment (purple icon container)
+  - Projected Profit (emerald icon container)
+- **Waterfall Breakdown** - Step-by-step calculation:
+  - ARV (starting point)
+  - Minus: Repairs, Realtor Commission, Closing Costs, Holding Costs
+  - Plus: Rental Income (rental deals only)
+  - Equals: Net Profit
+  - Each line shows calculation with color-coded values
+- **Deal Type Support** - Adapts calculations for:
+  - Wholesale: Quick flip, minimal holding costs
+  - Flip: Rehab costs, realtor commission, holding costs
+  - Rental: Monthly income, long-term holding, equity build
+
+**Styling:**
+- Card with gradient border (`border-t-4` with deal-type color)
+- Clean section dividers (`border-t`)
+- Tabular numbers for alignment (`tabular-nums`)
+- Icon containers with gradient backgrounds
+- Responsive grid layout (1 col mobile, 3 col desktop)
+
+**Rationale:** Investors need a clear, visual summary of deal profitability that can be easily shared with partners or lenders. The ROI gauge provides instant understanding, while the waterfall shows full transparency of the calculation.
+
+### MAO Waterfall with Full Cost Breakdown
+**Decision:** Transparent maximum allowable offer calculation with all costs visible.
+**Location:** `app/app/underwriting/mao-waterfall.tsx`
+**Integration:** Underwriting page main view
+**Implementation:**
+```tsx
+<MAOWaterfall
+  arv={number}
+  repairCost={number}
+  assumptions={{
+    realtorCommission: 6,
+    buyClosing: 3,
+    sellClosing: 2,
+    holdingMonths: 6,
+    monthlyHolding: 800,
+    profitMargin: 15
+  }}
+  showSettings={boolean}
+/>
+```
+
+**Features:**
+- **Waterfall Visualization** - Top-down calculation flow:
+  1. ARV (After Repair Value) - Starting point in emerald
+  2. Minus Repair Cost - Red with wrench icon
+  3. Minus Realtor Commission (6% default) - Red with home icon
+  4. Minus Buy Closing Costs (3% default) - Red with file icon
+  5. Minus Sell Closing Costs (2% default) - Red with receipt icon
+  6. Minus Holding Costs (months × monthly) - Red with calendar icon
+  7. Minus Profit Target (15% default) - Red with target icon
+  8. **= Maximum Allowable Offer** - Large emerald result box
+- **Adjustable Assumptions Panel** - Collapsible settings with sliders:
+  - Realtor Commission: 0-10% (0.5% steps)
+  - Buy Closing: 0-5% (0.5% steps)
+  - Sell Closing: 0-5% (0.5% steps)
+  - Holding Months: 0-24 (1 month steps)
+  - Monthly Holding Cost: $0-$3000 ($100 steps)
+  - Profit Margin: 5-30% (1% steps)
+- **Percentage Display** - Shows both dollar amounts and % of ARV
+- **Icons** - Each line item has contextual Lucide icon
+- **Running Total** - Cumulative subtraction visible at each step
+
+**Styling:**
+- Clean white/gray card backgrounds
+- Red for subtractions (text-rose-600)
+- Emerald for final MAO (text-emerald-600)
+- Larger font for MAO result (text-2xl font-bold)
+- Subtle borders between calculation steps
+- Collapsible settings panel with ChevronDown icon
+
+**Calculation Logic:**
+```typescript
+const totalHoldingCost = assumptions.holdingMonths * assumptions.monthlyHolding;
+const realtorCost = arv * (assumptions.realtorCommission / 100);
+const buyClosingCost = arv * (assumptions.buyClosing / 100);
+const sellClosingCost = arv * (assumptions.sellClosing / 100);
+const profitTarget = arv * (assumptions.profitMargin / 100);
+
+const mao = arv - repairCost - realtorCost - buyClosingCost - sellClosingCost - totalHoldingCost - profitTarget;
+```
+
+**Rationale:** New investors often struggle to understand why an offer is lower than ARV. The waterfall makes every cost assumption transparent and adjustable, building confidence in the offer calculation.
+
+---
+
+## Contracts Page - Milestone Urgency Badges (`app/app/contracts/page-content.tsx`)
+
+### Date: February 6, 2026
+
+### Contract Milestone Urgency Badges
+**Decision:** Color-coded urgency indicators for contract closing dates.
+**Location:** `app/app/contracts/page-content.tsx` (integrated into existing table and board views)
+**Implementation:**
+```tsx
+// Calculate days until closing
+const daysUntil = closingDate ? Math.ceil((new Date(closingDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24)) : null;
+
+// Urgency badge logic
+{closingDate && (
+  daysUntil !== null && daysUntil < 0 ? (
+    <Badge variant="destructive" className="text-xs">
+      <AlertCircle className="h-3 w-3 mr-1" />
+      Overdue {Math.abs(daysUntil)}d
+    </Badge>
+  ) : daysUntil !== null && daysUntil <= 3 ? (
+    <Badge variant="destructive" className="text-xs">
+      <Clock className="h-3 w-3 mr-1" />
+      URGENT - {daysUntil}d left
+    </Badge>
+  ) : daysUntil !== null && daysUntil <= 7 ? (
+    <Badge className="bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 text-xs">
+      <AlertTriangle className="h-3 w-3 mr-1" />
+      Soon - {daysUntil}d left
+    </Badge>
+  ) : (
+    <Badge variant="outline" className="text-xs">
+      <Calendar className="h-3 w-3 mr-1" />
+      {daysUntil}d left
+    </Badge>
+  )
+)}
+```
+
+**Urgency Thresholds:**
+- **Overdue** (negative days) - Red destructive badge, AlertCircle icon, shows days past due
+- **URGENT** (≤3 days) - Red destructive badge, Clock icon, "URGENT" prefix
+- **Soon** (≤7 days) - Amber badge, AlertTriangle icon, "Soon" prefix
+- **Normal** (>7 days) - Gray outline badge, Calendar icon, simple countdown
+
+**Display Locations:**
+- **Table View** - Closing Date column shows date + urgency badge
+- **Kanban Board View** - Card footer shows urgency badge alongside other metadata
+
+**Styling:**
+- Icons sized `h-3 w-3` with `mr-1` spacing
+- Text size `text-xs` for compact display
+- Color consistency:
+  - Overdue/Urgent: `variant="destructive"` (red)
+  - Soon: `bg-amber-100 text-amber-700` with dark mode support
+  - Normal: `variant="outline"` (gray)
+
+**Rationale:** Contract closing deadlines are critical milestones. Visual urgency indicators help teams prioritize time-sensitive contracts and avoid missed deadlines. The 3-day and 7-day thresholds align with common real estate practices (3 days for emergency action, 7 days for final preparations).
+
+---
+
+## Leads Page - Score Breakdown Tooltip (`app/app/leads/page.tsx`)
+
+### Date: February 6, 2026
+
+### Score Breakdown Tooltip
+**Decision:** Hover tooltip showing detailed breakdown of lead distress score calculation.
+**Location:** `app/app/leads/page.tsx` (integrated into score column)
+**Implementation:**
+```tsx
+<TooltipProvider>
+  <Tooltip>
+    <TooltipTrigger asChild>
+      <div className="cursor-help">
+        {/* Score gauge/badge */}
+      </div>
+    </TooltipTrigger>
+    <TooltipContent className="max-w-xs">
+      <div className="space-y-1">
+        <p className="font-semibold text-sm">Score Breakdown</p>
+        {scoreBreakdown.length > 0 ? (
+          <ul className="text-xs space-y-0.5">
+            {scoreBreakdown.map((signal, i) => (
+              <li key={i} className="flex justify-between">
+                <span>{signal.name}</span>
+                <span className="font-mono">+{signal.points}</span>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-xs text-muted-foreground">No breakdown available</p>
+        )}
+      </div>
+    </TooltipContent>
+  </Tooltip>
+</TooltipProvider>
+```
+
+**Data Parsing:**
+```typescript
+// Parse scoreBreakdown JSON if available
+let scoreBreakdown: Array<{ name: string; points: number }> = [];
+if (property.scoreBreakdown) {
+  try {
+    scoreBreakdown = JSON.parse(property.scoreBreakdown);
+  } catch (e) {
+    // Fallback: Generate from distress flags
+    scoreBreakdown = [
+      property.isForeclosure && { name: "Foreclosure", points: 25 },
+      property.isPreForeclosure && { name: "Pre-Foreclosure", points: 20 },
+      property.isVacant && { name: "Vacant", points: 15 },
+      property.isTaxDelinquent && { name: "Tax Delinquent", points: 15 },
+      property.hasLien && { name: "Property Lien", points: 10 }
+    ].filter(Boolean);
+  }
+}
+```
+
+**Features:**
+- **Hover Activation** - Tooltip appears on hover over score badge
+- **Signal List** - Each contributing distress signal with point value
+- **Monospace Points** - `font-mono` for aligned point values
+- **Fallback Logic** - Generates breakdown from boolean flags if JSON unavailable
+- **Max Width** - `max-w-xs` prevents overly wide tooltips
+- **Cursor Hint** - `cursor-help` indicates tooltip availability
+
+**Typical Signals & Point Values:**
+- Pre-Foreclosure: 25 points
+- Auction: 25 points
+- Tax Lien: 20 points
+- Vacant: 15 points
+- Out-of-State Owner: 15 points
+- Inherited Property: 15 points
+- High Equity: 10 points
+- Long-Term Owner: 15 points
+- Portfolio Owner: 10 points
+
+**Styling:**
+- Clean card with subtle shadow
+- Dark mode support via tooltip component defaults
+- Space between rows (`space-y-0.5`)
+- Flex justify-between for name/points alignment
+- Muted text for empty state
+
+**Rationale:** Users see a distress score (0-100) but don't understand why a property scored that way. The breakdown tooltip provides transparency, helping users trust the scoring algorithm and identify which signals are present for each lead.
+
+---
+
 ## Overview/Dashboard Page (`app/app/page.tsx`)
 
 ### Date: February 3, 2026
@@ -2161,5 +2422,453 @@ DATABASE_URL="..." npx prisma db push
 - `flex flex-col overflow-hidden` - Flex container with hidden overflow
 - `flex-shrink-0` - Header doesn't shrink
 - `flex-1 min-h-0` - Tabs content fills remaining space and can scroll
+
+---
+
+## Homepage / Landing Page (2026-02-10)
+
+The marketing homepage has been redesigned with conversion-focused sections that differentiate FlipOps from generic competitors.
+
+### Tool Consolidation Section
+
+**Location:** `app/components/tool-consolidation.tsx`
+
+**Decision:** Use a single comparison table instead of two-card layout with arrow.
+**Rationale:** The two-card layout required too much scrolling for a simple comparison. A side-by-side table tells the story in a single glance.
+
+**Layout Structure:**
+```tsx
+<section className="py-16 lg:py-24 bg-gray-50 dark:bg-zinc-900/50">
+  {/* Header with badge and title */}
+  {/* Comparison Table */}
+  <div className="bg-white dark:bg-zinc-900 rounded-xl border overflow-hidden shadow-lg">
+    {/* Table Header: "Your Current Stack" | "With FlipOps" */}
+    {/* Table Rows: 6 tool categories */}
+    {/* Summary Row: Total costs */}
+    {/* Savings Callout */}
+  </div>
+  {/* Footnote */}
+</section>
+```
+
+**Key Design Choices:**
+- **Title:** "The All-in-One They Promised. Actually Built." - Positions FlipOps as delivering what others claim
+- **Badge:** Rose-colored "The Hidden Cost of Fragmentation" with AlertTriangle icon
+- **Left Column (Current Stack):** Shows tool name, monthly cost, pain point with X icon
+- **Right Column (FlipOps):** Shows feature description with Check icon
+- **Dynamic Totals:** Calculated from data array (currently $402+/mo, $4,824+/yr)
+- **FlipOps Price:** Shows "All-in-one" instead of specific price (multiple plans available)
+
+**Color Coding:**
+```tsx
+// Left side (competitor tools)
+bg-rose-50 dark:bg-rose-950/30  // Header
+bg-gray-50/50 dark:bg-zinc-800/30  // Rows
+text-rose-600  // Cost display
+
+// Right side (FlipOps)
+bg-emerald-50 dark:bg-emerald-950/30  // Header
+text-emerald-500  // Check icons
+```
+
+**Tool Comparison Data:**
+- PropStream ($99) → Unified lead intake & scoring
+- BatchLeads ($99) → Built-in skip tracing
+- REsimpli ($99) → Deal-aware CRM with ROI tracking
+- PandaDoc ($30) → Contract management, auto-populated
+- smrtPhone ($75) → Renovation tracking with budget alerts
+- Spreadsheet (Free*) → Portfolio dashboard with lease tracking
+
+**Footnote Copy:** "*Free tools cost you time and sanity. And that's before counting Salesforce, Mailchimp, QuickBooks, REIsift..."
+
+---
+
+### Scoring Engine Section
+
+**Location:** `app/components/scoring-engine.tsx`
+
+**Decision:** Three-step visual flow with auto-cycling demo panels.
+**Rationale:** Shows the ML feedback loop without using "AI" buzzwords. Makes personalization tangible.
+
+**Layout Structure:**
+```tsx
+<section className="py-16 lg:py-24 bg-white dark:bg-zinc-950">
+  {/* Header with badge and title */}
+  {/* Three-Step Cards (auto-cycles every 4s, clickable) */}
+  {/* Active Step Demo Panel */}
+  {/* Key Insight Callout */}
+</section>
+```
+
+**Three Steps:**
+1. **"You work deals"** - Shows lead cards with Pursued/Skipped badges
+2. **"The algorithm watches"** - Animated cycling through 15 behavioral signals
+3. **"Your scores adapt"** - Side-by-side personalization demo
+
+**Step Card Design:**
+```tsx
+// Each step has color theming
+const colorClasses = {
+  blue: { bg, border, icon, number },   // Step 1
+  purple: { bg, border, icon, number }, // Step 2
+  emerald: { bg, border, icon, number } // Step 3
+};
+
+// Connection line between cards (desktop only)
+<div className="hidden md:block absolute top-1/2 left-1/3 right-1/3 h-0.5
+  bg-gradient-to-r from-blue-300 via-purple-300 to-emerald-300" />
+```
+
+**Behavioral Signals List:**
+```typescript
+const behavioralSignals = [
+  'Price ranges you pursue',
+  'Distress profiles you click',
+  'Property types you skip',
+  'Markets where you close',
+  'Deal sizes you prefer',
+  'Rehab levels you target',
+  'Lead sources you favor',
+  'Response time patterns',
+  'Offer-to-close ratios',
+  'Seasonal preferences',
+  'Neighborhood demographics',
+  'Days on market thresholds',
+  'Equity percentages',
+  'Motivation indicators',
+  'Competition avoidance',
+];
+```
+
+**Personalization Demo:**
+- Two investor cards side-by-side
+- Jake M. (Wholesaler, Phoenix, AZ) - Orange theme
+- Sarah R. (Flipper, Atlanta, GA) - Blue theme
+- Different top leads with different scores
+- Italic notes: "High-velocity deals..." vs "High ARV potential..."
+
+**Key Insight Callout:**
+```tsx
+<div className="bg-gradient-to-r from-purple-50 to-blue-50 rounded-xl border p-6 text-center">
+  <p>"A wholesaler in Phoenix and a flipper in Atlanta get different top leads —"</p>
+  <p className="font-bold text-purple-700">because they should.</p>
+  <p className="text-sm text-gray-500">One-size-fits-all scoring is broken...</p>
+</div>
+```
+
+**LeadCard Component:**
+```tsx
+function LeadCard({ address, city, price, score, isHighlighted, action }) {
+  // Shows property address, city, price
+  // Score with color coding (emerald 85+, blue 70+, gray otherwise)
+  // Optional action badge (Pursued/Skipped with ThumbsUp/ThumbsDown icons)
+}
+```
+
+---
+
+### Guardrails Section
+
+**Location:** `app/components/guardrails-section.tsx`
+
+**Decision:** Three connected alert cards showing real-world scenarios.
+**Rationale:** Makes abstract "guardrails" concept concrete with specific examples.
+
+**Layout Structure:**
+```tsx
+<section className="py-16 lg:py-24 bg-gray-50 dark:bg-zinc-900/50">
+  {/* Header */}
+  <div className="grid md:grid-cols-3 gap-0 max-w-5xl mx-auto">
+    {/* Three connected cards */}
+  </div>
+</section>
+```
+
+**Three Alert Types:**
+1. **Budget Alert** (amber) - Shows electrical overspend with budget vs actual
+2. **Deadline Warning** (rose) - Shows inspection contingency countdown
+3. **Margin Alert** (orange) - Shows MAO calculation with margin warning
+
+**Card Structure:**
+```tsx
+<div className="flex flex-col bg-white dark:bg-zinc-900 border">
+  {/* Header with icon and title */}
+  <div className={`${headerBg} border-b ${headerBorder} px-4 py-2`}>
+    <Icon /> {title}
+  </div>
+
+  {/* Content - specific to each alert type */}
+  {card.id === 'budget' && <BudgetAlertContent />}
+
+  {/* Stats Footer */}
+  <div className="mt-auto border-t bg-gray-50 px-4 py-3">
+    <span className="text-blue-600 font-bold">{statValue}</span>
+    <span className="text-gray-600">{statLabel}</span>
+  </div>
+</div>
+```
+
+**Connected Card Styling:**
+```tsx
+// First card: rounded left corners
+i === 0 ? 'rounded-t-lg md:rounded-l-lg md:rounded-tr-none' : ''
+
+// Last card: rounded right corners
+i === 2 ? 'rounded-b-lg md:rounded-r-lg md:rounded-bl-none' : ''
+
+// Middle card: no border overlap
+i === 1 ? 'border-t-0 md:border-t md:border-l-0 border-b-0 md:border-b' : ''
+```
+
+---
+
+## SectionPill Lightbar Glow Effect (February 11, 2026)
+
+**Component:** `app/components/section-pill.tsx`
+
+**What it does:** A reusable pill badge with a scroll-triggered lightbar animation underneath. In dark mode, a bright core bar appears below the pill and casts a downward glow cone into the content below — like light shining down from an overhead bar. Light mode shows just the pill with no glow.
+
+### Architecture
+
+The effect uses **5 stacked radial-gradient layers** positioned absolutely below the pill, each progressively wider and fainter, creating a smooth atmospheric glow cone:
+
+| Layer | Purpose | Gradient Ellipse | Div Size | Mask |
+|-------|---------|-----------------|----------|------|
+| 1 - Hotspot | Tight bright center under bar | 200px x 140px | 550px x 300px | maskTight |
+| 2 - Inner Cone | Bridges hotspot to primary | 400px x 320px | 950px x 650px | maskMedium |
+| 3 - Primary | Main downward light cone | 600px x 500px | 1400px x 1050px | maskWide |
+| 4 - Outer Spread | Softens primary edge | 800px x 450px | 1850px x 950px | maskWide |
+| 5 - Ambient | Wide subtle atmosphere | 1000px x 550px | 2300px x 1150px | maskAmbient |
+
+### Critical Implementation Rules
+
+**Two things must work together to avoid hard edges:**
+
+1. **Linear top-edge masks** — Each glow div uses a `linear-gradient(to bottom, transparent 0%, ... black N%, black 100%)` mask that fades in the top few percent. This prevents a hard horizontal line at the top of the glow where the div begins. Without this, there's an abrupt transition from black (above div) to bright glow (top of div).
+
+2. **Oversized div containers** — Each div must be significantly wider than its gradient ellipse (div width > 2.1x the gradient's horizontal radius). This ensures the radial gradient fades to fully transparent before reaching the div's side edges. Without this, you get hard vertical lines where the div boundary cuts off a still-visible gradient.
+
+**Why both are needed:**
+- Masks alone won't fix side edges (linear masks only affect top-to-bottom)
+- Oversized divs alone won't fix the top edge (the gradient's brightest point is at `50% 0%`, creating a hard horizontal transition at the div's top boundary)
+
+### What NOT to do
+
+- **Don't use radial elliptical masks** — They create their own hard boundary lines that are even more visible than the problem they're trying to solve
+- **Don't remove masks entirely** — Without top-edge masks, the gradient's center (brightest point) sits exactly at the div's top edge, creating a hard horizontal glow line
+- **Don't keep div sizes small when boosting gradient intensity** — If you increase the gradient ellipse radii, you MUST increase the div sizes proportionally or the sides will show hard cutoff lines
+
+### Masks (from HTML reference demo)
+
+```ts
+const maskTight = 'linear-gradient(to bottom, transparent 0%, rgba(0,0,0,0.4) 3%, black 10%, black 100%)';
+const maskMedium = 'linear-gradient(to bottom, transparent 0%, rgba(0,0,0,0.2) 2%, rgba(0,0,0,0.5) 5%, black 10%, black 100%)';
+const maskWide = 'linear-gradient(to bottom, transparent 0%, rgba(0,0,0,0.15) 2%, rgba(0,0,0,0.4) 4%, rgba(0,0,0,0.7) 7%, black 12%, black 100%)';
+const maskAmbient = 'linear-gradient(to bottom, transparent 0%, rgba(0,0,0,0.3) 3%, rgba(0,0,0,0.7) 6%, black 12%, black 100%)';
+```
+
+### Parent Section Overflow
+
+Parent sections that contain SectionPill must use `overflow-x-clip` (NOT `overflow-hidden`). `overflow-hidden` clips the glow layers vertically. `overflow-x-clip` only clips horizontal overflow, allowing the glow to extend downward. Affected files:
+- `scoring-engine.tsx`
+- `hero-v2.tsx`
+- `tool-consolidation-v8.tsx`
+- `new-investor-section.tsx`
+
+### Props
+
+```ts
+interface SectionPillProps {
+  children: ReactNode;
+  className?: string;
+  pillClassName?: string;  // Tailwind classes for pill styling
+  glowColor?: string;      // RGB values e.g. "45, 212, 191"
+  staggerIndex?: number;   // Delays animation for staggered reveals
+}
+```
+
+### Animation
+
+- Scroll-triggered via IntersectionObserver (threshold 0.3, fires once)
+- Core bar: scaleX from 0.15 to 1 with cubic-bezier ease
+- Glow layers: opacity 0 to 1 with staggered delays (0.05s to 0.25s)
+- Pill width measured via ResizeObserver to match core bar width dynamically
+
+---
+
+## Homepage 3D Premium Design System
+
+### Date: February 14, 2026
+
+The homepage uses a premium "3D floating card" treatment across all sections in both light mode and dark mode. The design language draws from Apple and Linear aesthetics — white cards floating on a gray surface (light mode) and glass-like surfaces on black (dark mode).
+
+### Section Backgrounds
+```
+Light mode: bg-[#f4f4f6]     — Warm gray surface (cards float on this)
+Dark mode:  bg-black          — Pure black (via dark:bg-black)
+```
+
+### Light Mode: 3D Card Treatment
+```tsx
+// Standard card floating on gray surface
+{
+  background: 'linear-gradient(180deg, #ffffff 0%, #f9fafb 100%)',
+  border: 'none',
+  boxShadow: [
+    '0 0 0 1px rgba(0, 0, 0, 0.06)',        // subtle ring border
+    'inset 0 1px 0 rgba(255, 255, 255, 0.8)', // top highlight
+    'inset 0 -1px 0 rgba(0, 0, 0, 0.04)',     // bottom inner shadow
+    '0 1px 2px rgba(0, 0, 0, 0.04)',          // tight drop shadow
+    '0 4px 12px rgba(0, 0, 0, 0.06)',         // medium drop shadow
+    '0 12px 32px rgba(0, 0, 0, 0.04)',        // large ambient shadow
+  ].join(', '),
+}
+```
+
+### Light Mode: Table/Panel Treatment (flat white)
+```tsx
+{
+  background: '#ffffff',
+  border: '1px solid rgba(0, 0, 0, 0.08)',
+  boxShadow: [
+    'inset 0 1px 0 rgba(255, 255, 255, 0.8)',
+    '0 1px 2px rgba(0, 0, 0, 0.04)',
+    '0 4px 12px rgba(0, 0, 0, 0.06)',
+    '0 12px 32px rgba(0, 0, 0, 0.04)',
+  ].join(', '),
+}
+```
+
+### Dark Mode: 3D Glass Card Treatment
+```tsx
+{
+  background: 'linear-gradient(180deg, rgba(255,255,255,0.07) 0%, rgba(255,255,255,0.035) 40%, rgba(255,255,255,0.015) 100%)',
+  border: 'none',
+  boxShadow: [
+    '0 0 0 1px rgba(255, 255, 255, 0.08)',     // white ring border
+    'inset 0 1px 0 rgba(255, 255, 255, 0.08)',  // top highlight
+    'inset 0 -1px 0 rgba(0, 0, 0, 0.3)',        // bottom inner shadow
+    '0 2px 4px rgba(0, 0, 0, 0.25)',            // tight drop shadow
+    '0 8px 20px rgba(0, 0, 0, 0.35)',           // medium drop shadow
+    '0 16px 40px rgba(0, 0, 0, 0.25)',          // large ambient shadow
+  ].join(', '),
+}
+```
+
+### Gradient Header Bar Depth
+```tsx
+// Applied to colored header bars (e.g., guardrails card headers, cost panel headers)
+{ boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.2), 0 1px 3px rgba(0,0,0,0.15)' }
+```
+
+### Subtle Tinted Backgrounds
+```tsx
+// For cost/alert areas — use very low opacity color tints instead of opaque Tailwind classes
+// Rose-tinted area:
+{ background: 'linear-gradient(180deg, rgba(244, 63, 94, 0.07) 0%, rgba(244, 63, 94, 0.03) 100%)' }
+// Emerald-tinted area:
+{ background: 'linear-gradient(180deg, rgba(16, 185, 129, 0.06) 0%, rgba(16, 185, 129, 0.02) 100%)' }
+```
+
+### Card Dividers (within connected card groups)
+```tsx
+// Light mode divider between adjacent cards
+{ borderRight: '1px solid rgba(0, 0, 0, 0.06)', boxShadow: 'inset -1px 0 0 rgba(255, 255, 255, 0.5)' }
+// Dark mode divider
+{ borderRight: '1px solid rgba(0,0,0,0.4)', boxShadow: 'inset -1px 0 0 rgba(255,255,255,0.04)' }
+```
+
+### Footer/Stats Bar Treatment
+```tsx
+// Light mode
+{ background: '#f9fafb', borderTop: '1px solid rgba(0, 0, 0, 0.06)', boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.5)' }
+// Dark mode
+{ background: 'linear-gradient(180deg, rgba(0,0,0,0.15) 0%, rgba(0,0,0,0.25) 100%)', borderTop: '1px solid rgba(0,0,0,0.5)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.04)' }
+```
+
+### Active Tab / Selection Gradient Border
+Used on the Feature Tabs section to indicate the selected tab:
+```tsx
+// CSS gradient border technique (works with border-radius)
+{
+  border: '1.5px solid transparent',
+  background: 'linear-gradient(#ffffff, #ffffff) padding-box, linear-gradient(135deg, #3b82f6, #8b5cf6) border-box',
+  boxShadow: '0 1px 3px rgba(59, 130, 246, 0.15)',
+}
+```
+`background-clip` with `padding-box` and `border-box` creates a visible gradient in the border area while keeping the inner content white.
+
+### Animated Spinning Gradient Border (Scoring Engine)
+Used on the active step card in the Scoring Engine section:
+```tsx
+// Wrapper: overflow-hidden + rounded-xl + p-[2px]
+// Inner spinning div: absolute inset-[-50%] + conic-gradient + animate-spin
+// Content div: relative + bg-white + rounded-[10px]
+<div className="overflow-hidden rounded-xl p-[2px] relative">
+  <div className="absolute inset-[-50%] animate-spin"
+    style={{ background: 'conic-gradient(from 0deg, transparent 0%, #3b82f6 25%, #8b5cf6 50%, #3b82f6 75%, transparent 100%)' }}
+  />
+  <div className="relative bg-white rounded-[10px] p-6">
+    {/* card content */}
+  </div>
+</div>
+```
+
+### isDarkMode State Pattern
+All homepage sections that need dark/light conditional styling use this pattern:
+```tsx
+const [isDarkMode, setIsDarkMode] = useState(false);
+
+useEffect(() => {
+  const check = () => setIsDarkMode(document.documentElement.classList.contains('dark'));
+  check();
+  const obs = new MutationObserver(check);
+  obs.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+  return () => obs.disconnect();
+}, []);
+```
+This watches for the `dark` class on `<html>` (set by the theme toggle) and re-renders with the appropriate inline styles.
+
+### Sections with 3D Treatment Applied
+1. **Hero** (`hero-v2.tsx`) — Section bg: `bg-[#f4f4f6]` with bottom gradient fade; dark mode gradient backgrounds with layered box-shadows
+2. **Interactive Score Demo** (`interactive-score-demo.tsx`) — Light: table-style treatment; dark: glass card
+3. **Scoring Engine** (`scoring-engine.tsx`) — Active step card: animated spinning gradient border; inactive: static 3D cards
+4. **New Investor Section** (`new-investor-section.tsx`) — 3D cards with color-tinted ring shadows
+5. **Feature Tabs** (`feature-tabs-v2.tsx`) — Full 3D treatment, gradient border active tab via `background-clip`
+6. **Tool Consolidation** (`tool-consolidation-v8.tsx`) — 3D cards, gradient header bars, rose/emerald tinted cost areas
+7. **Guardrails** (`guardrails-section.tsx`) — Single 3D floating container, dividers between cards, gradient headers, stats footer
+
+### Header Navigation (`header.tsx`)
+- **"View Demo"** — ghost button linking to `/app` (bypasses Clerk auth for pre-beta)
+- **"Reserve Your Spot"** — primary gradient button (from-primary to-accent)
+- Login button removed for pre-launch
+- Auth bypass: `middleware.ts` has `/app(.*)` in public routes with `TODO` to re-enable for beta
+
+### Dashboard Dark Mode Fix (`globals.css`)
+Tailwind v4's `@theme` block defines static CSS variables that don't change in dark mode. Theme-derived utility classes like `bg-muted`, `bg-secondary`, `bg-card`, `border-border` render with light-mode values in dark mode.
+
+**Solution:** Added `!important` dark overrides in `@layer components` within `globals.css`:
+```css
+.dark .bg-muted { background-color: oklch(0.18 0 0) !important; }
+.dark .bg-secondary { background-color: oklch(0.18 0 0) !important; }
+.dark .bg-popover { background-color: oklch(0.14 0 0) !important; }
+.dark .bg-card { background-color: oklch(0.14 0 0) !important; }
+.dark .bg-input { background-color: oklch(0.18 0 0) !important; }
+.dark .bg-background { background-color: #000000 !important; }
+.dark .border-border { border-color: oklch(0.3 0 0) !important; }
+```
+
+**Why `!important`:** In Tailwind v4, `@layer components` has lower CSS cascade priority than unlayered Tailwind utilities. Without `!important`, dark overrides cannot beat the utility-generated rules.
+
+**Card component** (`components/ui/card.tsx`) also uses explicit `dark:bg-zinc-900 dark:text-gray-100 dark:border-zinc-800` utilities.
+
+### CSS Glow/Lightbar Effect Notes
+When creating radial-gradient glow layers that cast light downward:
+- **Linear top masks** prevent the hard horizontal line at the top edge (fade from transparent to black over first 3-12%)
+- **Div containers must be significantly wider than the gradient ellipse** (div width > 2.1x the gradient's horizontal radius) so the gradient fades to transparent before hitting the side edges
+- The div's own top boundary prevents upward bleed (no need for radial masks)
+- **Radial masks create their OWN hard lines** — avoid them for this pattern
+- When boosting gradient intensity/size, always increase div sizes proportionally
+- Parent sections need `overflow-x-clip` (not `overflow-hidden`) to allow vertical overflow for glow layers
 
 ---

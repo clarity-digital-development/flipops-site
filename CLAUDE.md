@@ -59,7 +59,7 @@ scripts/                # Utility scripts
 docs/                   # Documentation
   CAMPAIGNS.md          # Campaigns system documentation
   OFFERS_CONTRACTS.md   # Offers & contracts documentation
-  development/          # Dev guides (DECISIONS.md, UI-DECISIONS.md, TESTS.md)
+  development/          # Dev guides (DECISIONS.md, UI-DECISIONS.md, TESTS.md, etc.)
   guardrails/           # G1-G4 implementation docs
   deployment/           # Deployment & credentials guides
 ```
@@ -413,6 +413,13 @@ Completely redesigned with:
 - **Table Skeleton** - Proper loading state with skeleton rows
 - **Polished Property Drawer** - Cleaner layout, better score badge, contact info cards
 - **Row Actions Dropdown** - View Details, Mark Contacted, Delete
+- **Score Breakdown Tooltip** (2026-02-06) - Hover tooltip showing distress signal breakdown:
+  - Parses `scoreBreakdown` JSON field when available
+  - Fallback logic: Generates breakdown from distress flags (isForeclosure, isPreForeclosure, isVacant, etc.)
+  - Shows each contributing signal with point value (e.g., "Pre-Foreclosure: +25", "Vacant: +15")
+  - Monospace font for aligned point values
+  - `cursor-help` indicates tooltip availability on hover
+  - Provides transparency into scoring algorithm, helping users understand why properties received specific scores
 
 #### Inbox (`app/app/inbox/page.tsx`)
 Completely redesigned with "Editorial Precision" aesthetic:
@@ -511,8 +518,20 @@ Completely redesigned with "Command Center Precision" aesthetic:
 - **Skeleton Loading** - Proper loading states throughout
 - **Empty State** - Helpful CTA when no properties available
 - **Seed Comps** - "1234 Oak Street" (prop-001) has 6 hardcoded Jacksonville-area comps for demo
+- **Deal Profit Summary Card** (2026-02-06) - Screenshot-worthy profit visualization component (`deal-profit-summary.tsx`):
+  - ROI Gauge: SVG semi-circular gauge with color-coded thresholds (emerald 20%+, amber 10-20%, rose <10%)
+  - Timeline stats row: Purchase Price, Total Investment, Projected Profit with gradient icon containers
+  - Waterfall breakdown: Line-by-line calculation showing ARV → Repairs → Commissions → Closing → Holding → Net Profit
+  - Deal type support: Adapts for wholesale/flip/rental with appropriate cost calculations
+  - Demo page: `/app/demo/profit-summary`
+- **MAO Waterfall Component** (2026-02-06) - Transparent maximum allowable offer calculator (`mao-waterfall.tsx`):
+  - Top-down calculation: ARV → Repairs → Realtor Commission → Buy/Sell Closing → Holding Costs → Profit Target → MAO
+  - Adjustable assumptions panel: Sliders for all cost percentages and holding costs
+  - Percentage display: Shows both dollar amounts and % of ARV for each line item
+  - Icons for context: Each cost category has contextual Lucide icon
+  - Integrated into main Underwriting page for transparent offer calculations
 
-New components: `DealGauge`, `SimilarityRing`, `AnimatedNumber`, `PropertyCard`, `CompCard`, `RepairCategoryIcon`, `NetSheetSummary`, `ScenarioCard`
+New components: `DealGauge`, `SimilarityRing`, `AnimatedNumber`, `PropertyCard`, `CompCard`, `RepairCategoryIcon`, `NetSheetSummary`, `ScenarioCard`, `DealProfitSummary`, `MAOWaterfall`
 
 **Remaining**: Update page.tsx to direct import (remove dynamic import wrapper)
 
@@ -588,6 +607,13 @@ Completely redesigned with "Command Center Elegance" aesthetic:
 - **Workflow Indicators** - Icons showing linked renovation or rental
 - **Demo Data System** - Non-admin users see demo data from `tanner@claritydigital.dev` account
 - **Seed Script** - `npx tsx scripts/seed-contracts.ts` creates 12 sample contracts
+- **Milestone Urgency Badges** (2026-02-06) - Color-coded closing date urgency indicators:
+  - Overdue (negative days): Red destructive badge with AlertCircle icon
+  - URGENT (≤3 days): Red destructive badge with Clock icon, "URGENT" prefix
+  - Soon (≤7 days): Amber badge with AlertTriangle icon, "Soon" prefix
+  - Normal (>7 days): Gray outline badge with Calendar icon
+  - Displayed in both Table view (Closing Date column) and Kanban board view (card footer)
+  - Helps teams prioritize time-sensitive contracts and avoid missed deadlines
 
 New components: `StatChip`, `StatusPipeline`, `ContractCard`, embedded in page-content.tsx
 
@@ -1102,6 +1128,92 @@ npm run cron:attom          # ATTOM Property Discovery
 npm run cron:skip-trace     # Skip Tracing & Enrichment
 npm run cron:all            # Run all cron jobs sequentially
 ```
+
+## Homepage / Landing Page (Updated 2026-02-10)
+
+The marketing homepage (`app/page.tsx`) has been redesigned with differentiated sections that convert investors.
+
+### Current Section Order
+```tsx
+<Hero />
+<ROICalculator />
+<ScoringEngine />        // NEW - Behavioral learning
+<KPICards />
+<FeatureTabs />
+<GuardrailsSection />
+<ToolConsolidation />    // NEW - Tool stack comparison
+<ProjectManagementShowcase />
+<Process />
+<FAQs />
+<FinalCTA />
+```
+
+### Tool Consolidation Section (`app/components/tool-consolidation.tsx`)
+**Purpose:** Show investors the real dollar cost of their fragmented tool stack vs FlipOps all-in-one.
+
+**Key Design Decisions:**
+- Single comparison table layout (not two-card with arrow - too scroll-heavy)
+- Title: "The All-in-One They Promised. Actually Built."
+- Badge: "The Hidden Cost of Fragmentation"
+- 6 tool categories with competitor names, prices, and pain points
+- Dynamic totals: $402+/mo and $4,824+/yr savings calculated from data
+- Footnote mentions additional tools not counted (Salesforce, Mailchimp, QuickBooks, REIsift)
+
+**Data Structure:**
+```typescript
+const toolComparison = [
+  { category: 'Data & Leads', current: { name: 'PropStream', cost: 99, pain: '...' }, flipops: '...' },
+  { category: 'Skip Tracing', current: { name: 'BatchLeads', cost: 99, pain: '...' }, flipops: '...' },
+  { category: 'CRM', current: { name: 'REsimpli', cost: 99, pain: '...' }, flipops: '...' },
+  { category: 'Contracts', current: { name: 'PandaDoc', cost: 30, pain: '...' }, flipops: '...' },
+  { category: 'Project Tracking', current: { name: 'smrtPhone', cost: 75, pain: '...' }, flipops: '...' },
+  { category: 'Rental Portfolio', current: { name: 'Spreadsheet', cost: 0, pain: '...' }, flipops: '...' },
+];
+```
+
+### Scoring Engine Section (`app/components/scoring-engine.tsx`)
+**Purpose:** Communicate ML-powered personalized scoring without using gimmicky "AI" language.
+
+**Key Design Decisions:**
+- Title: "A Scoring Engine That Learns How You Invest"
+- Subtitle: "Every investor has a strategy. FlipOps learns yours."
+- Badge: "Behavioral Learning" (purple)
+- Three-step visual flow (auto-cycles, clickable):
+  1. "You work deals" - Shows leads with Pursued/Skipped badges
+  2. "The algorithm watches" - Animated cycling through 15+ behavioral signals
+  3. "Your scores adapt" - Side-by-side personalization demo
+
+**Personalization Demo:**
+- Two investor profiles: Jake M. (Wholesaler, Phoenix) vs Sarah R. (Flipper, Atlanta)
+- Same interface, completely different top leads and scores
+- Key insight callout: "A wholesaler in Phoenix and a flipper in Atlanta get different top leads — because they should."
+
+**15+ Behavioral Signals Tracked:**
+- Price ranges you pursue
+- Distress profiles you click
+- Property types you skip
+- Markets where you close
+- Deal sizes you prefer
+- Rehab levels you target
+- (and more cycling through animation)
+
+### Guardrails Section (`app/components/guardrails-section.tsx`)
+**Purpose:** Show automated alerts that protect investor margins.
+
+**Key Design Decisions:**
+- Title: "Guardrails That Watch Your Back"
+- Three connected cards (Budget Alert, Deadline Warning, Margin Alert)
+- Each card shows realistic alert data with property addresses
+- Stats footer shows tracking depth (e.g., "12+ cost categories tracked per deal")
+
+### Homepage 3D Premium Design System
+All homepage sections use a premium "3D floating card" treatment (Apple/Linear aesthetic):
+- **Light mode:** White cards with 6-layer box-shadow floating on `bg-[#f4f4f6]` gray surface
+- **Dark mode:** Glass-like surfaces with layered shadows on `bg-black`
+- **isDarkMode pattern:** `useState` + `MutationObserver` on `document.documentElement` class `'dark'`
+- **Key tokens:** See `docs/development/UI-DECISIONS.md` → "Homepage 3D Premium Design System" section for all design tokens (card treatments, gradient borders, tinted backgrounds, dividers, footer bars)
+- **Header nav:** "View Demo" (ghost, links to `/app`) + "Reserve Your Spot" (gradient). Login removed for pre-launch.
+- **Auth bypass:** `/app(.*)` added to public routes in `middleware.ts` (TODO to re-enable for beta)
 
 ## Known Issues
 

@@ -191,7 +191,127 @@ const STATUS_CONFIG = {
 
 const PIPELINE_STAGES = ["pending", "signed", "escrow", "closed"] as const;
 
-// Seed contracts data for demo/fallback
+// Urgency badge configuration for milestone dates
+type UrgencyLevel = "urgent" | "soon" | "normal" | "overdue" | "none";
+
+function getClosingUrgency(closingDate: string | null, status: string): { level: UrgencyLevel; daysUntil: number | null; label: string } {
+  // Only show urgency for active contracts
+  if (!closingDate || status === "closed" || status === "cancelled") {
+    return { level: "none", daysUntil: null, label: "" };
+  }
+
+  const closing = new Date(closingDate);
+  const now = new Date();
+  now.setHours(0, 0, 0, 0);
+  closing.setHours(0, 0, 0, 0);
+
+  const diffMs = closing.getTime() - now.getTime();
+  const daysUntil = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+
+  if (daysUntil < 0) {
+    return { level: "overdue", daysUntil, label: `${Math.abs(daysUntil)}d overdue` };
+  } else if (daysUntil <= 3) {
+    return { level: "urgent", daysUntil, label: daysUntil === 0 ? "Today" : daysUntil === 1 ? "Tomorrow" : `${daysUntil}d left` };
+  } else if (daysUntil <= 7) {
+    return { level: "soon", daysUntil, label: `${daysUntil}d left` };
+  } else {
+    return { level: "normal", daysUntil, label: `${daysUntil}d` };
+  }
+}
+
+const URGENCY_CONFIG = {
+  urgent: {
+    bg: "bg-red-100 dark:bg-red-900/30",
+    text: "text-red-700 dark:text-red-400",
+    border: "border-red-300 dark:border-red-700",
+    icon: "text-red-500",
+    pulse: true,
+  },
+  overdue: {
+    bg: "bg-red-100 dark:bg-red-900/30",
+    text: "text-red-700 dark:text-red-400",
+    border: "border-red-300 dark:border-red-700",
+    icon: "text-red-500",
+    pulse: false,
+  },
+  soon: {
+    bg: "bg-amber-100 dark:bg-amber-900/30",
+    text: "text-amber-700 dark:text-amber-400",
+    border: "border-amber-300 dark:border-amber-700",
+    icon: "text-amber-500",
+    pulse: false,
+  },
+  normal: {
+    bg: "bg-gray-100 dark:bg-gray-800",
+    text: "text-gray-600 dark:text-gray-400",
+    border: "border-gray-200 dark:border-gray-700",
+    icon: "text-gray-400",
+    pulse: false,
+  },
+  none: {
+    bg: "",
+    text: "text-muted-foreground",
+    border: "",
+    icon: "text-gray-400",
+    pulse: false,
+  },
+};
+
+// Urgency badge component for milestone dates
+function ClosingUrgencyBadge({
+  closingDate,
+  status,
+  showDate = true,
+  compact = false,
+}: {
+  closingDate: string | null;
+  status: string;
+  showDate?: boolean;
+  compact?: boolean;
+}) {
+  const { level, daysUntil, label } = getClosingUrgency(closingDate, status);
+  const config = URGENCY_CONFIG[level];
+
+  if (level === "none" || !closingDate) {
+    return (
+      <span className="text-sm text-muted-foreground">Not set</span>
+    );
+  }
+
+  const formattedDate = new Date(closingDate).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: compact ? undefined : "numeric",
+  });
+
+  return (
+    <div className={cn("flex items-center gap-2", compact && "gap-1.5")}>
+      {!compact && showDate && (
+        <span className="text-sm">{formattedDate}</span>
+      )}
+      <Badge
+        className={cn(
+          config.bg,
+          config.text,
+          "border",
+          config.border,
+          config.pulse && "animate-pulse",
+          compact ? "text-[10px] px-1.5 py-0" : "text-xs"
+        )}
+      >
+        {level === "urgent" && <AlertCircle className={cn("h-3 w-3 mr-1", config.icon)} />}
+        {level === "overdue" && <AlertCircle className={cn("h-3 w-3 mr-1", config.icon)} />}
+        {level === "soon" && <Clock className={cn("h-3 w-3 mr-1", config.icon)} />}
+        {label}
+      </Badge>
+      {compact && showDate && (
+        <span className="text-xs text-muted-foreground">{formattedDate}</span>
+      )}
+    </div>
+  );
+}
+
+// Seed contracts data for demo/fallback - varied closing dates to demo urgency badges
 const seedContracts: Contract[] = [
   {
     id: "seed-contract-1",
@@ -199,11 +319,11 @@ const seedContracts: Contract[] = [
     offerId: "seed-offer-1",
     purchasePrice: 185000,
     status: "escrow",
-    closingDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
+    closingDate: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString(), // 2 days - URGENT
     signedAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
     escrowOpenedAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
     closedAt: null,
-    notes: "Clear title, waiting on inspection",
+    notes: "Clear title, waiting on final walkthrough",
     documentUrls: [],
     createdAt: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(),
     updatedAt: new Date().toISOString(),
@@ -237,7 +357,7 @@ const seedContracts: Contract[] = [
     offerId: "seed-offer-2",
     purchasePrice: 225000,
     status: "signed",
-    closingDate: new Date(Date.now() + 21 * 24 * 60 * 60 * 1000).toISOString(),
+    closingDate: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString(), // 5 days - Soon
     signedAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
     escrowOpenedAt: null,
     closedAt: null,
@@ -302,7 +422,7 @@ const seedContracts: Contract[] = [
     offerId: "seed-offer-4",
     purchasePrice: 195000,
     status: "pending",
-    closingDate: null,
+    closingDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(), // 14 days - Normal
     signedAt: null,
     escrowOpenedAt: null,
     closedAt: null,
@@ -320,6 +440,33 @@ const seedContracts: Contract[] = [
     offer: {
       id: "seed-offer-4",
       amount: 195000,
+      status: "accepted",
+    },
+  },
+  {
+    id: "seed-contract-5",
+    propertyId: "seed-prop-5",
+    offerId: "seed-offer-5",
+    purchasePrice: 145000,
+    status: "escrow",
+    closingDate: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(), // 2 days ago - OVERDUE
+    signedAt: new Date(Date.now() - 21 * 24 * 60 * 60 * 1000).toISOString(),
+    escrowOpenedAt: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString(),
+    closedAt: null,
+    notes: "Extension requested - waiting on buyer's lender",
+    documentUrls: [],
+    createdAt: new Date(Date.now() - 25 * 24 * 60 * 60 * 1000).toISOString(),
+    updatedAt: new Date().toISOString(),
+    property: {
+      id: "seed-prop-5",
+      address: "789 Elm Boulevard",
+      city: "Fort Worth",
+      state: "TX",
+      zip: "76102",
+    },
+    offer: {
+      id: "seed-offer-5",
+      amount: 145000,
       status: "accepted",
     },
   },
@@ -473,10 +620,11 @@ function ContractCard({
           </div>
 
           {contract.closingDate && (
-            <div className="flex items-center gap-1 text-xs text-gray-500">
-              <Calendar className="h-3 w-3" />
-              <span>Close: {formatDate(contract.closingDate)}</span>
-            </div>
+            <ClosingUrgencyBadge
+              closingDate={contract.closingDate}
+              status={contract.status}
+              compact={true}
+            />
           )}
 
           <div className="flex items-center gap-2 flex-wrap">
@@ -568,7 +716,12 @@ export default function ContractsPage() {
     try {
       setLoading(true);
       const response = await fetch("/api/contracts");
-      if (!response.ok) throw new Error("Failed to fetch contracts");
+      if (!response.ok) {
+        // API unavailable — fall back to seed data silently
+        setContracts(seedContracts);
+        setFilteredContracts(seedContracts);
+        return;
+      }
       const data = await response.json();
       const contractsData = data.contracts || [];
       // Use seed data if no real contracts exist
@@ -1164,10 +1317,10 @@ export default function ContractsPage() {
                             </div>
                           </TableCell>
                           <TableCell>
-                            <div className="flex items-center gap-1.5">
-                              <Calendar className="h-4 w-4 text-muted-foreground" />
-                              <span className="text-sm">{formatDate(contract.closingDate)}</span>
-                            </div>
+                            <ClosingUrgencyBadge
+                              closingDate={contract.closingDate}
+                              status={contract.status}
+                            />
                           </TableCell>
                           <TableCell>
                             <div className="flex items-center gap-1.5">
@@ -1378,9 +1531,13 @@ export default function ContractsPage() {
                             <span className="text-sm text-muted-foreground">Escrow Opened</span>
                             <span className="text-sm font-medium">{formatDate(selectedContract.escrowOpenedAt)}</span>
                           </div>
-                          <div className="flex justify-between py-2.5 px-4">
+                          <div className="flex justify-between items-center py-2.5 px-4">
                             <span className="text-sm text-muted-foreground">Closing Date</span>
-                            <span className="text-sm font-medium">{formatDate(selectedContract.closingDate)}</span>
+                            <ClosingUrgencyBadge
+                              closingDate={selectedContract.closingDate}
+                              status={selectedContract.status}
+                              compact={true}
+                            />
                           </div>
                           <div className="flex justify-between py-2.5 px-4">
                             <span className="text-sm text-muted-foreground">Closed</span>

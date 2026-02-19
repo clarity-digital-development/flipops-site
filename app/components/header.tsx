@@ -8,12 +8,11 @@ import { Menu } from 'lucide-react';
 import { ThemeToggle } from '@/app/components/theme-toggle';
 
 const navItems = [
-  { href: '#deal-flow', label: 'Deal Flow' },
-  { href: '#operations', label: 'Operations' },
-  { href: '#roi-calculator', label: 'ROI Calculator' },
-  { href: '#case-study', label: 'Case Study' },
-  { href: '#process', label: 'Process' },
-  { href: '#faqs', label: 'FAQs' },
+  { href: '#scoring', label: 'Lead Scoring' },
+  { href: '#features', label: 'Features' },
+  { href: '#savings', label: 'Savings' },
+  { href: '#guardrails', label: 'Guardrails' },
+  { href: '#new-investors', label: 'New Investors' },
 ];
 
 export function Header() {
@@ -40,12 +39,14 @@ export function Header() {
   return (
     <header
       className={`fixed top-0 z-50 w-full transition-all duration-300 ${
-        isScrolled
-          ? 'bg-zinc-800/95 backdrop-blur-md border-b border-zinc-700'
-          : 'bg-transparent'
+        isScrolled ? 'pt-3' : ''
       }`}
     >
-      <div className="container mx-auto px-4">
+      <div className={`transition-all duration-300 ${
+        isScrolled
+          ? 'max-w-6xl mx-auto bg-white/95 dark:bg-black/95 backdrop-blur-md border border-gray-200 dark:border-zinc-800 shadow-lg rounded-full px-8'
+          : 'container mx-auto px-4'
+      }`}>
         <nav className="flex h-16 items-center justify-between">
           <Link href="/" className="flex items-center space-x-2">
             <span className="text-2xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
@@ -62,7 +63,7 @@ export function Header() {
                 onClick={(e) => scrollToSection(e, item.href)}
                 className={`text-sm font-medium transition-colors ${
                   isScrolled
-                    ? 'text-gray-300 hover:text-white'
+                    ? 'text-gray-700 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white'
                     : 'text-muted-foreground hover:text-foreground'
                 }`}
               >
@@ -70,14 +71,16 @@ export function Header() {
               </Link>
             ))}
             <ThemeToggle />
-            <Link href="/sign-in">
-              <Button variant="outline" className={`ml-4 ${isScrolled ? 'border-zinc-600 text-white hover:bg-zinc-700' : ''}`} size="sm">
-                Login
+            <Link href="/app">
+              <Button variant="ghost" className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:text-blue-400 dark:hover:text-blue-300 dark:hover:bg-zinc-800" size="sm">
+                View Demo
               </Button>
             </Link>
-            <Button className="ml-2" size="sm">
-              Book Audit
-            </Button>
+            <Link href="/reserve">
+              <Button className="ml-2 bg-gradient-to-r from-primary to-accent hover:brightness-110 shadow-lg shadow-primary/25" size="sm">
+                Reserve Your Spot
+              </Button>
+            </Link>
           </div>
 
           {/* Mobile Navigation */}
@@ -100,10 +103,12 @@ export function Header() {
                     {item.label}
                   </Link>
                 ))}
-                <Link href="/sign-in" className="w-full">
-                  <Button variant="outline" className="mt-4 w-full">Login</Button>
+                <Link href="/app" className="w-full">
+                  <Button variant="ghost" className="mt-4 w-full text-blue-600">View Demo</Button>
                 </Link>
-                <Button className="mt-2 w-full">Book Audit</Button>
+                <Link href="/reserve" className="w-full">
+                  <Button className="mt-2 w-full">Reserve Your Spot</Button>
+                </Link>
               </nav>
             </SheetContent>
           </Sheet>

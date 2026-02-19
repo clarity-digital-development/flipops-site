@@ -38,42 +38,6 @@ import { getInvestorTypeDisplayName, type InvestorType } from "@/lib/navigation-
 export const dynamic = 'force-dynamic';
 
 // ============================================================================
-// DEBUG COMPONENT - Shows computed CSS values to diagnose scaling issues
-// ============================================================================
-function DebugInfo() {
-  const [debugData, setDebugData] = useState<{
-    htmlFontSize: string;
-    bodyFontSize: string;
-    devicePixelRatio: number;
-    viewportWidth: number;
-    viewportHeight: number;
-  } | null>(null);
-
-  useEffect(() => {
-    const html = document.documentElement;
-    const body = document.body;
-    const computedHtml = window.getComputedStyle(html);
-    const computedBody = window.getComputedStyle(body);
-
-    setDebugData({
-      htmlFontSize: computedHtml.fontSize,
-      bodyFontSize: computedBody.fontSize,
-      devicePixelRatio: window.devicePixelRatio,
-      viewportWidth: window.innerWidth,
-      viewportHeight: window.innerHeight,
-    });
-  }, []);
-
-  if (!debugData) return null;
-
-  return (
-    <span className="ml-2 text-[9px] font-mono bg-yellow-100 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-200 px-1 rounded">
-      html:{debugData.htmlFontSize} | dpr:{debugData.devicePixelRatio} | {debugData.viewportWidth}x{debugData.viewportHeight}
-    </span>
-  );
-}
-
-// ============================================================================
 // SEED DATA - Demo data for new users
 // ============================================================================
 
@@ -318,7 +282,7 @@ function ActionCardSkeleton() {
       </CardHeader>
       <CardContent className="space-y-3">
         {[1, 2, 3].map((i) => (
-          <div key={i} className="flex items-center gap-3 p-3 rounded-xl bg-muted/50">
+          <div key={i} className="flex items-center gap-3 p-3 rounded-xl bg-gray-100/50 dark:bg-zinc-800/50">
             <Skeleton className="h-10 w-10 rounded-xl" />
             <div className="flex-1 space-y-2">
               <Skeleton className="h-4 w-3/4" />
@@ -386,7 +350,7 @@ function KPICard({ label, value, change, trend, icon: Icon, iconColor = "text-mu
             "flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-full",
             trend === "up" && "bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400",
             trend === "down" && "bg-red-50 text-red-600 dark:bg-red-500/10 dark:text-red-400",
-            trend === "neutral" && "bg-muted text-muted-foreground"
+            trend === "neutral" && "bg-gray-100 dark:bg-zinc-800 text-muted-foreground"
           )}>
             {trend === "up" && <TrendingUp className="h-3 w-3" />}
             {trend === "down" && <TrendingDown className="h-3 w-3" />}
@@ -538,7 +502,7 @@ function NotificationsPreview({ notifications }: { notifications: Notification[]
                 className={cn(
                   "flex items-start gap-3 p-3 rounded-xl transition-colors",
                   notification.processed
-                    ? "bg-muted/30"
+                    ? "bg-gray-100/30 dark:bg-zinc-800/30"
                     : "bg-primary/5 border border-primary/10"
                 )}
               >
@@ -556,7 +520,7 @@ function NotificationsPreview({ notifications }: { notifications: Notification[]
           </div>
         ) : (
           <div className="flex flex-col items-center justify-center py-4 text-center">
-            <div className="w-10 h-10 rounded-full bg-muted/50 flex items-center justify-center mb-2">
+            <div className="w-10 h-10 rounded-full bg-gray-100/50 dark:bg-zinc-800/50 flex items-center justify-center mb-2">
               <Bell className="h-5 w-5 text-muted-foreground" />
             </div>
             <p className="text-sm text-muted-foreground">No recent activity</p>
@@ -779,16 +743,16 @@ export default function DashboardPage() {
   const [investorType, setInvestorType] = useState<InvestorType>(null);
   const [notifications, setNotifications] = useState<Notification[]>([]);
 
-  // Helper function to check if stats have any real data
+  // Helper: check if the user has any recent lead activity.
+  // Only checks lead-related stats so that stale overdue tasks
+  // don't prevent the seed demo data from showing on the dashboard.
   const hasRealStats = (s: DashboardStats | null): boolean => {
     if (!s) return false;
     return (
       s.newLeads24h > 0 ||
       s.newLeads7d > 0 ||
       s.propertiesContacted > 0 ||
-      s.propertiesSkipTraced > 0 ||
-      s.tasksOverdue > 0 ||
-      s.tasksCompleted > 0
+      s.propertiesSkipTraced > 0
     );
   };
 
@@ -1018,8 +982,6 @@ export default function DashboardPage() {
             <Badge variant="outline" className="ml-2 text-[10px] font-mono opacity-50">
               v2.7.0
             </Badge>
-            {/* DEBUG: Show computed values */}
-            <DebugInfo />
           </p>
         </div>
         <Button
@@ -1073,7 +1035,7 @@ export default function DashboardPage() {
                     <Link
                       key={lead.id}
                       href="/app/leads"
-                      className="block p-3 rounded-xl bg-muted/50 hover:bg-muted transition-colors group"
+                      className="block p-3 rounded-xl bg-gray-100/50 dark:bg-zinc-800/50 hover:bg-gray-100 dark:hover:bg-zinc-800 transition-colors group"
                     >
                       <div className="flex items-center justify-between">
                         <div className="min-w-0 flex-1">
@@ -1121,7 +1083,7 @@ export default function DashboardPage() {
               </>
             ) : (
               <div className="flex flex-col items-center justify-center py-6 text-center flex-1">
-                <div className="w-10 h-10 rounded-full bg-muted/50 flex items-center justify-center mb-2">
+                <div className="w-10 h-10 rounded-full bg-gray-100/50 dark:bg-zinc-800/50 flex items-center justify-center mb-2">
                   <Target className="h-5 w-5 text-muted-foreground" />
                 </div>
                 <p className="text-sm font-medium text-foreground">No hot leads yet</p>
@@ -1181,7 +1143,7 @@ export default function DashboardPage() {
                     <Link
                       key={item.id}
                       href="/app/tasks"
-                      className="block p-3 rounded-xl bg-muted/50 hover:bg-muted transition-colors"
+                      className="block p-3 rounded-xl bg-gray-100/50 dark:bg-zinc-800/50 hover:bg-gray-100 dark:hover:bg-zinc-800 transition-colors"
                     >
                       <div className="flex items-start gap-3">
                         <div className="w-8 h-8 rounded-lg bg-blue-50 dark:bg-blue-500/10 flex items-center justify-center shrink-0">
