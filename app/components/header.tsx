@@ -12,7 +12,7 @@ const navItems = [
   { href: '#features', label: 'Features' },
   { href: '#savings', label: 'Savings' },
   { href: '#guardrails', label: 'Guardrails' },
-  { href: '#new-investors', label: 'New Investors' },
+  { href: '#pricing', label: 'Pricing' },
 ];
 
 export function Header() {

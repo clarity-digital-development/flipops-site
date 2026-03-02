@@ -8,7 +8,9 @@ const isPublicRoute = createRouteMatcher([
   "/sign-in(.*)",
   "/privacy",
   "/terms",
-  "/api/reserve",                // Reservation form submission
+  "/api/reserve",                // Reservation form submission (legacy)
+  "/api/reserve-spot",           // Reserve form → Google Sheets + Resend
+  "/api/newsletter",             // Newsletter signup
   "/api/health",                 // Health check endpoint for Railway
   "/api/webhook(.*)",
   "/api/webhooks/(.*)",          // All webhook endpoints including n8n

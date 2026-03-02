@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { Mail } from 'lucide-react';
+import { NewsletterForm } from './newsletter-form';
 
 export function Footer() {
   const brandName = process.env.NEXT_PUBLIC_BRAND_NAME || 'FlipOps';
@@ -10,7 +11,7 @@ export function Footer() {
     { href: '#features', label: 'Features' },
     { href: '#savings', label: 'Savings' },
     { href: '#guardrails', label: 'Guardrails' },
-    { href: '#new-investors', label: 'New Investors' },
+    { href: '#pricing', label: 'Pricing' },
   ];
 
   return (
@@ -25,6 +26,10 @@ export function Footer() {
             <p className="text-gray-400 mb-4">
               Stop guessing, start knowing.
             </p>
+            <div className="mt-4">
+              <p className="text-sm text-gray-400 mb-2">Get investor insights delivered weekly.</p>
+              <NewsletterForm />
+            </div>
           </div>
 
           {/* Quick Links */}

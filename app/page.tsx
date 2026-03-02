@@ -6,6 +6,7 @@ import { GuardrailsSection } from './components/guardrails-section';
 import { ToolConsolidationV8 as ToolConsolidation } from './components/tool-consolidation-v8';
 import { ScoringEngine } from './components/scoring-engine';
 import { NewInvestorSection } from './components/new-investor-section';
+import { PricingSection } from './components/pricing-section';
 import { FinalCTA } from './components/final-cta';
 import { Footer } from './components/footer';
 
@@ -21,6 +22,7 @@ export default function Home() {
         <ToolConsolidation />
         <GuardrailsSection />
         <NewInvestorSection />
+        <PricingSection />
         <FinalCTA />
       </main>
       <Footer />

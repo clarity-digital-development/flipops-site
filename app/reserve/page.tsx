@@ -36,12 +36,14 @@ import {
   Loader2,
   MessageSquareText,
   Rocket,
+  User,
+  Building2,
 } from 'lucide-react';
 import {
   FEATURE_INTERESTS,
   US_STATES,
-  reservationSchema,
-} from '@/lib/validations/reservation';
+  reserveSpotSchema,
+} from '@/lib/validations/reserve-spot';
 
 const FEATURE_ICONS: Record<string, React.ElementType> = {
   lead_scoring: Brain,
@@ -55,6 +57,9 @@ const FEATURE_ICONS: Record<string, React.ElementType> = {
 };
 
 interface FormData {
+  firstName: string;
+  lastName: string;
+  company: string;
   email: string;
   phone: string;
   city: string;
@@ -73,6 +78,9 @@ interface SubmitResult {
 
 export default function ReservePage() {
   const [formData, setFormData] = useState<FormData>({
+    firstName: '',
+    lastName: '',
+    company: '',
     email: '',
     phone: '',
     city: '',
@@ -109,7 +117,7 @@ export default function ReservePage() {
     setIsSubmitting(true);
     setErrors({});
 
-    const result = reservationSchema.safeParse(formData);
+    const result = reserveSpotSchema.safeParse(formData);
     if (!result.success) {
       setErrors(result.error.flatten().fieldErrors as Record<string, string[]>);
       setIsSubmitting(false);
@@ -117,7 +125,7 @@ export default function ReservePage() {
     }
 
     try {
-      const response = await fetch('/api/reserve', {
+      const response = await fetch('/api/reserve-spot', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData),
@@ -287,11 +295,60 @@ export default function ReservePage() {
                     {/* Section 1: Contact Info */}
                     <div className="space-y-5">
                       <div className="flex items-center gap-2 text-sm font-medium text-gray-900 dark:text-white">
-                        <Mail className="h-4 w-4 text-primary" />
+                        <User className="h-4 w-4 text-primary" />
                         Contact Information
                       </div>
 
                       <div className="space-y-4">
+                        {/* First Name / Last Name row */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="firstName">
+                              First Name <span className="text-destructive">*</span>
+                            </Label>
+                            <Input
+                              id="firstName"
+                              placeholder="John"
+                              value={formData.firstName}
+                              onChange={(e) =>
+                                setFormData((prev) => ({
+                                  ...prev,
+                                  firstName: e.target.value,
+                                }))
+                              }
+                              aria-invalid={!!errors.firstName}
+                            />
+                            {errors.firstName && (
+                              <p className="text-xs text-destructive">
+                                {errors.firstName[0]}
+                              </p>
+                            )}
+                          </div>
+
+                          <div className="space-y-2">
+                            <Label htmlFor="lastName">
+                              Last Name <span className="text-destructive">*</span>
+                            </Label>
+                            <Input
+                              id="lastName"
+                              placeholder="Doe"
+                              value={formData.lastName}
+                              onChange={(e) =>
+                                setFormData((prev) => ({
+                                  ...prev,
+                                  lastName: e.target.value,
+                                }))
+                              }
+                              aria-invalid={!!errors.lastName}
+                            />
+                            {errors.lastName && (
+                              <p className="text-xs text-destructive">
+                                {errors.lastName[0]}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+
                         {/* Email */}
                         <div className="space-y-2">
                           <Label htmlFor="email">
@@ -317,21 +374,38 @@ export default function ReservePage() {
                           )}
                         </div>
 
-                        {/* Phone */}
-                        <div className="space-y-2">
-                          <Label htmlFor="phone">Phone (optional)</Label>
-                          <Input
-                            id="phone"
-                            type="tel"
-                            placeholder="(555) 123-4567"
-                            value={formData.phone}
-                            onChange={(e) =>
-                              setFormData((prev) => ({
-                                ...prev,
-                                phone: e.target.value,
-                              }))
-                            }
-                          />
+                        {/* Company / Phone row */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="company">Company (optional)</Label>
+                            <Input
+                              id="company"
+                              placeholder="Your company"
+                              value={formData.company}
+                              onChange={(e) =>
+                                setFormData((prev) => ({
+                                  ...prev,
+                                  company: e.target.value,
+                                }))
+                              }
+                            />
+                          </div>
+
+                          <div className="space-y-2">
+                            <Label htmlFor="phone">Phone (optional)</Label>
+                            <Input
+                              id="phone"
+                              type="tel"
+                              placeholder="(555) 123-4567"
+                              value={formData.phone}
+                              onChange={(e) =>
+                                setFormData((prev) => ({
+                                  ...prev,
+                                  phone: e.target.value,
+                                }))
+                              }
+                            />
+                          </div>
                         </div>
 
                         {/* City / State row */}
@@ -575,7 +649,7 @@ export default function ReservePage() {
                     transition={{ delay: 0.35 }}
                     className="text-4xl lg:text-5xl font-bold mb-4 text-gray-900 dark:text-white glow-heading-teal"
                   >
-                    You&apos;re In!
+                    You&apos;re In{formData.firstName ? `, ${formData.firstName}` : ''}!
                   </motion.h2>
 
                   <motion.div
@@ -611,11 +685,11 @@ export default function ReservePage() {
                     transition={{ delay: 0.55 }}
                     className="text-muted-foreground mb-10"
                   >
-                    Thank you for your feedback! We&apos;ll email you at{' '}
+                    Thank you for your feedback! Check your email at{' '}
                     <span className="font-medium text-foreground">
                       {formData.email}
                     </span>{' '}
-                    when beta access is ready.
+                    for confirmation. We&apos;ll be in touch when beta access is ready.
                   </motion.p>
                 </>
               ) : (
@@ -626,7 +700,7 @@ export default function ReservePage() {
                     transition={{ delay: 0.35 }}
                     className="text-4xl lg:text-5xl font-bold mb-4 text-gray-900 dark:text-white glow-heading-teal"
                   >
-                    Spot Reserved!
+                    You&apos;re on the List{formData.firstName ? `, ${formData.firstName}` : ''}!
                   </motion.h2>
 
                   <motion.p
@@ -635,11 +709,11 @@ export default function ReservePage() {
                     transition={{ delay: 0.45 }}
                     className="text-muted-foreground mb-10"
                   >
-                    We&apos;ll reach out to{' '}
+                    Check your email at{' '}
                     <span className="font-medium text-foreground">
                       {formData.email}
                     </span>{' '}
-                    when we&apos;re ready. Come back anytime to add your feedback
+                    for confirmation. Come back anytime to add your feedback
                     and unlock free beta access.
                   </motion.p>
                 </>
