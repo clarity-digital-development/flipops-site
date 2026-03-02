@@ -42,6 +42,10 @@ import {
 import {
   FEATURE_INTERESTS,
   US_STATES,
+  CRM_OPTIONS,
+  EMPLOYEE_RANGES,
+  HOUSES_FLIPPED_RANGES,
+  REVENUE_RANGES,
   reserveSpotSchema,
 } from '@/lib/validations/reserve-spot';
 
@@ -66,6 +70,10 @@ interface FormData {
   state: string;
   featureInterests: string[];
   feedback: string;
+  employees: string;
+  housesFlipped: string;
+  annualRevenue: string;
+  currentCrm: string;
 }
 
 interface SubmitResult {
@@ -87,7 +95,12 @@ export default function ReservePage() {
     state: '',
     featureInterests: [],
     feedback: '',
+    employees: '',
+    housesFlipped: '',
+    annualRevenue: '',
+    currentCrm: '',
   });
+  const [crmOtherMode, setCrmOtherMode] = useState(false);
   const [errors, setErrors] = useState<Record<string, string[]>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
@@ -571,6 +584,171 @@ export default function ReservePage() {
                         <p className="text-xs text-muted-foreground text-right tabular-nums">
                           {formData.feedback.length} / 2,000
                         </p>
+                      </div>
+                    </div>
+
+                    {/* Divider */}
+                    <div
+                      className="h-px"
+                      style={isDarkMode
+                        ? { background: 'rgba(255,255,255,0.06)', boxShadow: '0 1px 0 rgba(0,0,0,0.4)' }
+                        : { background: 'rgba(0,0,0,0.06)', boxShadow: '0 1px 0 rgba(255,255,255,0.5)' }
+                      }
+                    />
+
+                    {/* Section 4: ICP Enrichment (Optional) */}
+                    <div className="space-y-4">
+                      <div>
+                        <div className="flex items-center gap-2 text-sm font-medium text-gray-900 dark:text-white">
+                          <Building2 className="h-4 w-4 text-primary" />
+                          About Your Business
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          100% optional — helps us identify the best beta testers if we have more demand than spots.
+                        </p>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        {/* Team Size */}
+                        <div className="space-y-2 min-w-0">
+                          <Label htmlFor="employees">Team Size</Label>
+                          <Select
+                            value={formData.employees}
+                            onValueChange={(value) =>
+                              setFormData((prev) => ({
+                                ...prev,
+                                employees: value,
+                              }))
+                            }
+                          >
+                            <SelectTrigger className="w-full min-w-0">
+                              <SelectValue placeholder="Select" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {EMPLOYEE_RANGES.map((r) => (
+                                <SelectItem key={r.value} value={r.value}>
+                                  {r.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        {/* Annual Houses Flipped */}
+                        <div className="space-y-2 min-w-0">
+                          <Label htmlFor="housesFlipped">Houses Flipped / Year</Label>
+                          <Select
+                            value={formData.housesFlipped}
+                            onValueChange={(value) =>
+                              setFormData((prev) => ({
+                                ...prev,
+                                housesFlipped: value,
+                              }))
+                            }
+                          >
+                            <SelectTrigger className="w-full min-w-0">
+                              <SelectValue placeholder="Select" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {HOUSES_FLIPPED_RANGES.map((r) => (
+                                <SelectItem key={r.value} value={r.value}>
+                                  {r.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        {/* Estimated Annual Revenue */}
+                        <div className="space-y-2 min-w-0">
+                          <Label htmlFor="annualRevenue">Estimated Annual Revenue</Label>
+                          <Select
+                            value={formData.annualRevenue}
+                            onValueChange={(value) =>
+                              setFormData((prev) => ({
+                                ...prev,
+                                annualRevenue: value,
+                              }))
+                            }
+                          >
+                            <SelectTrigger className="w-full min-w-0">
+                              <SelectValue placeholder="Select" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {REVENUE_RANGES.map((r) => (
+                                <SelectItem key={r.value} value={r.value}>
+                                  {r.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        {/* Current CRM */}
+                        <div className="space-y-2 min-w-0">
+                          <Label htmlFor="currentCrm">Current CRM</Label>
+                          {crmOtherMode ? (
+                            <div className="flex gap-2">
+                              <Input
+                                id="currentCrmOther"
+                                placeholder="Enter your CRM"
+                                value={formData.currentCrm}
+                                onChange={(e) =>
+                                  setFormData((prev) => ({
+                                    ...prev,
+                                    currentCrm: e.target.value,
+                                  }))
+                                }
+                                autoFocus
+                              />
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                className="shrink-0 h-9 px-2 text-muted-foreground hover:text-foreground"
+                                onClick={() => {
+                                  setCrmOtherMode(false);
+                                  setFormData((prev) => ({
+                                    ...prev,
+                                    currentCrm: '',
+                                  }));
+                                }}
+                                aria-label="Back to dropdown"
+                              >
+                                ✕
+                              </Button>
+                            </div>
+                          ) : (
+                            <Select
+                              value={formData.currentCrm}
+                              onValueChange={(value) => {
+                                if (value === 'other') {
+                                  setCrmOtherMode(true);
+                                  setFormData((prev) => ({
+                                    ...prev,
+                                    currentCrm: '',
+                                  }));
+                                } else {
+                                  setFormData((prev) => ({
+                                    ...prev,
+                                    currentCrm: value,
+                                  }));
+                                }
+                              }}
+                            >
+                              <SelectTrigger className="w-full min-w-0">
+                                <SelectValue placeholder="Select" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {CRM_OPTIONS.map((r) => (
+                                  <SelectItem key={r.value} value={r.value}>
+                                    {r.label}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          )}
+                        </div>
                       </div>
                     </div>
 

@@ -24,10 +24,12 @@ export function FinalCTA() {
           </p>
 
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Button size="lg" className="group bg-gradient-to-r from-primary to-accent hover:brightness-110 shadow-lg shadow-primary/25">
-              <Play className="mr-2 h-4 w-4" />
-              Try Live Demo
-            </Button>
+            <Link href="/app">
+              <Button size="lg" className="group bg-gradient-to-r from-primary to-accent hover:brightness-110 shadow-lg shadow-primary/25">
+                <Play className="mr-2 h-4 w-4" />
+                Try Live Demo
+              </Button>
+            </Link>
             <Link href="/reserve">
               <Button size="lg" variant="outline" className="group">
                 Reserve Your Spot

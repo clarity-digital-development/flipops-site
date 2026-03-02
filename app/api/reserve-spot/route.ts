@@ -20,7 +20,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { firstName, lastName, company, email, phone, city, state, featureInterests, feedback } = parsed.data;
+    const { firstName, lastName, company, email, phone, city, state, featureInterests, feedback, employees, housesFlipped, annualRevenue, currentCrm } = parsed.data;
     const timestamp = new Date().toISOString();
     const providedFeedback =
       (featureInterests && featureInterests.length > 0) ||
@@ -43,6 +43,10 @@ export async function POST(request: NextRequest) {
           state,
           featureInterests?.length ? JSON.stringify(featureInterests) : '',
           feedback || '',
+          employees || '',
+          housesFlipped || '',
+          annualRevenue || '',
+          currentCrm || '',
         ]
       ),
 
@@ -75,6 +79,10 @@ export async function POST(request: NextRequest) {
         <p><strong>Location:</strong> ${city}, ${state}</p>
         <p><strong>Feature Interests:</strong> ${featureInterests?.join(', ') || 'None'}</p>
         <p><strong>Feedback:</strong> ${feedback || 'None'}</p>
+        <p><strong>Team Size:</strong> ${employees || 'N/A'}</p>
+        <p><strong>Houses Flipped/Year:</strong> ${housesFlipped || 'N/A'}</p>
+        <p><strong>Annual Revenue:</strong> ${annualRevenue || 'N/A'}</p>
+        <p><strong>Current CRM:</strong> ${currentCrm || 'N/A'}</p>
         <p><strong>Provided Feedback:</strong> ${providedFeedback ? 'Yes' : 'No'}</p>
         <p><small>Submitted: ${timestamp}</small></p>
       `,

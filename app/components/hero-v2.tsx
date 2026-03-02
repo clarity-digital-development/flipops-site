@@ -26,10 +26,6 @@ const differentiators = [
 ];
 
 export function HeroV2() {
-  const openDemo = () => {
-    // Navigate to demo account or open demo video
-    window.location.href = '/sign-in?demo=true';
-  };
 
   return (
     <section className="relative pt-24 pb-0 lg:pt-32 lg:pb-0 overflow-x-clip bg-[#f4f4f6] dark:bg-black">
@@ -113,9 +109,11 @@ export function HeroV2() {
               transition={{ duration: 0.5, delay: 0.5 }}
               className="flex flex-col sm:flex-row gap-4"
             >
-              <Button size="lg" onClick={openDemo} className="text-base bg-gradient-to-r from-primary to-accent hover:brightness-110 shadow-lg shadow-primary/25">
-                Explore Live Demo
-              </Button>
+              <Link href="/app">
+                <Button size="lg" className="text-base bg-gradient-to-r from-primary to-accent hover:brightness-110 shadow-lg shadow-primary/25">
+                  Explore Live Demo
+                </Button>
+              </Link>
               <Link href="/reserve">
                 <Button size="lg" variant="outline" className="text-base">
                   Reserve Your Spot

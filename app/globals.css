@@ -10,6 +10,16 @@ html {
   -webkit-text-size-adjust: 100% !important;
   -moz-text-size-adjust: 100% !important;
   text-size-adjust: 100% !important;
+  scrollbar-gutter: stable;
+}
+
+/* Prevent Radix scroll-lock from shifting layout.
+   scrollbar-gutter: stable on html already reserves the gutter space,
+   so react-remove-scroll's margin-right compensation is redundant.
+   Double-attribute selector wins specificity over the library's single-attribute rule. */
+body[data-scroll-locked][data-scroll-locked] {
+  margin-right: 0 !important;
+  padding-right: 0 !important;
 }
 
 /*
