@@ -2,6 +2,8 @@ import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 
 const isPublicRoute = createRouteMatcher([
   "/",
+  "/robots.txt",                   // SEO crawlers
+  "/sitemap.xml",                  // SEO crawlers
   "/reserve",                      // Pre-launch reservation page
   "/pricing",
   "/sign-up(.*)",

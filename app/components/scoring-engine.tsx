@@ -133,7 +133,7 @@ function LeadCard({
           }`}>
             {score}
           </div>
-          <div className="text-[10px] text-gray-400 uppercase">Score</div>
+          <div className="text-[11px] text-gray-500 uppercase">Score</div>
         </div>
       </div>
       <div className="mt-2 flex items-center justify-between">
@@ -142,7 +142,7 @@ function LeadCard({
           <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
             action === 'pursued'
               ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-400'
-              : 'bg-gray-100 text-gray-600 dark:bg-zinc-700 dark:text-gray-400'
+              : 'bg-gray-100 text-gray-700 dark:bg-zinc-700 dark:text-gray-400'
           }`}>
             {action === 'pursued' ? <ThumbsUp className="h-3 w-3" /> : <ThumbsDown className="h-3 w-3" />}
             {action === 'pursued' ? 'Pursued' : 'Skipped'}

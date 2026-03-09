@@ -50,6 +50,7 @@ export function NewsletterForm() {
         type="submit"
         size="sm"
         disabled={status === 'loading'}
+        aria-label={status === 'loading' ? 'Subscribing...' : 'Subscribe to newsletter'}
         className="bg-gradient-to-r from-primary to-accent hover:brightness-110 shrink-0 h-9 px-3"
       >
         {status === 'loading' ? (

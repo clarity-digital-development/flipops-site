@@ -10,12 +10,9 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-// Explicit viewport to ensure consistent rendering across all environments
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  maximumScale: 1,
-  userScalable: false,
 };
 
 export const metadata: Metadata = {
@@ -54,7 +51,11 @@ export default function RootLayout({
         <head>
           <link rel="preconnect" href="https://fonts.googleapis.com" />
           <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-          <link href="https://fonts.googleapis.com/css2?family=TikTok+Sans:opsz,wght@12..36,300..900&display=swap" rel="stylesheet" />
+          <link
+            href="https://fonts.googleapis.com/css2?family=TikTok+Sans:opsz,wght@12..36,300..900&display=swap"
+            rel="stylesheet"
+            precedence="default"
+          />
         </head>
         <body
           className={`${geistMono.variable} antialiased font-sans`}

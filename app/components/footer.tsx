@@ -34,7 +34,7 @@ export function Footer() {
 
           {/* Quick Links */}
           <div>
-            <h4 className="font-semibold mb-4 text-white">Quick Links</h4>
+            <p className="font-semibold mb-4 text-white">Quick Links</p>
             <ul className="space-y-2">
               {quickLinks.map((link) => (
                 <li key={link.href}>
@@ -48,7 +48,7 @@ export function Footer() {
 
           {/* Contact */}
           <div>
-            <h4 className="font-semibold mb-4 text-white">Contact</h4>
+            <p className="font-semibold mb-4 text-white">Contact</p>
             <ul className="space-y-2">
               <li>
                 <a

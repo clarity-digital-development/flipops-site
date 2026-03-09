@@ -20,6 +20,7 @@ function DustParticles() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const particlesRef = useRef<Particle[]>([]);
   const animationRef = useRef<number>(0);
+  const dimsRef = useRef({ w: 0, h: 0 });
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -29,8 +30,11 @@ function DustParticles() {
     if (!ctx) return;
 
     const resizeCanvas = () => {
-      canvas.width = canvas.offsetWidth * window.devicePixelRatio;
-      canvas.height = canvas.offsetHeight * window.devicePixelRatio;
+      const w = canvas.offsetWidth;
+      const h = canvas.offsetHeight;
+      dimsRef.current = { w, h };
+      canvas.width = w * window.devicePixelRatio;
+      canvas.height = h * window.devicePixelRatio;
       ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
     };
 
@@ -38,8 +42,8 @@ function DustParticles() {
     window.addEventListener('resize', resizeCanvas);
 
     const createParticle = (side: 'left' | 'right'): Particle => {
-      const canvasWidth = canvas.offsetWidth;
-      const canvasHeight = canvas.offsetHeight;
+      const canvasWidth = dimsRef.current.w;
+      const canvasHeight = dimsRef.current.h;
 
       // Spawn near the edges with some randomness
       const spawnX = side === 'left'
@@ -74,8 +78,7 @@ function DustParticles() {
     }
 
     const animate = () => {
-      const canvasWidth = canvas.offsetWidth;
-      const canvasHeight = canvas.offsetHeight;
+      const { w: canvasWidth, h: canvasHeight } = dimsRef.current;
 
       ctx.clearRect(0, 0, canvasWidth, canvasHeight);
 
