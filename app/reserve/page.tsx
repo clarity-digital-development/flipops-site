@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
-import { toast } from 'sonner';
+import { useToast } from '@/components/ui/use-toast';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -85,6 +85,7 @@ interface SubmitResult {
 }
 
 export default function ReservePage() {
+  const { toast } = useToast();
   const [formData, setFormData] = useState<FormData>({
     firstName: '',
     lastName: '',
@@ -149,7 +150,7 @@ export default function ReservePage() {
       setSubmitResult(data);
       setSubmitted(true);
     } catch {
-      toast.error('Something went wrong. Please try again in a moment.');
+      toast({ title: 'Error', description: 'Something went wrong. Please try again in a moment.', variant: 'destructive' });
     } finally {
       setIsSubmitting(false);
     }
@@ -158,7 +159,7 @@ export default function ReservePage() {
   return (
     <div className="min-h-screen bg-[#f4f4f6] dark:bg-black">
       {/* Minimal header */}
-      <header className="fixed top-0 z-50 w-full">
+      <header className="fixed top-0 z-50 w-full bg-[#f4f4f6]/80 dark:bg-black/80 backdrop-blur-md">
         <div className="container mx-auto px-4">
           <nav className="flex h-16 items-center justify-between">
             <Link href="/" className="flex items-center space-x-2">
@@ -260,7 +261,7 @@ export default function ReservePage() {
                   }}
                 >
                   <div className="flex-shrink-0 w-9 h-9 rounded-lg bg-amber-500/15 dark:bg-amber-500/10 flex items-center justify-center">
-                    <Gift className="h-4.5 w-4.5 text-amber-600 dark:text-amber-400" />
+                    <Gift className="h-4 w-4 text-amber-600 dark:text-amber-400" />
                   </div>
                   <p className="text-sm text-amber-800 dark:text-amber-300/90">
                     <span className="font-semibold">Share your feedback</span>{' '}

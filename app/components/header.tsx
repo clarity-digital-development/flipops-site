@@ -3,7 +3,8 @@
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
+import { Sheet, SheetContent, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
+import { VisuallyHidden } from '@radix-ui/react-visually-hidden';
 import { Menu, ChevronDown } from 'lucide-react';
 import { ThemeToggle } from '@/app/components/theme-toggle';
 
@@ -175,6 +176,9 @@ export function Header() {
               </Button>
             </SheetTrigger>
             <SheetContent side="right" className="w-[270px] sm:w-[360px]">
+              <VisuallyHidden>
+                <SheetTitle>Navigation Menu</SheetTitle>
+              </VisuallyHidden>
               <nav className="flex flex-col gap-6 mt-8">
                 {dropdowns.map((dropdown) => (
                   <div key={dropdown.label}>

@@ -183,7 +183,7 @@ export default function MAOCalculatorPage() {
               ))}
               <div className="border-t border-border pt-3 mt-3 flex items-center gap-3">
                 <div className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0 bg-emerald-500/15">
-                  <Calculator className="w-4.5 h-4.5 text-emerald-500" />
+                  <Calculator className="w-4 h-4 text-emerald-500" />
                 </div>
                 <span className="text-sm font-mono text-muted-foreground w-5 text-center shrink-0">=</span>
                 <span className="text-sm font-bold text-emerald-500">Maximum Allowable Offer</span>

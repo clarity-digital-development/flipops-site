@@ -619,8 +619,12 @@ export default function DistressScoringPage() {
                 className="rounded-2xl p-6"
                 style={cardStyle}
               >
-                <div className={`w-10 h-10 rounded-lg bg-${item.color}-500/10 flex items-center justify-center mb-4`}>
-                  <item.icon className={`w-5 h-5 text-${item.color}-500`} />
+                <div className={`w-10 h-10 rounded-lg flex items-center justify-center mb-4 ${
+                  { emerald: 'bg-emerald-500/10', blue: 'bg-blue-500/10', purple: 'bg-purple-500/10', amber: 'bg-amber-500/10', red: 'bg-red-500/10', rose: 'bg-rose-500/10' }[item.color] || 'bg-gray-500/10'
+                }`}>
+                  <item.icon className={`w-5 h-5 ${
+                    { emerald: 'text-emerald-500', blue: 'text-blue-500', purple: 'text-purple-500', amber: 'text-amber-500', red: 'text-red-500', rose: 'text-rose-500' }[item.color] || 'text-gray-500'
+                  }`} />
                 </div>
                 <h3 className="text-base font-semibold mb-2">{item.title}</h3>
                 <p className="text-sm text-muted-foreground leading-relaxed">{item.desc}</p>

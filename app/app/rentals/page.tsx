@@ -310,7 +310,7 @@ function StatChip({
         "w-9 h-9 rounded-lg flex items-center justify-center",
         color === "gold" ? "bg-gradient-to-br from-amber-500/20 to-yellow-500/20" : "bg-muted"
       )}>
-        <Icon className={cn("h-4.5 w-4.5", iconColors[color])} />
+        <Icon className={cn("h-4 w-4", iconColors[color])} />
       </div>
       <div className="min-w-0">
         <p className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium truncate">{label}</p>

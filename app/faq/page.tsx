@@ -224,13 +224,15 @@ export default function FAQPage() {
               <span className="text-gray-900 dark:text-white">FAQ</span>
             </nav>
 
-            <SectionPill
-              glowColor="45, 212, 191"
-              pillClassName="bg-gradient-to-r from-teal-500 to-teal-600 shadow-lg shadow-teal-500/25"
-            >
-              <HelpCircle className="w-4 h-4 mr-2" />
-              Got Questions?
-            </SectionPill>
+            <div className="flex flex-col items-start">
+              <SectionPill
+                glowColor="45, 212, 191"
+                pillClassName="bg-gradient-to-r from-teal-500 to-teal-600 shadow-lg shadow-teal-500/25"
+              >
+                <HelpCircle className="w-4 h-4 mr-2" />
+                Got Questions?
+              </SectionPill>
+            </div>
 
             <h1 className="text-4xl lg:text-6xl font-bold tracking-tight text-gray-900 dark:text-white mb-6 max-w-4xl mt-6 glow-heading-teal">
               Frequently Asked Questions

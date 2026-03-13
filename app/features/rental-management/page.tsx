@@ -213,8 +213,12 @@ export default function RentalManagementPage() {
                 { label: 'Maintenance Costs', icon: AlertCircle, color: 'red' },
               ].map((item) => (
                 <div key={item.label} className="rounded-xl p-5 text-center" style={cardStyle}>
-                  <div className={`w-10 h-10 rounded-lg bg-${item.color}-500/10 flex items-center justify-center mx-auto mb-3`}>
-                    <item.icon className={`w-5 h-5 text-${item.color}-500`} />
+                  <div className={`w-10 h-10 rounded-lg flex items-center justify-center mx-auto mb-3 ${
+                    { blue: 'bg-blue-500/10', amber: 'bg-amber-500/10', emerald: 'bg-emerald-500/10', red: 'bg-red-500/10' }[item.color] || 'bg-gray-500/10'
+                  }`}>
+                    <item.icon className={`w-5 h-5 ${
+                      { blue: 'text-blue-500', amber: 'text-amber-500', emerald: 'text-emerald-500', red: 'text-red-500' }[item.color] || 'text-gray-500'
+                    }`} />
                   </div>
                   <p className="text-sm font-medium text-foreground">{item.label}</p>
                 </div>
@@ -337,7 +341,7 @@ export default function RentalManagementPage() {
                   <div className={`px-4 py-2 rounded-lg font-semibold ${
                     item.active
                       ? 'bg-emerald-500/20 text-emerald-500 ring-1 ring-emerald-500/30'
-                      : `bg-${item.color}-500/10 text-${item.color}-500`
+                      : { blue: 'bg-blue-500/10 text-blue-500', amber: 'bg-amber-500/10 text-amber-500', emerald: 'bg-emerald-500/10 text-emerald-500', purple: 'bg-purple-500/10 text-purple-500' }[item.color] || 'bg-gray-500/10 text-gray-500'
                   }`}>
                     {item.step}
                   </div>

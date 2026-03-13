@@ -37,7 +37,7 @@ export function NewsletterForm() {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="flex gap-2 max-w-sm">
+    <form onSubmit={handleSubmit} className="relative flex gap-2 max-w-sm">
       <Input
         type="email"
         placeholder="Enter your email"

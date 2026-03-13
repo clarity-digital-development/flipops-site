@@ -526,7 +526,7 @@ export default function PropertyManagementPage() {
                 style={cardStyle}
               >
                 <div className="w-9 h-9 rounded-lg bg-purple-500/10 flex items-center justify-center shrink-0">
-                  <link.icon className="w-4.5 h-4.5 text-purple-500" />
+                  <link.icon className="w-4 h-4 text-purple-500" />
                 </div>
                 <span className="text-sm font-medium">{link.label}</span>
                 <ArrowRight className="w-3.5 h-3.5 text-muted-foreground ml-auto" />

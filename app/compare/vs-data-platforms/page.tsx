@@ -315,8 +315,8 @@ export default function VsDataPlatformsPage() {
           <h2 className="text-3xl font-bold tracking-tight text-center mb-14">
             Feature Comparison
           </h2>
-          <div className="rounded-2xl overflow-hidden" style={cardStyle}>
-            <table className="w-full">
+          <div className="rounded-2xl overflow-hidden overflow-x-auto" style={cardStyle}>
+            <table className="w-full min-w-[600px]">
               <thead>
                 <tr className="border-b border-black/5 dark:border-white/10">
                   <th className="text-left px-6 py-4 text-sm font-semibold text-muted-foreground">
