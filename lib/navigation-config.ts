@@ -20,6 +20,18 @@ export interface NavigationItem {
   visibleTo?: InvestorType[];
 }
 
+export interface NavigationGroup {
+  name: string;
+  icon: any;
+  children: NavigationItem[];
+}
+
+export type SidebarEntry = NavigationItem | NavigationGroup;
+
+export function isNavGroup(entry: SidebarEntry): entry is NavigationGroup {
+  return 'children' in entry;
+}
+
 /**
  * Filter navigation items based on investor type
  * @param navigation - Array of navigation items
@@ -50,6 +62,32 @@ export function filterNavigationByInvestorType(
     // Check if user's investor type is in the visibleTo array
     return item.visibleTo.includes(investorType) || item.visibleTo.includes('hybrid');
   });
+}
+
+/**
+ * Filter sidebar entries (including groups) based on investor type.
+ * Groups with no visible children after filtering are removed entirely.
+ */
+export function filterSidebarByInvestorType(
+  entries: SidebarEntry[],
+  investorType: InvestorType
+): SidebarEntry[] {
+  return entries
+    .map(entry => {
+      if (isNavGroup(entry)) {
+        const filteredChildren = filterNavigationByInvestorType(entry.children, investorType);
+        if (filteredChildren.length === 0) return null;
+        return { ...entry, children: filteredChildren } as NavigationGroup;
+      }
+      // Standalone item
+      if (entry.visibleTo) {
+        if (investorType === 'hybrid') return entry;
+        if (!investorType) return null;
+        if (!entry.visibleTo.includes(investorType) && !entry.visibleTo.includes('hybrid')) return null;
+      }
+      return entry;
+    })
+    .filter((e): e is SidebarEntry => e !== null);
 }
 
 /**

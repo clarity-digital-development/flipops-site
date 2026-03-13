@@ -1,7 +1,6 @@
 "use client";
 
-
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { UserButton } from "@clerk/nextjs";
@@ -24,7 +23,11 @@ import {
   Bell,
   FileSignature,
   Hammer,
-  Building2
+  Building2,
+  ChevronDown,
+  Send,
+  GitBranch,
+  HardHat,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -32,29 +35,136 @@ import { cn } from "@/lib/utils";
 import { ThemeToggle } from "@/app/components/theme-toggle";
 import { ErrorBoundary } from "@/app/components/error-boundary";
 import {
-  filterNavigationByInvestorType,
+  filterSidebarByInvestorType,
+  isNavGroup,
   NAVIGATION_RULES,
   type InvestorType,
-  type NavigationItem
+  type NavigationItem,
+  type NavigationGroup,
+  type SidebarEntry,
 } from "@/lib/navigation-config";
 
-const baseNavigation: NavigationItem[] = [
+// ============================================================================
+// SIDEBAR STRUCTURE
+// ============================================================================
+
+const baseSidebar: SidebarEntry[] = [
   { name: "Overview", href: "/app", icon: Home },
   { name: "Leads", href: "/app/leads", icon: Users },
-  { name: "Inbox", href: "/app/inbox", icon: MessageSquare },
-  { name: "Campaigns", href: "/app/campaigns", icon: Megaphone },
-  { name: "Underwriting", href: "/app/underwriting", icon: Calculator },
-  { name: "Offers", href: "/app/offers", icon: FileText },
-  { name: "Contracts", href: "/app/contracts", icon: FileSignature },
-  { name: "Buyers", href: "/app/buyers", icon: UserCheck, visibleTo: NAVIGATION_RULES['Buyers'] },
-  { name: "Renovations", href: "/app/renovations", icon: Hammer, visibleTo: NAVIGATION_RULES['Renovations'] },
-  { name: "Rentals", href: "/app/rentals", icon: Building2, visibleTo: NAVIGATION_RULES['Rentals'] },
+  {
+    name: "Outreach",
+    icon: Send,
+    children: [
+      { name: "Inbox", href: "/app/inbox", icon: MessageSquare },
+      { name: "Campaigns", href: "/app/campaigns", icon: Megaphone },
+    ],
+  },
+  {
+    name: "Deal Pipeline",
+    icon: GitBranch,
+    children: [
+      { name: "Underwriting", href: "/app/underwriting", icon: Calculator },
+      { name: "Offers", href: "/app/offers", icon: FileText },
+      { name: "Contracts", href: "/app/contracts", icon: FileSignature },
+      { name: "Buyers", href: "/app/buyers", icon: UserCheck, visibleTo: NAVIGATION_RULES['Buyers'] },
+    ],
+  },
+  {
+    name: "Operations",
+    icon: HardHat,
+    children: [
+      { name: "Renovations", href: "/app/renovations", icon: Hammer, visibleTo: NAVIGATION_RULES['Renovations'] },
+      { name: "Rentals", href: "/app/rentals", icon: Building2, visibleTo: NAVIGATION_RULES['Rentals'] },
+      { name: "Vendors", href: "/app/vendors", icon: Briefcase },
+    ],
+  },
   { name: "Tasks", href: "/app/tasks", icon: CheckSquare },
-  { name: "Vendors", href: "/app/vendors", icon: Briefcase },
   { name: "Documents", href: "/app/documents", icon: FileText },
   { name: "Analytics", href: "/app/analytics", icon: BarChart },
-  { name: "Settings", href: "/app/settings", icon: Settings },
 ];
+
+// ============================================================================
+// NAV GROUP COMPONENT
+// ============================================================================
+
+function NavGroup({
+  group,
+  pathname,
+  openGroups,
+  onToggle,
+}: {
+  group: NavigationGroup;
+  pathname: string;
+  openGroups: Set<string>;
+  onToggle: (name: string) => void;
+}) {
+  const isOpen = openGroups.has(group.name);
+  const hasActiveChild = group.children.some(
+    (child) => pathname === child.href || (child.href !== "/app" && pathname?.startsWith(child.href))
+  );
+  const Icon = group.icon;
+
+  return (
+    <div>
+      {/* Group toggle button */}
+      <button
+        onClick={() => onToggle(group.name)}
+        className={cn(
+          "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors w-full",
+          hasActiveChild
+            ? "text-gray-900 dark:text-white"
+            : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800/50"
+        )}
+      >
+        <Icon className="h-5 w-5" />
+        <span className="flex-1 text-left">{group.name}</span>
+        <ChevronDown
+          className={cn(
+            "h-4 w-4 transition-transform duration-200",
+            isOpen && "rotate-180"
+          )}
+        />
+      </button>
+
+      {/* Children with animated height */}
+      <div
+        className={cn(
+          "overflow-hidden transition-all duration-200 ease-in-out",
+          isOpen ? "max-h-[400px] opacity-100" : "max-h-0 opacity-0"
+        )}
+      >
+        <div className="mt-0.5 space-y-0.5 pl-4">
+          {group.children.map((child) => {
+            const isActive =
+              pathname === child.href ||
+              (child.href !== "/app" && pathname?.startsWith(child.href));
+            const ChildIcon = child.icon;
+
+            return (
+              <Link
+                key={child.name}
+                href={child.href}
+                className={cn(
+                  "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+                  isActive
+                    ? "bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white"
+                    : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800/50"
+                )}
+              >
+                <ChildIcon className="h-4 w-4" />
+                {child.name}
+              </Link>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
+// LAYOUT
+// ============================================================================
 
 export default function AppLayout({
   children,
@@ -65,8 +175,9 @@ export default function AppLayout({
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [quickAddLeadOpen, setQuickAddLeadOpen] = useState(false);
   const [investorType, setInvestorType] = useState<InvestorType>(null);
-  const [navigation, setNavigation] = useState<NavigationItem[]>(baseNavigation);
+  const [sidebar, setSidebar] = useState<SidebarEntry[]>(baseSidebar);
   const [isMounted, setIsMounted] = useState(false);
+  const [openGroups, setOpenGroups] = useState<Set<string>>(new Set());
 
   // Set mounted state to prevent SSR of Clerk components
   useEffect(() => {
@@ -83,19 +194,51 @@ export default function AppLayout({
           const userInvestorType = data.user?.investorType as InvestorType;
           setInvestorType(userInvestorType);
 
-          // Filter navigation based on investor type
-          const filteredNav = filterNavigationByInvestorType(baseNavigation, userInvestorType);
-          setNavigation(filteredNav);
+          // Filter sidebar based on investor type
+          const filteredSidebar = filterSidebarByInvestorType(baseSidebar, userInvestorType);
+          setSidebar(filteredSidebar);
         }
       } catch (error) {
         console.error('Error fetching user profile:', error);
-        // On error, show all navigation items
-        setNavigation(baseNavigation);
+        setSidebar(baseSidebar);
       }
     };
 
     fetchUserProfile();
   }, []);
+
+  // Auto-open groups that contain the active route
+  useEffect(() => {
+    const activeGroups = new Set<string>();
+    for (const entry of sidebar) {
+      if (isNavGroup(entry)) {
+        const hasActive = entry.children.some(
+          (child) => pathname === child.href || (child.href !== "/app" && pathname?.startsWith(child.href))
+        );
+        if (hasActive) {
+          activeGroups.add(entry.name);
+        }
+      }
+    }
+    // Merge with existing open groups (don't close user-opened ones)
+    setOpenGroups((prev) => {
+      const merged = new Set(prev);
+      for (const g of activeGroups) merged.add(g);
+      return merged;
+    });
+  }, [pathname, sidebar]);
+
+  const toggleGroup = (name: string) => {
+    setOpenGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(name)) {
+        next.delete(name);
+      } else {
+        next.add(name);
+      }
+      return next;
+    });
+  };
 
   // Don't render layout until mounted to prevent Clerk SSR errors
   if (!isMounted) {
@@ -106,8 +249,8 @@ export default function AppLayout({
     <div className="min-h-dvh bg-gray-50 dark:bg-gray-900">
       {/* Mobile sidebar overlay */}
       {sidebarOpen && (
-        <div 
-          className="fixed inset-0 z-40 bg-black/50 lg:hidden" 
+        <div
+          className="fixed inset-0 z-40 bg-black/50 lg:hidden"
           onClick={() => setSidebarOpen(false)}
         />
       )}
@@ -137,17 +280,29 @@ export default function AppLayout({
 
           {/* Navigation */}
           <nav className="flex-1 space-y-1 px-3 py-4 overflow-y-auto">
-            {navigation.map((item) => {
-              const isActive = pathname === item.href || 
+            {sidebar.map((entry) => {
+              if (isNavGroup(entry)) {
+                return (
+                  <NavGroup
+                    key={entry.name}
+                    group={entry}
+                    pathname={pathname}
+                    openGroups={openGroups}
+                    onToggle={toggleGroup}
+                  />
+                );
+              }
+
+              const item = entry as NavigationItem;
+              const isActive = pathname === item.href ||
                 (item.href !== "/app" && pathname?.startsWith(item.href));
-              
+
               return (
                 <Link
                   key={item.name}
                   href={item.href}
                   className={cn(
                     "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
-                    (item as any).indent && "ml-6",
                     isActive
                       ? "bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white"
                       : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800/50"
@@ -160,21 +315,29 @@ export default function AppLayout({
             })}
           </nav>
 
-          {/* User section */}
-          <div className="border-t border-gray-200 dark:border-gray-800 p-4">
-            <div className="flex items-center gap-3">
+          {/* Bottom section: Settings + User */}
+          <div className="border-t border-gray-200 dark:border-gray-800 px-3 py-3 space-y-1">
+            <Link
+              href="/app/settings"
+              className={cn(
+                "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+                pathname === "/app/settings" || pathname?.startsWith("/app/settings")
+                  ? "bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white"
+                  : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800/50"
+              )}
+            >
+              <Settings className="h-5 w-5" />
+              Settings
+            </Link>
+            <div className="flex items-center gap-3 px-3 py-1.5">
               <UserButton
                 appearance={{
                   elements: {
-                    avatarBox: "h-9 w-9"
+                    avatarBox: "h-8 w-8"
                   }
                 }}
                 afterSignOutUrl="/"
               />
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-gray-900 dark:text-white truncate">Account</p>
-                <p className="text-xs text-gray-500 dark:text-gray-400 truncate">Manage your account</p>
-              </div>
             </div>
           </div>
         </div>
@@ -218,7 +381,7 @@ export default function AppLayout({
               onClick={() => setQuickAddLeadOpen(true)}
               className="hidden sm:inline-flex"
             >
-              Quick Add Lead
+              Add Lead
             </Button>
           </div>
         </header>

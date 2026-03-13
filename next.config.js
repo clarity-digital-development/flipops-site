@@ -11,6 +11,9 @@ const nextConfig = {
   // Mark pino as external to avoid bundling test files
   serverExternalPackages: ['pino', 'pino-pretty', 'thread-stream'],
   async headers() {
+    // Only apply aggressive caching in production — in dev, browser disk cache
+    // serves stale JS bundles on refresh, preventing HMR from working properly
+    if (process.env.NODE_ENV !== 'production') return [];
     return [
       {
         source: '/:path*.(js|css|woff2|woff|ttf|ico|png|jpg|jpeg|gif|svg|webp)',

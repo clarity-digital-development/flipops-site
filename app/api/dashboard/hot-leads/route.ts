@@ -29,6 +29,7 @@ export async function GET() {
         dataSource: true,
         enriched: true,
         lastContactDate: true,
+        ownerName: true,
       },
       orderBy: [
         { score: 'desc' },
@@ -47,6 +48,7 @@ export async function GET() {
       dataSource: lead.dataSource || 'Unknown',
       skipTraced: lead.enriched || false,
       contacted: !!lead.lastContactDate,
+      ownerName: lead.ownerName || null,
     }));
 
     return NextResponse.json({ hotLeads: formattedLeads });

@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useMemo } from "react";
 import Link from "next/link";
+import { useUser } from "@clerk/nextjs";
 import {
   TrendingUp,
   TrendingDown,
@@ -26,6 +27,7 @@ import {
   Zap,
   Calendar,
   Activity,
+  User,
 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -64,6 +66,7 @@ const seedHotLeads: HotLead[] = [
     dataSource: 'REI Skip',
     skipTraced: true,
     contacted: false,
+    ownerName: 'Margaret Sullivan',
   },
   {
     id: 'seed-2',
@@ -74,6 +77,7 @@ const seedHotLeads: HotLead[] = [
     dataSource: 'PropStream',
     skipTraced: true,
     contacted: true,
+    ownerName: 'James Rodriguez',
   },
   {
     id: 'seed-3',
@@ -84,6 +88,7 @@ const seedHotLeads: HotLead[] = [
     dataSource: 'BatchLeads',
     skipTraced: false,
     contacted: false,
+    ownerName: null,
   },
   {
     id: 'seed-4',
@@ -94,6 +99,7 @@ const seedHotLeads: HotLead[] = [
     dataSource: 'REI Skip',
     skipTraced: true,
     contacted: false,
+    ownerName: 'Patricia Chen',
   },
 ];
 
@@ -125,6 +131,52 @@ const seedOverdueTasks: OverdueTask[] = [
   },
 ];
 
+// Seed tasks for calendar widget
+const seedCalendarTasks: CalendarTask[] = [
+  {
+    id: 'cal-1',
+    title: 'Follow up with seller - 123 Oak St',
+    dueDate: new Date().toISOString(),
+    status: 'overdue',
+    priority: 'urgent',
+  },
+  {
+    id: 'cal-2',
+    title: 'Schedule property inspection',
+    dueDate: new Date().toISOString(),
+    status: 'open',
+    priority: 'high',
+  },
+  {
+    id: 'cal-3',
+    title: 'Review comps and finalize ARV',
+    dueDate: new Date(Date.now() + 86400000).toISOString(),
+    status: 'open',
+    priority: 'normal',
+  },
+  {
+    id: 'cal-4',
+    title: 'Call back interested seller',
+    dueDate: new Date(Date.now() + 86400000 * 2).toISOString(),
+    status: 'open',
+    priority: 'high',
+  },
+  {
+    id: 'cal-5',
+    title: 'Send purchase agreement',
+    dueDate: new Date(Date.now() - 86400000).toISOString(),
+    status: 'overdue',
+    priority: 'urgent',
+  },
+  {
+    id: 'cal-6',
+    title: 'Submit title search request',
+    dueDate: new Date(Date.now() + 86400000 * 3).toISOString(),
+    status: 'open',
+    priority: 'normal',
+  },
+];
+
 // ============================================================================
 // TYPES
 // ============================================================================
@@ -151,6 +203,7 @@ interface HotLead {
   dataSource: string;
   skipTraced: boolean;
   contacted: boolean;
+  ownerName: string | null;
 }
 
 interface ActionItem {
@@ -170,6 +223,14 @@ interface OverdueTask {
   priority: string;
   propertyAddress?: string;
   overdueDays: number;
+}
+
+interface CalendarTask {
+  id: string;
+  title: string;
+  dueDate: string;
+  status: string;
+  priority: string;
 }
 
 interface InvestorStats {
@@ -252,19 +313,25 @@ function Sparkline({
 // SKELETON COMPONENTS
 // ============================================================================
 
-function KPICardSkeleton() {
+function PipelineSkeletonFull() {
   return (
-    <Card className="overflow-hidden">
-      <CardContent className="p-5">
-        <div className="flex items-start justify-between">
-          <Skeleton className="h-9 w-9 rounded-xl" />
-          <Skeleton className="h-4 w-16" />
+    <Card>
+      <CardHeader className="pb-2">
+        <div className="flex items-center justify-between">
+          <Skeleton className="h-5 w-32" />
+          <Skeleton className="h-8 w-28" />
         </div>
-        <div className="mt-4 space-y-2">
-          <Skeleton className="h-8 w-20" />
-          <Skeleton className="h-4 w-24" />
+      </CardHeader>
+      <CardContent>
+        <div className="flex items-end justify-between gap-4 h-32">
+          {[1, 2, 3, 4, 5].map((i) => (
+            <div key={i} className="flex-1 flex flex-col items-center gap-2">
+              <Skeleton className="h-5 w-8" />
+              <Skeleton className="w-full rounded-t-lg" style={{ height: `${Math.random() * 60 + 20}%` }} />
+              <Skeleton className="h-3 w-16" />
+            </div>
+          ))}
         </div>
-        <Skeleton className="mt-4 h-6 w-full" />
       </CardContent>
     </Card>
   );
@@ -295,18 +362,19 @@ function ActionCardSkeleton() {
   );
 }
 
-function PipelineSkeleton() {
+function CalendarSkeleton() {
   return (
     <Card>
-      <CardHeader>
+      <CardHeader className="pb-2">
         <Skeleton className="h-5 w-32" />
       </CardHeader>
       <CardContent>
-        <div className="flex items-end justify-between gap-2 h-32">
-          {[1, 2, 3, 4, 5].map((i) => (
-            <div key={i} className="flex-1 flex flex-col items-center gap-2">
-              <Skeleton className="w-full" style={{ height: `${Math.random() * 60 + 20}%` }} />
-              <Skeleton className="h-3 w-12" />
+        <div className="grid grid-cols-7 gap-1">
+          {[1, 2, 3, 4, 5, 6, 7].map((i) => (
+            <div key={i} className="flex flex-col items-center gap-1 p-2">
+              <Skeleton className="h-3 w-6" />
+              <Skeleton className="h-8 w-8 rounded-full" />
+              <Skeleton className="h-1.5 w-1.5 rounded-full" />
             </div>
           ))}
         </div>
@@ -394,7 +462,7 @@ function KPICard({ label, value, change, trend, icon: Icon, iconColor = "text-mu
 }
 
 // ============================================================================
-// PIPELINE FUNNEL
+// PIPELINE FUNNEL (FULL WIDTH)
 // ============================================================================
 
 interface PipelineStage {
@@ -405,12 +473,18 @@ interface PipelineStage {
 
 function PipelineFunnel({ stages }: { stages: PipelineStage[] }) {
   const maxCount = Math.max(...stages.map(s => s.count), 1);
+  const totalCount = stages.reduce((sum, s) => sum + s.count, 0);
 
   return (
     <Card>
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
-          <CardTitle className="text-base font-medium">Deal Pipeline</CardTitle>
+          <div className="flex items-center gap-3">
+            <CardTitle className="text-base font-medium">Deal Pipeline</CardTitle>
+            <Badge variant="secondary" className="text-xs font-normal">
+              {totalCount} total
+            </Badge>
+          </div>
           <Link href="/app/analytics">
             <Button variant="ghost" size="sm" className="text-xs">
               View Analytics <ArrowRight className="h-3 w-3 ml-1" />
@@ -419,23 +493,25 @@ function PipelineFunnel({ stages }: { stages: PipelineStage[] }) {
         </div>
       </CardHeader>
       <CardContent>
-        <div className="flex items-end justify-between gap-3 h-36">
-          {stages.map((stage, index) => (
-            <div key={stage.name} className="flex-1 flex flex-col items-center gap-2">
-              <span className="text-lg font-semibold text-foreground">{stage.count}</span>
-              <div
-                className={cn(
-                  "w-full rounded-t-lg transition-all duration-500",
-                  stage.color
-                )}
-                style={{
-                  height: `${Math.max((stage.count / maxCount) * 100, 10)}%`,
-                  minHeight: '12px'
-                }}
-              />
-              <span className="text-[10px] text-muted-foreground text-center leading-tight">
-                {stage.name}
-              </span>
+        {/* Bar segments */}
+        <div className="flex gap-1 h-3 rounded-full overflow-hidden mb-4">
+          {stages.map((stage) => (
+            <div
+              key={stage.name}
+              className={cn("rounded-full transition-all duration-500", stage.color)}
+              style={{ flex: Math.max(stage.count, 1) }}
+            />
+          ))}
+        </div>
+        {/* Stage labels and counts */}
+        <div className="flex items-start justify-between gap-2">
+          {stages.map((stage) => (
+            <div key={stage.name} className="flex-1 flex flex-col items-center text-center gap-1">
+              <span className="text-2xl font-semibold text-foreground tabular-nums">{stage.count}</span>
+              <div className="flex items-center gap-1.5">
+                <div className={cn("w-2 h-2 rounded-full", stage.color)} />
+                <span className="text-xs text-muted-foreground">{stage.name}</span>
+              </div>
             </div>
           ))}
         </div>
@@ -524,6 +600,143 @@ function NotificationsPreview({ notifications }: { notifications: Notification[]
               <Bell className="h-5 w-5 text-muted-foreground" />
             </div>
             <p className="text-sm text-muted-foreground">No recent activity</p>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// ============================================================================
+// CALENDAR WIDGET
+// ============================================================================
+
+function WeekCalendarWidget({ tasks }: { tasks: CalendarTask[] }) {
+  const [selectedDay, setSelectedDay] = useState<string | null>(null);
+
+  const weekDays = useMemo(() => {
+    const now = new Date();
+    const dayOfWeek = now.getDay();
+    // Start on Monday
+    const monday = new Date(now);
+    monday.setDate(now.getDate() - ((dayOfWeek + 6) % 7));
+
+    return Array.from({ length: 7 }, (_, i) => {
+      const date = new Date(monday);
+      date.setDate(monday.getDate() + i);
+      return {
+        label: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][i],
+        date: date.toISOString().split('T')[0],
+        dayNum: date.getDate(),
+        isToday: date.toDateString() === now.toDateString(),
+      };
+    });
+  }, []);
+
+  const tasksByDay = useMemo(() => {
+    const map: Record<string, CalendarTask[]> = {};
+    for (const task of tasks) {
+      const day = new Date(task.dueDate).toISOString().split('T')[0];
+      if (!map[day]) map[day] = [];
+      map[day].push(task);
+    }
+    return map;
+  }, [tasks]);
+
+  const getDayIndicator = (dateStr: string) => {
+    const dayTasks = tasksByDay[dateStr];
+    if (!dayTasks || dayTasks.length === 0) return null;
+
+    const hasOverdue = dayTasks.some(t => t.status === 'overdue');
+    const today = new Date().toISOString().split('T')[0];
+    const isDueToday = dateStr === today;
+
+    if (hasOverdue) return 'bg-red-500';
+    if (isDueToday) return 'bg-amber-500';
+    return 'bg-muted-foreground/40';
+  };
+
+  const selectedDayTasks = selectedDay ? (tasksByDay[selectedDay] || []) : [];
+
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-base font-medium flex items-center gap-2">
+            <Calendar className="h-4 w-4 text-blue-500" />
+            This Week
+          </CardTitle>
+          <Link href="/app/tasks">
+            <Button variant="ghost" size="sm" className="text-xs">
+              Full calendar <ArrowRight className="h-3 w-3 ml-1" />
+            </Button>
+          </Link>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <div className="grid grid-cols-7 gap-1">
+          {weekDays.map((day) => {
+            const indicator = getDayIndicator(day.date);
+            const isSelected = selectedDay === day.date;
+            const dayTaskCount = tasksByDay[day.date]?.length || 0;
+
+            return (
+              <button
+                key={day.date}
+                onClick={() => setSelectedDay(isSelected ? null : day.date)}
+                className={cn(
+                  "flex flex-col items-center gap-1 py-2 px-1 rounded-xl transition-colors",
+                  "hover:bg-muted/50",
+                  isSelected && "bg-primary/10 ring-1 ring-primary/20",
+                  day.isToday && !isSelected && "bg-muted/30"
+                )}
+              >
+                <span className="text-[10px] text-muted-foreground font-medium">{day.label}</span>
+                <span className={cn(
+                  "text-sm font-semibold w-8 h-8 flex items-center justify-center rounded-full",
+                  day.isToday && "bg-primary text-primary-foreground",
+                  !day.isToday && "text-foreground"
+                )}>
+                  {day.dayNum}
+                </span>
+                <div className="flex items-center gap-0.5 h-2">
+                  {indicator ? (
+                    <>
+                      <div className={cn("w-1.5 h-1.5 rounded-full", indicator)} />
+                      {dayTaskCount > 1 && (
+                        <span className="text-[9px] text-muted-foreground">{dayTaskCount}</span>
+                      )}
+                    </>
+                  ) : (
+                    <div className="w-1.5 h-1.5" />
+                  )}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Expanded day tasks */}
+        {selectedDay && selectedDayTasks.length > 0 && (
+          <div className="mt-3 pt-3 border-t space-y-2">
+            {selectedDayTasks.map((task) => (
+              <div
+                key={task.id}
+                className="flex items-center gap-2 text-sm p-2 rounded-lg bg-muted/30"
+              >
+                <div className={cn(
+                  "w-1.5 h-1.5 rounded-full shrink-0",
+                  task.status === 'overdue' ? 'bg-red-500' : task.priority === 'urgent' ? 'bg-amber-500' : 'bg-muted-foreground/40'
+                )} />
+                <span className="truncate text-foreground">{task.title}</span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {selectedDay && selectedDayTasks.length === 0 && (
+          <div className="mt-3 pt-3 border-t">
+            <p className="text-xs text-muted-foreground text-center py-2">No tasks this day</p>
           </div>
         )}
       </CardContent>
@@ -733,6 +946,7 @@ function BuyAndHoldStats({ stats }: { stats: NonNullable<InvestorStats['buyAndHo
 // ============================================================================
 
 export default function DashboardPage() {
+  const { user: clerkUser } = useUser();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [stats, setStats] = useState<DashboardStats | null>(null);
@@ -742,6 +956,7 @@ export default function DashboardPage() {
   const [investorStats, setInvestorStats] = useState<InvestorStats | null>(null);
   const [investorType, setInvestorType] = useState<InvestorType>(null);
   const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [calendarTasks, setCalendarTasks] = useState<CalendarTask[]>([]);
 
   // Helper: check if the user has any recent lead activity.
   // Only checks lead-related stats so that stale overdue tasks
@@ -819,6 +1034,27 @@ export default function DashboardPage() {
         const data = await notificationsRes.json();
         setNotifications(data.notifications || []);
       }
+
+      // Calendar tasks — use seed data immediately; try API in background
+      setCalendarTasks(seedCalendarTasks);
+      // Fire-and-forget: try to load real tasks without blocking dashboard
+      const abortCtrl = new AbortController();
+      const taskTimeout = setTimeout(() => abortCtrl.abort(), 3000);
+      fetch('/api/tasks?limit=20', { signal: abortCtrl.signal })
+        .then(res => res.ok ? res.json() : null)
+        .then(data => {
+          clearTimeout(taskTimeout);
+          if (!data?.tasks?.length) return;
+          const fetched = data.tasks.map((t: { id: string; title: string; dueDate?: string; dueAt?: string; status: string; priority: string }) => ({
+            id: t.id,
+            title: t.title,
+            dueDate: t.dueDate || t.dueAt || new Date().toISOString(),
+            status: t.status,
+            priority: t.priority,
+          }));
+          setCalendarTasks(fetched);
+        })
+        .catch(() => { clearTimeout(taskTimeout); });
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
       // On complete failure, use seed data
@@ -826,6 +1062,7 @@ export default function DashboardPage() {
       setHotLeads(seedHotLeads);
       setActionItems(seedActionItems);
       setOverdueTasks(seedOverdueTasks);
+      setCalendarTasks(seedCalendarTasks);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -847,67 +1084,6 @@ export default function DashboardPage() {
     };
   };
 
-  // Build KPIs from stats
-  const kpis = useMemo(() => {
-    if (!stats) return [];
-    return [
-      {
-        label: "Leads (24h)",
-        value: stats.newLeads24h,
-        ...calculateTrend(stats.newLeads24h, stats.newLeadsPrevious24h),
-        icon: Users,
-        iconColor: "text-blue-500",
-        sparklineData: [stats.newLeadsPrevious24h, stats.newLeads24h],
-        href: "/app/leads",
-      },
-      {
-        label: "Leads (7d)",
-        value: stats.newLeads7d,
-        ...calculateTrend(stats.newLeads7d, stats.newLeadsPrevious7d),
-        icon: Users,
-        iconColor: "text-blue-500",
-        sparklineData: [stats.newLeadsPrevious7d, stats.newLeads7d],
-        href: "/app/leads",
-      },
-      {
-        label: "Contacted",
-        value: stats.propertiesContacted,
-        ...calculateTrend(stats.propertiesContacted, stats.propertiesContactedPrevious),
-        icon: MessageSquare,
-        iconColor: "text-emerald-500",
-        sparklineData: [stats.propertiesContactedPrevious, stats.propertiesContacted],
-        href: "/app/inbox",
-      },
-      {
-        label: "Skip Traced",
-        value: stats.propertiesSkipTraced,
-        ...calculateTrend(stats.propertiesSkipTraced, stats.propertiesSkipTracedPrevious),
-        icon: FileText,
-        iconColor: "text-purple-500",
-        sparklineData: [stats.propertiesSkipTracedPrevious, stats.propertiesSkipTraced],
-        href: "/app/leads",
-      },
-      {
-        label: "Overdue",
-        value: stats.tasksOverdue,
-        change: stats.tasksOverdue > 0 ? `${stats.tasksOverdue} pending` : 'All clear',
-        trend: stats.tasksOverdue > 0 ? 'down' as const : 'up' as const,
-        icon: AlertCircle,
-        iconColor: stats.tasksOverdue > 0 ? "text-red-500" : "text-emerald-500",
-        href: "/app/tasks?filter=overdue",
-      },
-      {
-        label: "Completed",
-        value: stats.tasksCompleted,
-        change: 'Today',
-        trend: stats.tasksCompleted > 0 ? 'up' as const : 'neutral' as const,
-        icon: CheckCircle,
-        iconColor: "text-emerald-500",
-        href: "/app/tasks",
-      },
-    ];
-  }, [stats]);
-
   // Pipeline stages
   const pipelineStages: PipelineStage[] = useMemo(() => {
     const baseStages = [
@@ -920,20 +1096,27 @@ export default function DashboardPage() {
     return baseStages;
   }, [stats]);
 
-  // Current time greeting
+  // Dynamic greeting with user's first name
   const greeting = useMemo(() => {
     const hour = new Date().getHours();
-    if (hour < 12) return "Good morning";
-    if (hour < 17) return "Good afternoon";
-    return "Good evening";
-  }, []);
+    let timeGreeting: string;
+    if (hour < 12) timeGreeting = "Good morning";
+    else if (hour < 17) timeGreeting = "Good afternoon";
+    else timeGreeting = "Good evening";
+
+    const firstName = clerkUser?.firstName;
+    if (firstName) {
+      return `${timeGreeting}, ${firstName}`;
+    }
+    return timeGreeting;
+  }, [clerkUser?.firstName]);
 
   // Loading state
   if (loading) {
     return (
       <div className="h-full flex flex-col overflow-hidden">
         <ScrollArea className="h-full">
-          <div className="space-y-8 pr-4">
+          <div className="space-y-6 pr-4">
             {/* Header skeleton */}
             <div className="flex items-center justify-between">
               <div className="space-y-2">
@@ -943,18 +1126,14 @@ export default function DashboardPage() {
               <Skeleton className="h-10 w-32" />
             </div>
 
-            {/* KPI skeletons */}
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-              {[1, 2, 3, 4, 5, 6].map((i) => (
-                <KPICardSkeleton key={i} />
-              ))}
-            </div>
+            {/* Pipeline skeleton */}
+            <PipelineSkeletonFull />
 
             {/* Content skeletons */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               <ActionCardSkeleton />
               <ActionCardSkeleton />
-              <PipelineSkeleton />
+              <CalendarSkeleton />
             </div>
           </div>
         </ScrollArea>
@@ -973,14 +1152,14 @@ export default function DashboardPage() {
             {greeting}
           </h1>
           <p className="text-muted-foreground mt-1">
-            Here's what's happening with your deals today
+            Here&apos;s what&apos;s happening with your deals today
             {investorType && (
               <Badge variant="secondary" className="ml-2 font-normal">
                 {getInvestorTypeDisplayName(investorType)}
               </Badge>
             )}
             <Badge variant="outline" className="ml-2 text-[10px] font-mono opacity-50">
-              v2.7.0
+              v2.8.0
             </Badge>
           </p>
         </div>
@@ -996,12 +1175,8 @@ export default function DashboardPage() {
         </Button>
       </div>
 
-      {/* Primary KPIs */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-        {kpis.map((kpi) => (
-          <KPICard key={kpi.label} {...kpi} />
-        ))}
-      </div>
+      {/* Deal Pipeline — full width */}
+      <PipelineFunnel stages={pipelineStages} />
 
       {/* Investor-specific stats */}
       {investorStats && (
@@ -1012,7 +1187,7 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* Main grid - Hot leads, Actions, Pipeline */}
+      {/* Main grid - Hot Leads, Actions, Calendar + Activity */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
         {/* Hot Leads */}
         <Card className="lg:col-span-1 flex flex-col h-[459px]">
@@ -1023,7 +1198,7 @@ export default function DashboardPage() {
                 Hot Leads
               </CardTitle>
               <Badge variant="secondary" className="text-xs">
-                Score ≥ 85
+                Score &ge; 85
               </Badge>
             </div>
           </CardHeader>
@@ -1039,12 +1214,24 @@ export default function DashboardPage() {
                     >
                       <div className="flex items-center justify-between">
                         <div className="min-w-0 flex-1">
-                          <p className="text-sm font-medium text-foreground truncate">
-                            {lead.address}
-                          </p>
-                          <p className="text-xs text-muted-foreground mt-0.5">
-                            {lead.city}, {lead.state}
-                          </p>
+                          <div className="flex items-center gap-2">
+                            <div className={cn(
+                              "w-7 h-7 rounded-full flex items-center justify-center shrink-0 text-xs font-medium",
+                              lead.ownerName
+                                ? "bg-blue-50 text-blue-600 dark:bg-blue-500/10 dark:text-blue-400"
+                                : "bg-gray-100 text-gray-400 dark:bg-zinc-700 dark:text-zinc-500"
+                            )}>
+                              {lead.ownerName ? lead.ownerName.charAt(0).toUpperCase() : <User className="h-3.5 w-3.5" />}
+                            </div>
+                            <div className="min-w-0">
+                              <p className="text-sm font-medium text-foreground truncate">
+                                {lead.ownerName || 'No Contact Info'}
+                              </p>
+                              <p className="text-xs text-muted-foreground truncate">
+                                {lead.address}, {lead.city}, {lead.state}
+                              </p>
+                            </div>
+                          </div>
                         </div>
                         <div className="flex items-center gap-2 ml-3">
                           <Badge
@@ -1061,7 +1248,7 @@ export default function DashboardPage() {
                           <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-foreground transition-colors" />
                         </div>
                       </div>
-                      <div className="flex items-center gap-2 mt-2">
+                      <div className="flex items-center gap-2 mt-2 ml-9">
                         <Badge variant="secondary" className="text-[10px]">
                           {lead.dataSource}
                         </Badge>
@@ -1088,7 +1275,7 @@ export default function DashboardPage() {
                 </div>
                 <p className="text-sm font-medium text-foreground">No hot leads yet</p>
                 <p className="text-xs text-muted-foreground mt-1">
-                  Leads with score ≥ 85 will appear here
+                  Leads with score &ge; 85 will appear here
                 </p>
                 <Link href="/app/leads">
                   <Button variant="outline" size="sm" className="mt-3">
@@ -1105,8 +1292,8 @@ export default function DashboardPage() {
           <CardHeader className="pb-2 flex-shrink-0">
             <div className="flex items-center justify-between">
               <CardTitle className="text-base font-medium flex items-center gap-2">
-                <Calendar className="h-4 w-4 text-blue-500" />
-                Today's Actions
+                <Activity className="h-4 w-4 text-blue-500" />
+                Today&apos;s Actions
               </CardTitle>
               <Badge variant="secondary" className="text-xs">
                 {actionItems.length + overdueTasks.length} items
@@ -1185,9 +1372,9 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
 
-          {/* Pipeline + Notifications */}
+          {/* Calendar + Recent Activity */}
           <div className="flex flex-col gap-6">
-            <PipelineFunnel stages={pipelineStages} />
+            <WeekCalendarWidget tasks={calendarTasks} />
             <NotificationsPreview notifications={notifications} />
           </div>
         </div>
