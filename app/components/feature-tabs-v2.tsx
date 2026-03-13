@@ -18,30 +18,38 @@ import {
   Clock,
   DollarSign,
   Layers,
+  Search,
+  FileSignature,
+  Hammer,
+  ArrowRight,
 } from 'lucide-react';
 import Link from 'next/link';
 import { SectionPill } from './section-pill';
 
 const tabs = [
   {
-    id: 'lead-scoring',
-    label: 'Lead Scoring',
-    icon: TrendingUp,
+    id: 'find',
+    number: '01',
+    label: 'Find',
+    icon: Search,
   },
   {
-    id: 'underwriting',
-    label: 'Underwriting',
+    id: 'analyze',
+    number: '02',
+    label: 'Analyze',
     icon: Calculator,
   },
   {
-    id: 'projects',
-    label: 'Projects',
-    icon: Kanban,
+    id: 'close',
+    number: '03',
+    label: 'Close',
+    icon: FileSignature,
   },
   {
-    id: 'financials',
-    label: 'Financials',
-    icon: PieChart,
+    id: 'manage',
+    number: '04',
+    label: 'Manage',
+    icon: Hammer,
   },
 ];
 
@@ -598,7 +606,7 @@ function CompetitorComparison({ others, flipops, ctaText }: ComparisonProps) {
 
 export function FeatureTabsV2() {
   const [isDarkMode, setIsDarkMode] = useState(false);
-  const [activeTab, setActiveTab] = useState('lead-scoring');
+  const [activeTab, setActiveTab] = useState('find');
 
   useEffect(() => {
     const check = () => setIsDarkMode(document.documentElement.classList.contains('dark'));
@@ -651,13 +659,13 @@ export function FeatureTabsV2() {
             staggerIndex={0}
           >
             <Layers className="h-4 w-4" />
-            Our System
+            The Full Lifecycle
           </SectionPill>
           <h2 className="relative z-10 text-3xl lg:text-5xl font-bold mb-4 text-gray-900 dark:text-white glow-heading-blue">
-            The FlipOps Approach
+            One Platform. Every Stage.
           </h2>
           <p className="relative z-10 text-xl text-gray-600 dark:text-gray-300 max-w-2xl mx-auto">
-            Other platforms give you tools. FlipOps gives you <span className="font-semibold">guardrails</span>.
+            From distressed property discovery to deal close to property management — no tool gaps, no data silos.
           </p>
         </motion.div>
 
@@ -700,6 +708,7 @@ export function FeatureTabsV2() {
                     boxShadow: '0 1px 3px rgba(59, 130, 246, 0.15)',
                   } : undefined}
                 >
+                  <span className="text-xs font-mono text-gray-400 dark:text-white/30 sr-only sm:not-sr-only">{tab.number}</span>
                   <Icon className="h-4 w-4" />
                   <span className="sr-only sm:not-sr-only sm:inline">{tab.label}</span>
                 </TabsTrigger>
@@ -707,151 +716,196 @@ export function FeatureTabsV2() {
             })}
           </TabsList>
 
-          {/* Tab 1: Lead Scoring */}
-          <TabsContent value="lead-scoring">
+          {/* Tab 1: Find */}
+          <TabsContent value="find">
             <Card className="p-6 lg:p-8" style={cardStyle}>
               <div className="grid lg:grid-cols-2 gap-8 items-start">
                 <div>
-                  <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">
-                    Algorithmic Lead Scoring
+                  <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
+                    Distress Scoring & Lead Discovery
                   </h3>
-                  <CompetitorComparison
-                    others={[
-                      'Manual lead tagging',
-                      'Gut-feel prioritization',
-                      'Missed hot deals buried in data',
-                    ]}
-                    flipops={[
-                      {
-                        title: 'Distress Signal Analysis',
-                        description:
-                          'Pre-foreclosure, vacant, tax delinquent, aged listing, high equity → instant 0-100 score',
-                      },
-                      {
-                        title: 'Transparent Breakdown',
-                        description: 'Hover any score to see WHY it\'s hot (not just that it is)',
-                      },
-                      {
-                        title: 'Auto-Prioritization',
-                        description: 'Leads sorted by likelihood to close, not alphabetically',
-                      },
-                    ]}
-                    ctaText="See How Scoring Works"
-                  />
+                  <p className="text-gray-500 dark:text-gray-400 mb-6 text-sm">
+                    Score 157M+ properties across 15+ distress signals. Auto-trigger skip tracing at threshold scores.
+                  </p>
+                  <ul className="space-y-4 mb-6">
+                    <li className="flex items-start gap-3">
+                      <div className="w-6 h-6 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <Check className="h-3.5 w-3.5 text-white" />
+                      </div>
+                      <div>
+                        <div className="font-medium text-gray-900 dark:text-white text-sm">0-100 Distress Score</div>
+                        <div className="text-sm text-gray-500 dark:text-gray-400">Pre-foreclosure, liens, vacancy, tax delinquency — weighted and combined instantly</div>
+                      </div>
+                    </li>
+                    <li className="flex items-start gap-3">
+                      <div className="w-6 h-6 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <Check className="h-3.5 w-3.5 text-white" />
+                      </div>
+                      <div>
+                        <div className="font-medium text-gray-900 dark:text-white text-sm">Automated Skip Tracing</div>
+                        <div className="text-sm text-gray-500 dark:text-gray-400">Properties scoring 70+ auto-enrich with owner contact info — no manual steps</div>
+                      </div>
+                    </li>
+                    <li className="flex items-start gap-3">
+                      <div className="w-6 h-6 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <Check className="h-3.5 w-3.5 text-white" />
+                      </div>
+                      <div>
+                        <div className="font-medium text-gray-900 dark:text-white text-sm">Behavioral Learning</div>
+                        <div className="text-sm text-gray-500 dark:text-gray-400">Scores adapt to your investing style over time — your top leads are different from everyone else's</div>
+                      </div>
+                    </li>
+                  </ul>
+                  <Link href="/features/distress-scoring" className="inline-flex items-center gap-1.5 text-sm font-semibold text-primary hover:gap-2.5 transition-all">
+                    Learn more <ArrowRight className="h-4 w-4" />
+                  </Link>
                 </div>
                 <LeadScoringDemo isDarkMode={isDarkMode} />
               </div>
             </Card>
           </TabsContent>
 
-          {/* Tab 2: Underwriting */}
-          <TabsContent value="underwriting">
+          {/* Tab 2: Analyze */}
+          <TabsContent value="analyze">
             <Card className="p-6 lg:p-8" style={cardStyle}>
               <div className="grid lg:grid-cols-2 gap-8 items-start">
                 <div>
-                  <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">
-                    Guardrails, Not Guesswork
+                  <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
+                    Underwriting & Deal Analysis
                   </h3>
-                  <CompetitorComparison
-                    others={[
-                      'Static calculators with industry averages',
-                      'No risk modeling',
-                      'Manual spreadsheet underwriting',
-                    ]}
-                    flipops={[
-                      {
-                        title: 'Adjustable Assumptions',
-                        description:
-                          'Drag sliders to model best/worst case (profit margin, holding time, repairs buffer)',
-                      },
-                      {
-                        title: 'Visual Waterfall',
-                        description: 'See exactly where your money goes: ARV → repairs → commissions → MAO',
-                      },
-                      {
-                        title: 'Risk Alerts',
-                        description: '"15% profit margin is below safe threshold" — before you make an offer',
-                      },
-                    ]}
-                    ctaText="Try MAO Calculator"
-                  />
+                  <p className="text-gray-500 dark:text-gray-400 mb-6 text-sm">
+                    MAO calculator, comps analysis, and margin alerts — so you never overpay.
+                  </p>
+                  <ul className="space-y-4 mb-6">
+                    <li className="flex items-start gap-3">
+                      <div className="w-6 h-6 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <Check className="h-3.5 w-3.5 text-white" />
+                      </div>
+                      <div>
+                        <div className="font-medium text-gray-900 dark:text-white text-sm">Interactive MAO Waterfall</div>
+                        <div className="text-sm text-gray-500 dark:text-gray-400">Drag sliders to model profit margin, holding time, and repairs buffer in real time</div>
+                      </div>
+                    </li>
+                    <li className="flex items-start gap-3">
+                      <div className="w-6 h-6 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <Check className="h-3.5 w-3.5 text-white" />
+                      </div>
+                      <div>
+                        <div className="font-medium text-gray-900 dark:text-white text-sm">Comps & ARV Analysis</div>
+                        <div className="text-sm text-gray-500 dark:text-gray-400">Pull comparable sales, adjust for condition, and get a defensible after-repair value</div>
+                      </div>
+                    </li>
+                    <li className="flex items-start gap-3">
+                      <div className="w-6 h-6 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <Check className="h-3.5 w-3.5 text-white" />
+                      </div>
+                      <div>
+                        <div className="font-medium text-gray-900 dark:text-white text-sm">Risk Alerts</div>
+                        <div className="text-sm text-gray-500 dark:text-gray-400">"15% profit margin is below safe threshold" — warnings before you make an offer</div>
+                      </div>
+                    </li>
+                  </ul>
+                  <Link href="/features/mao-calculator" className="inline-flex items-center gap-1.5 text-sm font-semibold text-primary hover:gap-2.5 transition-all">
+                    Learn more <ArrowRight className="h-4 w-4" />
+                  </Link>
                 </div>
                 <MAOCalculatorDemo isDarkMode={isDarkMode} />
               </div>
             </Card>
           </TabsContent>
 
-          {/* Tab 3: Projects */}
-          <TabsContent value="projects">
+          {/* Tab 3: Close */}
+          <TabsContent value="close">
             <Card className="p-6 lg:p-8" style={cardStyle}>
               <div className="grid lg:grid-cols-2 gap-8 items-start">
                 <div>
-                  <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">
-                    Prevent Disasters, Not React to Them
+                  <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
+                    Deal Pipeline & Closing
                   </h3>
-                  <CompetitorComparison
-                    others={[
-                      'Basic task lists',
-                      'Photo uploads with no context',
-                      'Reactive alerts after the damage is done',
-                    ]}
-                    flipops={[
-                      {
-                        title: 'Urgency-Based Alerts',
-                        description:
-                          'Color-coded badges (red = urgent, amber = soon) showing days until deadline',
-                      },
-                      {
-                        title: 'Daily Burn Calculation',
-                        description:
-                          '"Every day past Feb 12 costs $127.50 in interest + utilities"',
-                      },
-                      {
-                        title: 'Budget Variance Tracking',
-                        description: 'Real-time alerts when any category exceeds 10% variance',
-                      },
-                    ]}
-                    ctaText="See Project Tracking"
-                  />
+                  <p className="text-gray-500 dark:text-gray-400 mb-6 text-sm">
+                    From lead to offer to contract to close — with urgency tracking at every stage.
+                  </p>
+                  <ul className="space-y-4 mb-6">
+                    <li className="flex items-start gap-3">
+                      <div className="w-6 h-6 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <Check className="h-3.5 w-3.5 text-white" />
+                      </div>
+                      <div>
+                        <div className="font-medium text-gray-900 dark:text-white text-sm">Visual Deal Pipeline</div>
+                        <div className="text-sm text-gray-500 dark:text-gray-400">Leads, Offers, Contracts, Buyers — every deal tracked with status and timeline</div>
+                      </div>
+                    </li>
+                    <li className="flex items-start gap-3">
+                      <div className="w-6 h-6 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <Check className="h-3.5 w-3.5 text-white" />
+                      </div>
+                      <div>
+                        <div className="font-medium text-gray-900 dark:text-white text-sm">Urgency-Based Alerts</div>
+                        <div className="text-sm text-gray-500 dark:text-gray-400">Color-coded deadlines with daily burn rate calculations — know the cost of every delay</div>
+                      </div>
+                    </li>
+                    <li className="flex items-start gap-3">
+                      <div className="w-6 h-6 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <Check className="h-3.5 w-3.5 text-white" />
+                      </div>
+                      <div>
+                        <div className="font-medium text-gray-900 dark:text-white text-sm">Title & Closing Integration</div>
+                        <div className="text-sm text-gray-500 dark:text-gray-400">Qualia integration coming soon — manage title and closing without leaving FlipOps</div>
+                      </div>
+                    </li>
+                  </ul>
+                  <Link href="/features/deal-pipeline" className="inline-flex items-center gap-1.5 text-sm font-semibold text-primary hover:gap-2.5 transition-all">
+                    Learn more <ArrowRight className="h-4 w-4" />
+                  </Link>
                 </div>
                 <UrgencyKanbanDemo isDarkMode={isDarkMode} />
               </div>
             </Card>
           </TabsContent>
 
-          {/* Tab 4: Financials */}
-          <TabsContent value="financials">
+          {/* Tab 4: Manage */}
+          <TabsContent value="manage">
             <Card className="p-6 lg:p-8" style={cardStyle}>
               <div className="grid lg:grid-cols-2 gap-8 items-start">
                 <div>
-                  <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">
-                    Know Your Numbers, Protect Your Margins
+                  <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
+                    Rehab, Rental & Vendor Management
                   </h3>
-                  <CompetitorComparison
-                    others={[
-                      'Spreadsheet exports',
-                      'Manual profit calculations',
-                      'Post-mortem analysis only',
-                    ]}
-                    flipops={[
-                      {
-                        title: 'ROI Gauge Visualization',
-                        description:
-                          'Instant profit/loss forecast with color-coded thresholds (red < 10%, amber 10-20%, green 20%+)',
-                      },
-                      {
-                        title: 'Waterfall Profit Summary',
-                        description:
-                          'Purchase → Repairs → Commissions → Closing → Net Profit (all automated)',
-                      },
-                      {
-                        title: 'What-If Scenarios',
-                        description:
-                          '"What if repairs run 20% over?" Toggle to see impact instantly',
-                      },
-                    ]}
-                    ctaText="Explore Profit Dashboard"
-                  />
+                  <p className="text-gray-500 dark:text-gray-400 mb-6 text-sm">
+                    Post-close capability that no competitor offers alongside lead gen and CRM.
+                  </p>
+                  <ul className="space-y-4 mb-6">
+                    <li className="flex items-start gap-3">
+                      <div className="w-6 h-6 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <Check className="h-3.5 w-3.5 text-white" />
+                      </div>
+                      <div>
+                        <div className="font-medium text-gray-900 dark:text-white text-sm">Renovation Tracking</div>
+                        <div className="text-sm text-gray-500 dark:text-gray-400">Budget categories, vendor assignments, change orders — with alerts when costs exceed 10% variance</div>
+                      </div>
+                    </li>
+                    <li className="flex items-start gap-3">
+                      <div className="w-6 h-6 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <Check className="h-3.5 w-3.5 text-white" />
+                      </div>
+                      <div>
+                        <div className="font-medium text-gray-900 dark:text-white text-sm">Rental Management</div>
+                        <div className="text-sm text-gray-500 dark:text-gray-400">Tenants, leases, maintenance tickets, cash flow tracking — for BRRRR investors who hold</div>
+                      </div>
+                    </li>
+                    <li className="flex items-start gap-3">
+                      <div className="w-6 h-6 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <Check className="h-3.5 w-3.5 text-white" />
+                      </div>
+                      <div>
+                        <div className="font-medium text-gray-900 dark:text-white text-sm">Vendor Network</div>
+                        <div className="text-sm text-gray-500 dark:text-gray-400">Browse platform vendors or add your own. Track reliability, ratings, and assign to projects</div>
+                      </div>
+                    </li>
+                  </ul>
+                  <Link href="/features/property-management" className="inline-flex items-center gap-1.5 text-sm font-semibold text-primary hover:gap-2.5 transition-all">
+                    Learn more <ArrowRight className="h-4 w-4" />
+                  </Link>
                 </div>
                 <ROIGaugeDemo isDarkMode={isDarkMode} />
               </div>

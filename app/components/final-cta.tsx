@@ -3,7 +3,6 @@
 import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
-import { ArrowRight, Play } from 'lucide-react';
 
 export function FinalCTA() {
   return (
@@ -17,27 +16,24 @@ export function FinalCTA() {
           className="text-center max-w-3xl mx-auto"
         >
           <h2 className="text-3xl lg:text-5xl font-bold mb-6 text-gray-900 dark:text-white">
-            Ready to stop guessing which leads are worth your time?
+            Your next deal is already distressed. Find it first.
           </h2>
           <p className="text-xl text-muted-foreground mb-8">
-            Join investors who use algorithmic intelligence to identify hot prospects before their competition does.
+            Join investors who score, analyze, close, and manage deals — all from one platform.
           </p>
 
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Link href="/app">
-              <Button size="lg" className="group bg-gradient-to-r from-primary to-accent hover:brightness-110 shadow-lg shadow-primary/25">
-                <Play className="mr-2 h-4 w-4" />
-                Try Live Demo
-              </Button>
-            </Link>
-            <Link href="/reserve">
-              <Button size="lg" variant="outline" className="group">
-                Reserve Your Spot
-                <ArrowRight className="ml-2 h-4 w-4 group-hover:translate-x-1 transition-transform" />
-              </Button>
-            </Link>
-          </div>
+          <Link href="/reserve">
+            <Button size="lg" className="bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 shadow-lg shadow-emerald-500/25 text-base">
+              Reserve Your Spot
+            </Button>
+          </Link>
 
+          <p className="mt-6 text-sm text-muted-foreground">
+            Plans start at $149/month.{' '}
+            <Link href="/pricing" className="text-primary hover:underline font-medium">
+              View pricing
+            </Link>
+          </p>
         </motion.div>
       </div>
     </section>

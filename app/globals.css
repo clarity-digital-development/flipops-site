@@ -248,6 +248,10 @@ body[data-scroll-locked][data-scroll-locked] {
 }
 
 /* Glow heading — text looks lit from above by lightbar */
+/* pb prevents backgroundClip:text from clipping descenders (g, y, p, q, j) */
+.dark [class*="glow-heading-"] {
+  padding-bottom: 0.25rem;
+}
 .dark .glow-heading-teal {
   background-image: linear-gradient(to bottom, rgb(45, 212, 191) 0%, rgba(255, 255, 255, 1) 45%);
   -webkit-background-clip: text;
@@ -286,6 +290,14 @@ body[data-scroll-locked][data-scroll-locked] {
 
 .dark .glow-heading-blue {
   background-image: linear-gradient(to bottom, rgb(59, 130, 246) 0%, rgba(255, 255, 255, 1) 45%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+}
+
+.dark .glow-heading-purple {
+  background-image: linear-gradient(to bottom, rgb(168, 85, 247) 0%, rgba(255, 255, 255, 1) 45%);
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;

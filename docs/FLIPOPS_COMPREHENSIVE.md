@@ -808,7 +808,7 @@ npm run cron:all          # Run all jobs once
 ## Contact & Support
 
 - **Platform**: https://flipops.io
-- **Email**: tannercarlson@vvsvault.com
+- **Email**: tannercarlson@flipops.io
 - **GitHub Issues**: Report bugs and feature requests
 
 ---

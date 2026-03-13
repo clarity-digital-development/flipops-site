@@ -6,6 +6,14 @@ const isPublicRoute = createRouteMatcher([
   "/sitemap.xml",                  // SEO crawlers
   "/reserve",                      // Pre-launch reservation page
   "/pricing",
+  "/features(.*)",                 // Features hub + subpages
+  "/for/(.*)",                     // Persona pages (wholesalers, flippers, BRRRR)
+  "/demo",                         // Demo page
+  "/about",                        // About page
+  "/faq",                          // FAQ page
+  "/blog(.*)",                     // Blog pages
+  "/tools(.*)",                    // Free tool pages (SEO)
+  "/compare(.*)",                  // Comparison pages
   "/sign-up(.*)",
   "/sign-in(.*)",
   "/privacy",
