@@ -207,6 +207,10 @@ export function Header() {
                     {item.label}
                   </Link>
                 ))}
+                <div className="flex items-center justify-between">
+                  <span className="text-base font-medium text-muted-foreground">Theme</span>
+                  <ThemeToggle />
+                </div>
                 <Link href="/app" className="w-full" onClick={() => setIsMobileMenuOpen(false)}>
                   <Button variant="ghost" className="mt-2 w-full text-blue-600">View Demo</Button>
                 </Link>
