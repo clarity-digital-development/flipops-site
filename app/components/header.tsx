@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { Menu, X, ChevronDown } from 'lucide-react';
+import { ChevronDown } from 'lucide-react';
 import { ThemeToggle } from '@/app/components/theme-toggle';
 
 interface DropdownItem {
@@ -97,6 +97,29 @@ function NavDropdownMenu({ dropdown, isScrolled }: { dropdown: NavDropdown; isSc
   );
 }
 
+/* Animated hamburger icon — morphs between ☰ and ✕ */
+function HamburgerIcon({ isOpen }: { isOpen: boolean }) {
+  return (
+    <div className="relative w-6 h-6 flex items-center justify-center">
+      <span
+        className={`absolute h-[2px] w-5 bg-current transition-all duration-300 ease-in-out ${
+          isOpen ? 'rotate-45 translate-y-0' : '-translate-y-[6px]'
+        }`}
+      />
+      <span
+        className={`absolute h-[2px] w-5 bg-current transition-all duration-300 ease-in-out ${
+          isOpen ? 'opacity-0 scale-x-0' : 'opacity-100 scale-x-100'
+        }`}
+      />
+      <span
+        className={`absolute h-[2px] w-5 bg-current transition-all duration-300 ease-in-out ${
+          isOpen ? '-rotate-45 translate-y-0' : 'translate-y-[6px]'
+        }`}
+      />
+    </div>
+  );
+}
+
 function MobileMenuDropdown({
   dropdown,
   onNavigate,
@@ -107,14 +130,14 @@ function MobileMenuDropdown({
   const [isOpen, setIsOpen] = useState(false);
 
   return (
-    <div className="border-b border-white/10">
+    <div className="border-b border-gray-200 dark:border-white/10">
       <button
-        className="flex items-center justify-between w-full py-4 text-lg font-medium text-white"
+        className="flex items-center justify-between w-full py-4 text-lg font-medium text-gray-900 dark:text-white"
         onClick={() => setIsOpen(!isOpen)}
       >
         {dropdown.label}
         <ChevronDown
-          className={`h-5 w-5 text-gray-400 transition-transform duration-200 ${
+          className={`h-5 w-5 text-gray-400 dark:text-gray-500 transition-transform duration-200 ${
             isOpen ? 'rotate-180' : ''
           }`}
         />
@@ -125,7 +148,7 @@ function MobileMenuDropdown({
             <Link
               key={item.href}
               href={item.href}
-              className="text-base text-gray-400 hover:text-white transition-colors"
+              className="text-base text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
               onClick={onNavigate}
             >
               {item.label}
@@ -167,10 +190,12 @@ export function Header() {
   }, []);
 
   return (
+    <>
     <header
       className={`fixed top-0 z-50 w-full transition-all duration-300 ${
-        isScrolled ? 'pt-3' : ''
+        isScrolled && !isMobileMenuOpen ? 'pt-3' : ''
       }`}
+      style={{ paddingTop: isScrolled && !isMobileMenuOpen ? undefined : 'env(safe-area-inset-top)' }}
     >
       <div className={`transition-all duration-300 ${
         isScrolled
@@ -215,81 +240,87 @@ export function Header() {
             </Link>
           </div>
 
-          {/* Mobile Navigation Toggle */}
-          <button
-            className="lg:hidden p-2 -mr-2"
-            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-            aria-label="Toggle menu"
-          >
-            {isMobileMenuOpen ? (
-              <X className="h-6 w-6" />
-            ) : (
-              <Menu className="h-6 w-6" />
-            )}
-          </button>
+          {/* Mobile Navigation Toggle — animated hamburger/X */}
+          <div className="lg:hidden flex items-center gap-2">
+            <ThemeToggle />
+            <button
+              className="p-2 -mr-2"
+              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+              aria-label="Toggle menu"
+            >
+              <HamburgerIcon isOpen={isMobileMenuOpen} />
+            </button>
+          </div>
         </nav>
       </div>
 
-      {/* Full-screen mobile menu overlay */}
-      {isMobileMenuOpen && (
-        <div className="lg:hidden fixed inset-0 top-0 z-[60] bg-[#0a0a0a]">
-          {/* Header row */}
-          <div className="flex items-center justify-between h-16 px-4">
-            <Link
-              href="/"
-              onClick={() => setIsMobileMenuOpen(false)}
-              className="text-2xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent"
-            >
-              FlipOps
-            </Link>
-            <div className="flex items-center gap-2">
-              <ThemeToggle />
-              <button
-                className="p-2 -mr-2 text-white"
-                onClick={() => setIsMobileMenuOpen(false)}
-                aria-label="Close menu"
-              >
-                <X className="h-6 w-6" />
-              </button>
-            </div>
-          </div>
-
-          {/* Menu content */}
-          <nav className="px-6 pt-4 overflow-y-auto" style={{ maxHeight: 'calc(100dvh - 4rem)' }}>
-            {dropdowns.map((dropdown) => (
-              <MobileMenuDropdown
-                key={dropdown.label}
-                dropdown={dropdown}
-                onNavigate={() => setIsMobileMenuOpen(false)}
-              />
-            ))}
-            {staticLinks.map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                className="block py-4 text-lg font-medium text-white border-b border-white/10"
-                onClick={() => setIsMobileMenuOpen(false)}
-              >
-                {item.label}
-              </Link>
-            ))}
-
-            {/* CTAs */}
-            <div className="flex flex-col gap-3 mt-8">
-              <Link href="/app" className="w-full" onClick={() => setIsMobileMenuOpen(false)}>
-                <Button variant="outline" className="w-full text-base border-white/20 text-white hover:bg-white/10">
-                  View Demo
-                </Button>
-              </Link>
-              <Link href="/reserve" className="w-full" onClick={() => setIsMobileMenuOpen(false)}>
-                <Button className="w-full text-base bg-gradient-to-r from-primary to-accent hover:brightness-110">
-                  Reserve Your Spot
-                </Button>
-              </Link>
-            </div>
-          </nav>
-        </div>
-      )}
     </header>
+
+    {/* Full-screen mobile menu overlay — rendered outside header for proper stacking */}
+    <div
+      style={{ zIndex: 200, paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' }}
+      className={`lg:hidden fixed inset-0 bg-white dark:bg-black transition-all duration-300 ease-in-out ${
+        isMobileMenuOpen
+          ? 'opacity-100 translate-y-0 pointer-events-auto'
+          : 'opacity-0 -translate-y-4 pointer-events-none'
+      }`}
+    >
+      {/* Header row inside overlay */}
+      <div className="flex items-center justify-between h-16 px-4">
+        <Link
+          href="/"
+          onClick={() => setIsMobileMenuOpen(false)}
+          className="text-2xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent"
+        >
+          FlipOps
+        </Link>
+        <div className="flex items-center gap-2">
+          <ThemeToggle />
+          <button
+            className="p-2 -mr-2"
+            onClick={() => setIsMobileMenuOpen(false)}
+            aria-label="Close menu"
+          >
+            <HamburgerIcon isOpen={true} />
+          </button>
+        </div>
+      </div>
+
+      {/* Menu content */}
+      <nav className="px-6 pt-2 pb-8 overflow-y-auto" style={{ height: 'calc(100dvh - 4rem)' }}>
+        {dropdowns.map((dropdown) => (
+          <MobileMenuDropdown
+            key={dropdown.label}
+            dropdown={dropdown}
+            onNavigate={() => setIsMobileMenuOpen(false)}
+          />
+        ))}
+        {staticLinks.map((item) => (
+          <Link
+            key={item.href}
+            href={item.href}
+            className="block py-4 text-lg font-medium text-gray-900 dark:text-white border-b border-gray-200 dark:border-white/10"
+            onClick={() => setIsMobileMenuOpen(false)}
+          >
+            {item.label}
+          </Link>
+        ))}
+
+        {/* CTAs */}
+        <div className="flex flex-col gap-3 mt-8">
+          <Link href="/app" className="w-full" onClick={() => setIsMobileMenuOpen(false)}>
+            <Button variant="outline" className="w-full text-base border-gray-300 dark:border-white/20">
+              View Demo
+            </Button>
+          </Link>
+          <Link href="/reserve" className="w-full" onClick={() => setIsMobileMenuOpen(false)}>
+            <Button className="w-full text-base bg-gradient-to-r from-primary to-accent hover:brightness-110">
+              Reserve Your Spot
+            </Button>
+          </Link>
+        </div>
+      </nav>
+    </div>
+    </>
   );
 }

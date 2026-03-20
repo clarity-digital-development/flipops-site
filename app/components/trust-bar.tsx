@@ -133,8 +133,8 @@ function TrustMarquee() {
   const strip = trustItems.map((item, index) => {
     const Icon = item.icon;
     return (
-      <div key={index} className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 whitespace-nowrap px-5">
-        <Icon className="h-4 w-4 text-primary flex-shrink-0" />
+      <div key={index} className="flex items-center gap-2.5 text-base sm:text-sm text-gray-500 dark:text-gray-400 whitespace-nowrap px-6 sm:px-5">
+        <Icon className="h-5 w-5 sm:h-4 sm:w-4 text-primary flex-shrink-0" />
         <span>{item.text}</span>
       </div>
     );
@@ -185,15 +185,15 @@ export function TrustBar() {
   }, [isDarkMode]);
 
   return (
-    <section className="relative py-6 bg-white dark:bg-black overflow-hidden">
-      {/* Dark mode: side-light glows + dust particles */}
+    <section className="relative py-8 sm:py-6 bg-white dark:bg-black overflow-hidden">
+      {/* Dark mode: side-light glows + dust particles (desktop only) */}
       {isDarkMode && (
         <>
-          <DustParticles />
+          <div className="hidden sm:block"><DustParticles /></div>
 
-          {/* LEFT — bright glow, contained within section */}
+          {/* LEFT — bright glow, contained within section (desktop only) */}
           <div
-            className="absolute pointer-events-none"
+            className="hidden sm:block absolute pointer-events-none"
             style={{
               top: 0,
               bottom: 0,
@@ -205,9 +205,9 @@ export function TrustBar() {
             }}
           />
 
-          {/* RIGHT — bright glow, contained within section */}
+          {/* RIGHT — bright glow, contained within section (desktop only) */}
           <div
-            className="absolute pointer-events-none"
+            className="hidden sm:block absolute pointer-events-none"
             style={{
               top: 0,
               bottom: 0,

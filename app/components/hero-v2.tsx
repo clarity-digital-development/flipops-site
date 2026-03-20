@@ -15,12 +15,12 @@ const microProofs = [
 
 export function HeroV2() {
   return (
-    <section className="relative pt-24 pb-0 lg:pt-32 lg:pb-0 overflow-x-clip bg-[#f4f4f6] dark:bg-black">
+    <section className="relative lg:min-h-0 pt-20 pb-0 lg:pt-32 lg:pb-0 overflow-x-clip bg-[#f4f4f6] dark:bg-black flex flex-col" style={{ minHeight: 'calc(100svh - 4rem)' }}>
       {/* Bottom gradient fade into next section */}
       <div className="hidden dark:block absolute inset-x-0 bottom-0 h-32 bg-gradient-to-b from-transparent via-black/50 to-black z-10 pointer-events-none" />
       <div className="dark:hidden absolute inset-x-0 bottom-0 h-32 bg-gradient-to-b from-transparent to-white z-10 pointer-events-none" />
 
-      <div className="container mx-auto px-4 pb-16 lg:pb-32">
+      <div className="container mx-auto px-4 pb-8 lg:pb-32 flex-1 flex flex-col justify-center lg:block">
         <div className="grid lg:grid-cols-2 gap-6 lg:gap-12 items-center">
           {/* Left Column: Messaging */}
           <motion.div
@@ -33,7 +33,7 @@ export function HeroV2() {
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: 0.1 }}
-              className="mb-6 flex justify-center lg:justify-start"
+              className="mb-6 sm:mb-6 flex justify-center lg:justify-start"
             >
               <SectionPill
                 pillClassName="bg-gradient-to-r from-primary to-accent shadow-lg shadow-primary/25"
@@ -46,20 +46,17 @@ export function HeroV2() {
             </motion.div>
 
             {/* Headline */}
-            <h1 className="relative z-10 text-3xl sm:text-5xl lg:text-7xl font-bold mb-6 text-center lg:text-left">
-              <span className="text-gray-900 dark:text-white glow-heading-teal">Find Distressed Properties</span>
+            <h1 className="relative z-10 text-5xl sm:text-6xl lg:text-7xl font-bold mb-6 text-center lg:text-left" style={{ lineHeight: 1.1 }}>
+              <span className="text-gray-900 dark:text-white glow-heading-teal">Your Unfair Advantage</span>
               <br />
               <span className="bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-                Before Anyone Else.
+                in Real Estate Investing.
               </span>
             </h1>
 
             {/* Subheadline */}
-            <p className="relative z-10 text-base sm:text-xl text-gray-600 dark:text-gray-300 mb-8 leading-relaxed text-center lg:text-left">
-              FlipOps scores every property in America for distress signals, auto-contacts motivated sellers, and manages your deal from first touch to final disposition.{' '}
-              <span className="font-semibold text-gray-900 dark:text-white">
-                One platform. Every deal.
-              </span>
+            <p className="relative z-10 text-xl text-gray-600 dark:text-gray-300 mb-10 leading-relaxed text-center lg:text-left">
+              Other tools stop at acquisition. We take you to close.
             </p>
 
             {/* CTAs */}
@@ -70,12 +67,12 @@ export function HeroV2() {
               className="flex flex-row justify-center lg:justify-start gap-4 mb-10"
             >
               <Link href="/demo">
-                <Button size="lg" variant="outline" className="text-base">
+                <Button variant="outline" className="text-lg px-8 h-14 lg:text-base lg:px-4 lg:h-10">
                   View Demo
                 </Button>
               </Link>
               <Link href="/reserve">
-                <Button size="lg" className="text-base bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 shadow-lg shadow-emerald-500/25">
+                <Button className="text-lg px-8 h-14 lg:text-base lg:px-4 lg:h-10 bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 shadow-lg shadow-emerald-500/25">
                   Reserve Your Spot
                 </Button>
               </Link>
