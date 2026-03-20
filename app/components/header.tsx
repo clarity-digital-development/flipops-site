@@ -3,9 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { Sheet, SheetContent, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
-import { VisuallyHidden } from '@radix-ui/react-visually-hidden';
-import { Menu, ChevronDown } from 'lucide-react';
+import { Menu, X, ChevronDown } from 'lucide-react';
 import { ThemeToggle } from '@/app/components/theme-toggle';
 
 interface DropdownItem {
@@ -99,9 +97,59 @@ function NavDropdownMenu({ dropdown, isScrolled }: { dropdown: NavDropdown; isSc
   );
 }
 
+function MobileMenuDropdown({
+  dropdown,
+  onNavigate,
+}: {
+  dropdown: NavDropdown;
+  onNavigate: () => void;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+
+  return (
+    <div className="border-b border-white/10">
+      <button
+        className="flex items-center justify-between w-full py-4 text-lg font-medium text-white"
+        onClick={() => setIsOpen(!isOpen)}
+      >
+        {dropdown.label}
+        <ChevronDown
+          className={`h-5 w-5 text-gray-400 transition-transform duration-200 ${
+            isOpen ? 'rotate-180' : ''
+          }`}
+        />
+      </button>
+      {isOpen && (
+        <div className="flex flex-col gap-3 pl-4 pb-4">
+          {dropdown.items.map((item) => (
+            <Link
+              key={item.href}
+              href={item.href}
+              className="text-base text-gray-400 hover:text-white transition-colors"
+              onClick={onNavigate}
+            >
+              {item.label}
+            </Link>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function Header() {
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+  // Lock body scroll when mobile menu is open
+  useEffect(() => {
+    if (isMobileMenuOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => { document.body.style.overflow = ''; };
+  }, [isMobileMenuOpen]);
 
   useEffect(() => {
     let ticking = false;
@@ -167,61 +215,81 @@ export function Header() {
             </Link>
           </div>
 
-          {/* Mobile Navigation */}
-          <Sheet open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
-            <SheetTrigger asChild className="lg:hidden">
-              <Button variant="ghost" size="icon">
-                <Menu className="h-6 w-6" />
-                <span className="sr-only">Toggle menu</span>
-              </Button>
-            </SheetTrigger>
-            <SheetContent side="right" className="w-[270px] sm:w-[360px]">
-              <VisuallyHidden>
-                <SheetTitle>Navigation Menu</SheetTitle>
-              </VisuallyHidden>
-              <nav className="flex flex-col gap-6 mt-8">
-                {dropdowns.map((dropdown) => (
-                  <div key={dropdown.label}>
-                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">{dropdown.label}</p>
-                    <div className="flex flex-col gap-2 pl-2">
-                      {dropdown.items.map((item) => (
-                        <Link
-                          key={item.href}
-                          href={item.href}
-                          className="text-base font-medium text-muted-foreground hover:text-foreground transition-colors"
-                          onClick={() => setIsMobileMenuOpen(false)}
-                        >
-                          {item.label}
-                        </Link>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-                {staticLinks.map((item) => (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    className="text-base font-medium text-muted-foreground hover:text-foreground transition-colors"
-                    onClick={() => setIsMobileMenuOpen(false)}
-                  >
-                    {item.label}
-                  </Link>
-                ))}
-                <div className="flex items-center justify-between">
-                  <span className="text-base font-medium text-muted-foreground">Theme</span>
-                  <ThemeToggle />
-                </div>
-                <Link href="/app" className="w-full" onClick={() => setIsMobileMenuOpen(false)}>
-                  <Button variant="ghost" className="mt-2 w-full text-blue-600">View Demo</Button>
-                </Link>
-                <Link href="/reserve" className="w-full" onClick={() => setIsMobileMenuOpen(false)}>
-                  <Button className="w-full">Reserve Your Spot</Button>
-                </Link>
-              </nav>
-            </SheetContent>
-          </Sheet>
+          {/* Mobile Navigation Toggle */}
+          <button
+            className="lg:hidden p-2 -mr-2"
+            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+            aria-label="Toggle menu"
+          >
+            {isMobileMenuOpen ? (
+              <X className="h-6 w-6" />
+            ) : (
+              <Menu className="h-6 w-6" />
+            )}
+          </button>
         </nav>
       </div>
+
+      {/* Full-screen mobile menu overlay */}
+      {isMobileMenuOpen && (
+        <div className="lg:hidden fixed inset-0 top-0 z-[60] bg-[#0a0a0a]">
+          {/* Header row */}
+          <div className="flex items-center justify-between h-16 px-4">
+            <Link
+              href="/"
+              onClick={() => setIsMobileMenuOpen(false)}
+              className="text-2xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent"
+            >
+              FlipOps
+            </Link>
+            <div className="flex items-center gap-2">
+              <ThemeToggle />
+              <button
+                className="p-2 -mr-2 text-white"
+                onClick={() => setIsMobileMenuOpen(false)}
+                aria-label="Close menu"
+              >
+                <X className="h-6 w-6" />
+              </button>
+            </div>
+          </div>
+
+          {/* Menu content */}
+          <nav className="px-6 pt-4 overflow-y-auto" style={{ maxHeight: 'calc(100dvh - 4rem)' }}>
+            {dropdowns.map((dropdown) => (
+              <MobileMenuDropdown
+                key={dropdown.label}
+                dropdown={dropdown}
+                onNavigate={() => setIsMobileMenuOpen(false)}
+              />
+            ))}
+            {staticLinks.map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                className="block py-4 text-lg font-medium text-white border-b border-white/10"
+                onClick={() => setIsMobileMenuOpen(false)}
+              >
+                {item.label}
+              </Link>
+            ))}
+
+            {/* CTAs */}
+            <div className="flex flex-col gap-3 mt-8">
+              <Link href="/app" className="w-full" onClick={() => setIsMobileMenuOpen(false)}>
+                <Button variant="outline" className="w-full text-base border-white/20 text-white hover:bg-white/10">
+                  View Demo
+                </Button>
+              </Link>
+              <Link href="/reserve" className="w-full" onClick={() => setIsMobileMenuOpen(false)}>
+                <Button className="w-full text-base bg-gradient-to-r from-primary to-accent hover:brightness-110">
+                  Reserve Your Spot
+                </Button>
+              </Link>
+            </div>
+          </nav>
+        </div>
+      )}
     </header>
   );
 }
