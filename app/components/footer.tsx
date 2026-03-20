@@ -39,9 +39,9 @@ export function Footer() {
   return (
     <footer className="bg-zinc-900 dark:bg-black border-t border-zinc-800 dark:border-zinc-900">
       <div className="container mx-auto px-4 py-12">
-        <div className="grid md:grid-cols-6 gap-8">
+        <div className="grid grid-cols-2 md:grid-cols-6 gap-6 md:gap-8">
           {/* Brand */}
-          <div className="md:col-span-2">
+          <div className="col-span-2 md:col-span-2">
             <span className="text-2xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent inline-block mb-2">
               {brandName}
             </span>

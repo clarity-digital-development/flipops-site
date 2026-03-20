@@ -173,7 +173,7 @@ export default function MAOCalculatorPage() {
                   <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${
                     i === 0 ? 'bg-emerald-500/10' : 'bg-rose-500/10'
                   }`}>
-                    <item.icon className={`w-4.5 h-4.5 ${i === 0 ? 'text-emerald-500' : 'text-rose-500'}`} />
+                    <item.icon className={`w-4 h-4 ${i === 0 ? 'text-emerald-500' : 'text-rose-500'}`} />
                   </div>
                   <span className="text-sm font-mono text-muted-foreground w-5 text-center shrink-0">
                     {item.op ?? ''}

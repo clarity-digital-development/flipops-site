@@ -214,6 +214,15 @@ body[data-scroll-locked][data-scroll-locked] {
   animation: drawProgress 1s ease-in-out forwards;
 }
 
+@keyframes marquee {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
 @keyframes drawSparkline {
   0% {
     stroke-dashoffset: 1;

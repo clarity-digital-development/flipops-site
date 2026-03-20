@@ -126,6 +126,31 @@ function DustParticles() {
 }
 
 /* ------------------------------------------------------------------ */
+/*  Marquee strip (CSS-only, duplicated for seamless loop)             */
+/* ------------------------------------------------------------------ */
+
+function TrustMarquee() {
+  const strip = trustItems.map((item, index) => {
+    const Icon = item.icon;
+    return (
+      <div key={index} className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 whitespace-nowrap px-5">
+        <Icon className="h-4 w-4 text-primary flex-shrink-0" />
+        <span>{item.text}</span>
+      </div>
+    );
+  });
+
+  return (
+    <div className="overflow-hidden [mask-image:linear-gradient(to_right,transparent,black_8%,black_92%,transparent)]">
+      <div className="flex w-max animate-[marquee_20s_linear_infinite]">
+        {/* Duplicate the strip 4x so the loop is seamless */}
+        {strip}{strip}{strip}{strip}
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
 /*  TrustBar                                                           */
 /* ------------------------------------------------------------------ */
 
@@ -196,13 +221,15 @@ export function TrustBar() {
         </>
       )}
 
-      <div className="container mx-auto px-4 relative z-10">
+      {/* Desktop: centered row — Mobile: marquee */}
+      <div className="relative z-10">
+        {/* Desktop layout (hidden on mobile) */}
         <motion.div
           initial={{ opacity: 0 }}
           whileInView={{ opacity: 1 }}
           transition={{ duration: 0.5 }}
           viewport={{ once: true }}
-          className="flex flex-col sm:flex-row items-center justify-center gap-6 sm:gap-10"
+          className="hidden sm:flex items-center justify-center gap-6 md:gap-10 container mx-auto px-4"
         >
           {trustItems.map((item, index) => {
             const Icon = item.icon;
@@ -214,6 +241,11 @@ export function TrustBar() {
             );
           })}
         </motion.div>
+
+        {/* Mobile marquee (hidden on sm+) */}
+        <div className="sm:hidden">
+          <TrustMarquee />
+        </div>
       </div>
     </section>
   );

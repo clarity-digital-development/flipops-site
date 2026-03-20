@@ -126,7 +126,7 @@ export function Header() {
     >
       <div className={`transition-all duration-300 ${
         isScrolled
-          ? 'max-w-6xl mx-auto bg-white/95 dark:bg-black/95 backdrop-blur-md border border-gray-200 dark:border-zinc-800 shadow-lg rounded-full px-8'
+          ? 'max-w-6xl mx-auto bg-white/95 dark:bg-black/95 backdrop-blur-md border border-gray-200 dark:border-zinc-800 shadow-lg rounded-full px-4 sm:px-8'
           : 'container mx-auto px-4'
       }`}>
         <nav className="flex h-16 items-center justify-between">

@@ -15,10 +15,10 @@ export function FinalCTA() {
           viewport={{ once: true }}
           className="text-center max-w-3xl mx-auto"
         >
-          <h2 className="text-3xl lg:text-5xl font-bold mb-6 text-gray-900 dark:text-white">
+          <h2 className="text-2xl sm:text-3xl lg:text-5xl font-bold mb-6 text-gray-900 dark:text-white">
             Your next deal is already distressed. Find it first.
           </h2>
-          <p className="text-xl text-muted-foreground mb-8">
+          <p className="text-base sm:text-xl text-muted-foreground mb-8">
             Join investors who score, analyze, close, and manage deals — all from one platform.
           </p>
 

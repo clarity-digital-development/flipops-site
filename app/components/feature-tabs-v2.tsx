@@ -507,7 +507,7 @@ function LeadScoringDemo({ isDarkMode = false }: { isDarkMode?: boolean }) {
                     <div className="text-xs font-semibold text-blue-600 dark:text-white/50 mb-2 uppercase tracking-wider">
                       DISTRESS SCORE BREAKDOWN
                     </div>
-                    <div className={`grid gap-1 ${lead.signals.length <= 3 ? 'grid-cols-3' : lead.signals.length === 4 ? 'grid-cols-4' : 'grid-cols-5'}`}>
+                    <div className={`grid gap-1 grid-cols-2 ${lead.signals.length <= 3 ? 'sm:grid-cols-3' : lead.signals.length === 4 ? 'sm:grid-cols-4' : 'sm:grid-cols-5'}`}>
                       {lead.signals.map((item, j) => (
                         <motion.div
                           key={item.signal}
@@ -661,10 +661,10 @@ export function FeatureTabsV2() {
             <Layers className="h-4 w-4" />
             The Full Lifecycle
           </SectionPill>
-          <h2 className="relative z-10 text-3xl lg:text-5xl font-bold mb-4 text-gray-900 dark:text-white glow-heading-blue">
+          <h2 className="relative z-10 text-2xl sm:text-3xl lg:text-5xl font-bold mb-4 text-gray-900 dark:text-white glow-heading-blue">
             One Platform. Every Stage.
           </h2>
-          <p className="relative z-10 text-xl text-gray-600 dark:text-gray-300 max-w-2xl mx-auto">
+          <p className="relative z-10 text-base sm:text-xl text-gray-600 dark:text-gray-300 max-w-2xl mx-auto">
             From distressed property discovery to deal close to property management — no tool gaps, no data silos.
           </p>
         </motion.div>
@@ -718,7 +718,7 @@ export function FeatureTabsV2() {
 
           {/* Tab 1: Find */}
           <TabsContent value="find">
-            <Card className="p-6 lg:p-8" style={cardStyle}>
+            <Card className="p-4 sm:p-6 lg:p-8" style={cardStyle}>
               <div className="grid lg:grid-cols-2 gap-8 items-start">
                 <div>
                   <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
@@ -767,7 +767,7 @@ export function FeatureTabsV2() {
 
           {/* Tab 2: Analyze */}
           <TabsContent value="analyze">
-            <Card className="p-6 lg:p-8" style={cardStyle}>
+            <Card className="p-4 sm:p-6 lg:p-8" style={cardStyle}>
               <div className="grid lg:grid-cols-2 gap-8 items-start">
                 <div>
                   <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
@@ -816,7 +816,7 @@ export function FeatureTabsV2() {
 
           {/* Tab 3: Close */}
           <TabsContent value="close">
-            <Card className="p-6 lg:p-8" style={cardStyle}>
+            <Card className="p-4 sm:p-6 lg:p-8" style={cardStyle}>
               <div className="grid lg:grid-cols-2 gap-8 items-start">
                 <div>
                   <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
@@ -865,7 +865,7 @@ export function FeatureTabsV2() {
 
           {/* Tab 4: Manage */}
           <TabsContent value="manage">
-            <Card className="p-6 lg:p-8" style={cardStyle}>
+            <Card className="p-4 sm:p-6 lg:p-8" style={cardStyle}>
               <div className="grid lg:grid-cols-2 gap-8 items-start">
                 <div>
                   <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">

@@ -78,7 +78,7 @@ export function SavingsCalculator() {
             <AlertTriangle className="h-4 w-4" />
             The Hidden Cost of Fragmentation
           </SectionPill>
-          <h2 className="relative z-10 text-3xl lg:text-5xl font-bold mb-4 text-gray-900 dark:text-white glow-heading-rose">
+          <h2 className="relative z-10 text-2xl sm:text-3xl lg:text-5xl font-bold mb-4 text-gray-900 dark:text-white glow-heading-rose">
             Calculate Your Real Savings
           </h2>
           <p className="relative z-10 text-base text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">
@@ -93,9 +93,9 @@ export function SavingsCalculator() {
           viewport={{ once: true }}
           className="max-w-4xl mx-auto"
         >
-          <div className="grid md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
             {/* Left: Inputs */}
-            <div className="rounded-xl p-6 space-y-6" style={cardStyle}>
+            <div className="rounded-xl p-4 sm:p-6 space-y-4 sm:space-y-6" style={cardStyle}>
               <div className="flex items-center gap-2 mb-2">
                 <X className="h-5 w-5 text-rose-500" />
                 <h3 className="font-bold text-gray-900 dark:text-white">Your Current Stack</h3>
@@ -144,7 +144,7 @@ export function SavingsCalculator() {
                 </div>
               </div>
 
-              <div className="p-6 flex-1 flex flex-col items-center justify-center text-center">
+              <div className="p-4 sm:p-6 flex-1 flex flex-col items-center justify-center text-center">
                 <div className="text-sm text-gray-500 dark:text-gray-400 mb-2">You could save</div>
                 <AnimatePresence mode="wait">
                   <motion.div
@@ -154,7 +154,7 @@ export function SavingsCalculator() {
                     exit={{ scale: 0.8, opacity: 0 }}
                     transition={{ duration: 0.3 }}
                   >
-                    <div className="text-5xl font-bold text-emerald-600 dark:text-emerald-400">
+                    <div className="text-3xl sm:text-5xl font-bold text-emerald-600 dark:text-emerald-400">
                       ${monthlySavings.toLocaleString()}
                     </div>
                     <div className="text-sm text-gray-500 dark:text-gray-400 mt-1">per month</div>

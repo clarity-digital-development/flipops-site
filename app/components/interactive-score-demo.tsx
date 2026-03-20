@@ -145,7 +145,7 @@ export function InteractiveScoreDemo() {
       >
         {/* Table Header */}
         <div
-          className="px-6 py-3.5"
+          className="px-3 sm:px-6 py-3"
           style={isDarkMode ? {
             background: 'linear-gradient(180deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.02) 100%)',
             borderBottom: '1px solid rgba(0,0,0,0.4)',
@@ -156,10 +156,10 @@ export function InteractiveScoreDemo() {
             color: 'rgba(0, 0, 0, 0.45)',
           }}
         >
-          <div className="grid grid-cols-3 gap-4 text-[11px] font-semibold uppercase tracking-[0.15em]">
-            <div className="dark:text-white/35">Property</div>
-            <div className="dark:text-white/35">Score</div>
-            <div className="dark:text-white/35">Status</div>
+          <div className="flex items-center gap-2 sm:gap-4 text-[11px] font-semibold uppercase tracking-[0.15em]">
+            <div className="flex-1 dark:text-white/35">Property</div>
+            <div className="w-10 sm:w-12 text-center dark:text-white/35">Score</div>
+            <div className="hidden sm:block flex-1 dark:text-white/35">Status</div>
           </div>
         </div>
 
@@ -168,7 +168,7 @@ export function InteractiveScoreDemo() {
           {mockLeads.map((lead, index) => (
             <motion.div
               key={lead.address}
-              className={`px-6 py-[18px] cursor-help transition-colors duration-200 relative ${
+              className={`px-3 sm:px-6 py-3 sm:py-[18px] cursor-help transition-colors duration-200 relative ${
                 activeIndex === index
                   ? 'bg-blue-50/60 dark:bg-white/[0.02]'
                   : 'hover:bg-gray-50/60 dark:hover:bg-white/[0.02]'
@@ -186,27 +186,27 @@ export function InteractiveScoreDemo() {
               onMouseEnter={() => handleLeadHover(index)}
               onMouseLeave={handleLeadLeave}
             >
-              <div className="grid grid-cols-3 gap-4 items-center">
+              <div className="flex items-center gap-2 sm:gap-4">
                 {/* Property Address */}
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-lg bg-gray-100 dark:bg-white/[0.04] border border-gray-200/60 dark:border-white/[0.06] flex items-center justify-center">
-                    <Home className="h-4 w-4 text-teal-600 dark:text-teal-400" />
+                <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
+                  <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg bg-gray-100 dark:bg-white/[0.04] border border-gray-200/60 dark:border-white/[0.06] flex items-center justify-center shrink-0">
+                    <Home className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-teal-600 dark:text-teal-400" />
                   </div>
-                  <div>
-                    <div className="font-semibold text-gray-900 dark:text-white/90 text-sm">
+                  <div className="min-w-0">
+                    <div className="font-semibold text-gray-900 dark:text-white/90 text-xs sm:text-sm truncate">
                       {lead.address}
                     </div>
-                    <div className="text-xs text-gray-500 dark:text-white/30">
+                    <div className="text-[10px] sm:text-xs text-gray-500 dark:text-white/30">
                       {lead.city}
                     </div>
                   </div>
                 </div>
 
                 {/* Score Badge */}
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 shrink-0">
                   <div className="relative">
                     <div
-                      className={`inline-flex items-center justify-center w-12 h-12 rounded-xl border font-mono font-bold text-lg ${
+                      className={`inline-flex items-center justify-center w-10 h-10 sm:w-12 sm:h-12 rounded-xl border font-mono font-bold text-base sm:text-lg ${
                         lead.score >= 70
                           ? 'bg-emerald-50 border-emerald-400 text-emerald-700 dark:bg-emerald-500/[0.08] dark:border-emerald-500/40 dark:text-emerald-400'
                           : lead.score >= 50
@@ -234,7 +234,7 @@ export function InteractiveScoreDemo() {
                 </div>
 
                 {/* Status */}
-                <div>
+                <div className="hidden sm:block">
                   <span
                     className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border ${
                       lead.score >= 70
@@ -273,7 +273,7 @@ export function InteractiveScoreDemo() {
                         </div>
                       </div>
 
-                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2">
+                      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-1.5 sm:gap-2">
                         {lead.signals.map((signal, i) => (
                           <motion.div
                             key={signal.name}
@@ -301,7 +301,7 @@ export function InteractiveScoreDemo() {
 
         {/* Table Footer */}
         <div
-          className="px-6 py-3.5"
+          className="px-3 sm:px-6 py-3"
           style={isDarkMode ? {
             background: 'linear-gradient(180deg, rgba(0,0,0,0.15) 0%, rgba(0,0,0,0.25) 100%)',
             borderTop: '1px solid rgba(0,0,0,0.5)',

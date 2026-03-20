@@ -100,16 +100,16 @@ export function PersonaRouting() {
             <Users className="h-4 w-4" />
             Built for Every Strategy
           </SectionPill>
-          <h2 className="relative z-10 text-3xl lg:text-5xl font-bold mb-4 text-gray-900 dark:text-white glow-heading-purple">
+          <h2 className="relative z-10 text-2xl sm:text-3xl lg:text-5xl font-bold mb-4 text-gray-900 dark:text-white glow-heading-purple">
             How Do You Invest?
           </h2>
-          <p className="relative z-10 text-xl text-gray-600 dark:text-gray-300 max-w-2xl mx-auto">
+          <p className="relative z-10 text-base sm:text-xl text-gray-600 dark:text-gray-300 max-w-2xl mx-auto">
             FlipOps adapts to your strategy. Choose your path to see how.
           </p>
         </motion.div>
 
         {/* Persona Cards */}
-        <div className="grid md:grid-cols-3 gap-6 max-w-5xl mx-auto">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6 max-w-5xl mx-auto">
           {personas.map((persona, index) => {
             const Icon = persona.icon;
             return (
@@ -122,7 +122,7 @@ export function PersonaRouting() {
               >
                 <Link href={persona.href} className="block group">
                   <div
-                    className={`rounded-2xl p-6 border ${persona.borderColor} ${persona.hoverBorder} transition-all duration-300 group-hover:-translate-y-1`}
+                    className={`rounded-2xl p-4 sm:p-6 border ${persona.borderColor} ${persona.hoverBorder} transition-all duration-300 group-hover:-translate-y-1`}
                     style={cardStyle(persona)}
                   >
                     {/* Icon */}

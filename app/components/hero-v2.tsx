@@ -20,8 +20,8 @@ export function HeroV2() {
       <div className="hidden dark:block absolute inset-x-0 bottom-0 h-32 bg-gradient-to-b from-transparent via-black/50 to-black z-10 pointer-events-none" />
       <div className="dark:hidden absolute inset-x-0 bottom-0 h-32 bg-gradient-to-b from-transparent to-white z-10 pointer-events-none" />
 
-      <div className="container mx-auto px-4 pb-24 lg:pb-32">
-        <div className="grid lg:grid-cols-2 gap-12 items-center">
+      <div className="container mx-auto px-4 pb-16 lg:pb-32">
+        <div className="grid lg:grid-cols-2 gap-6 lg:gap-12 items-center">
           {/* Left Column: Messaging */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -33,7 +33,7 @@ export function HeroV2() {
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: 0.1 }}
-              className="mb-6"
+              className="mb-6 flex justify-center lg:justify-start"
             >
               <SectionPill
                 pillClassName="bg-gradient-to-r from-primary to-accent shadow-lg shadow-primary/25"
@@ -46,7 +46,7 @@ export function HeroV2() {
             </motion.div>
 
             {/* Headline */}
-            <h1 className="relative z-10 text-5xl lg:text-7xl font-bold mb-6">
+            <h1 className="relative z-10 text-3xl sm:text-5xl lg:text-7xl font-bold mb-6 text-center lg:text-left">
               <span className="text-gray-900 dark:text-white glow-heading-teal">Find Distressed Properties</span>
               <br />
               <span className="bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
@@ -55,7 +55,7 @@ export function HeroV2() {
             </h1>
 
             {/* Subheadline */}
-            <p className="relative z-10 text-xl text-gray-600 dark:text-gray-300 mb-8 leading-relaxed">
+            <p className="relative z-10 text-base sm:text-xl text-gray-600 dark:text-gray-300 mb-8 leading-relaxed text-center lg:text-left">
               FlipOps scores every property in America for distress signals, auto-contacts motivated sellers, and manages your deal from first touch to final disposition.{' '}
               <span className="font-semibold text-gray-900 dark:text-white">
                 One platform. Every deal.
@@ -67,7 +67,7 @@ export function HeroV2() {
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: 0.3 }}
-              className="flex flex-col sm:flex-row gap-4 mb-10"
+              className="flex flex-row justify-center lg:justify-start gap-4 mb-10"
             >
               <Link href="/demo">
                 <Button size="lg" variant="outline" className="text-base">
@@ -86,7 +86,7 @@ export function HeroV2() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ duration: 0.5, delay: 0.5 }}
-              className="flex flex-wrap gap-6"
+              className="hidden lg:flex flex-wrap gap-6 justify-center lg:justify-start"
             >
               {microProofs.map((proof, index) => {
                 const Icon = proof.icon;
@@ -105,12 +105,12 @@ export function HeroV2() {
             </motion.div>
           </motion.div>
 
-          {/* Right Column: Interactive Score Demo */}
+          {/* Right Column: Interactive Score Demo (hidden on mobile — shown in feature tabs) */}
           <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ duration: 0.5, delay: 0.3 }}
-            className="relative"
+            className="relative hidden lg:block"
           >
             <InteractiveScoreDemo />
           </motion.div>
