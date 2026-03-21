@@ -257,6 +257,39 @@ body[data-scroll-locked][data-scroll-locked] {
 }
 
 /* Glow heading — text looks lit from above by lightbar */
+/* Hero viewport height — full viewport minus header */
+.hero-mobile-vh {
+  min-height: calc(100dvh - 4rem);
+}
+@media (min-width: 1024px) {
+  .hero-mobile-vh {
+    min-height: 100vh;
+  }
+}
+
+/* Hero fluid typography — clamp on mobile, fixed on desktop */
+.hero-headline {
+  font-size: clamp(32px, 9vw, 56px);
+  line-height: 1.15;
+  letter-spacing: -0.03em;
+}
+@media (min-width: 1024px) {
+  .hero-headline {
+    font-size: 4.5rem; /* text-7xl */
+    line-height: 1.1;
+    letter-spacing: -0.02em;
+  }
+}
+
+.hero-subheadline {
+  font-size: clamp(15px, 4vw, 20px);
+}
+@media (min-width: 1024px) {
+  .hero-subheadline {
+    font-size: 1.25rem; /* text-xl */
+  }
+}
+
 /* pb prevents backgroundClip:text from clipping descenders (g, y, p, q, j) */
 .dark [class*="glow-heading-"] {
   padding-bottom: 0.25rem;

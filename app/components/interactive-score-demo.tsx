@@ -66,6 +66,7 @@ export function InteractiveScoreDemo() {
     if (hasInteracted) return;
 
     const interval = setInterval(() => {
+      setShowPrompt(false);
       setActiveIndex((prev) => {
         if (prev === null) return 0;
         return (prev + 1) % mockLeads.length;

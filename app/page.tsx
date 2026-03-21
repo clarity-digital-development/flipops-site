@@ -3,7 +3,6 @@ import { Header } from './components/header';
 import { HeroV2 as Hero } from './components/hero-v2';
 
 // Below-fold components: code-split into separate chunks to reduce initial bundle
-const TrustBar = dynamic(() => import('./components/trust-bar').then(m => ({ default: m.TrustBar })));
 const PersonaRouting = dynamic(() => import('./components/persona-routing').then(m => ({ default: m.PersonaRouting })));
 const FeatureTabs = dynamic(() => import('./components/feature-tabs-v2').then(m => ({ default: m.FeatureTabsV2 })));
 const SavingsCalculator = dynamic(() => import('./components/savings-calculator').then(m => ({ default: m.SavingsCalculator })));
@@ -16,7 +15,6 @@ export default function Home() {
       <Header />
       <main>
         <Hero />
-        <TrustBar />
         <PersonaRouting />
         <FeatureTabs />
         <SavingsCalculator />
