@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { ChevronDown } from 'lucide-react';
 import { ThemeToggle } from '@/app/components/theme-toggle';
@@ -203,10 +204,9 @@ export function Header() {
           : 'container mx-auto px-4'
       }`}>
         <nav className="flex h-16 items-center justify-between">
-          <Link href="/" className="flex items-center space-x-2">
-            <span className="text-2xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-              FlipOps
-            </span>
+          <Link href="/" className="flex items-center">
+            <Image src="/logo.png" alt="FlipOps" width={108} height={35} className="dark:hidden" priority />
+            <Image src="/logo-light.png" alt="FlipOps" width={108} height={35} className="hidden dark:block" priority />
           </Link>
 
           {/* Desktop Navigation */}
@@ -270,9 +270,10 @@ export function Header() {
         <Link
           href="/"
           onClick={() => setIsMobileMenuOpen(false)}
-          className="text-2xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent"
+          className="flex items-center"
         >
-          FlipOps
+          <Image src="/logo.png" alt="FlipOps" width={108} height={35} className="dark:hidden" />
+          <Image src="/logo-light.png" alt="FlipOps" width={108} height={35} className="hidden dark:block" />
         </Link>
         <div className="flex items-center gap-2">
           <ThemeToggle />

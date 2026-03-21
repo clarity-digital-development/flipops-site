@@ -4,13 +4,13 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { motion } from 'framer-motion';
 import { InteractiveScoreDemo } from './interactive-score-demo';
-import { Database, Activity, Cpu } from 'lucide-react';
+import { Search, GitBranch, Handshake } from 'lucide-react';
 import { TrustBar } from './trust-bar';
 
 const microProofs = [
-  { value: '157M+', label: 'properties analyzed', icon: Database },
-  { value: '15+', label: 'distress signals', icon: Activity },
-  { value: 'Real-time', label: 'scoring', icon: Cpu },
+  { value: 'Find', label: 'distressed properties', icon: Search },
+  { value: 'Manage', label: 'your pipeline', icon: GitBranch },
+  { value: 'Close', label: 'more deals', icon: Handshake },
 ];
 
 export function HeroV2() {
@@ -24,7 +24,7 @@ export function HeroV2() {
 
       {/* Hero content — flex-1 pushes trust bar to bottom */}
       <div className="container mx-auto px-6 lg:px-4 pb-8 flex-1 flex flex-col justify-center">
-        <div className="grid lg:grid-cols-2 gap-6 lg:gap-12 items-center">
+        <div className="grid lg:grid-cols-2 gap-6 lg:gap-12 items-start">
           {/* Left Column: Messaging */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
