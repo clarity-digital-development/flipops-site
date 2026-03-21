@@ -259,7 +259,7 @@ body[data-scroll-locked][data-scroll-locked] {
 /* Glow heading — text looks lit from above by lightbar */
 /* Hero viewport height — full viewport minus header */
 .hero-mobile-vh {
-  min-height: calc(100dvh - 4rem);
+  min-height: calc(100svh - 4rem);
 }
 @media (min-width: 1024px) {
   .hero-mobile-vh {
