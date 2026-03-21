@@ -157,10 +157,10 @@ export function InteractiveScoreDemo() {
             color: 'rgba(0, 0, 0, 0.45)',
           }}
         >
-          <div className="flex items-center gap-2 sm:gap-4 text-[11px] font-semibold uppercase tracking-[0.15em]">
+          <div className="flex items-center text-[11px] font-semibold uppercase tracking-[0.15em]">
             <div className="flex-1 dark:text-white/35">Property</div>
-            <div className="w-10 sm:w-12 text-center dark:text-white/35">Score</div>
-            <div className="hidden sm:block flex-1 dark:text-white/35">Status</div>
+            <div className="w-20 text-center dark:text-white/35">Score</div>
+            <div className="hidden sm:block w-28 text-right dark:text-white/35">Status</div>
           </div>
         </div>
 
@@ -187,7 +187,7 @@ export function InteractiveScoreDemo() {
               onMouseEnter={() => handleLeadHover(index)}
               onMouseLeave={handleLeadLeave}
             >
-              <div className="flex items-center gap-2 sm:gap-4">
+              <div className="flex items-center">
                 {/* Property Address */}
                 <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
                   <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg bg-gray-100 dark:bg-white/[0.04] border border-gray-200/60 dark:border-white/[0.06] flex items-center justify-center shrink-0">
@@ -204,7 +204,7 @@ export function InteractiveScoreDemo() {
                 </div>
 
                 {/* Score Badge */}
-                <div className="flex items-center gap-2 shrink-0">
+                <div className="flex items-center justify-center w-20 shrink-0">
                   <div className="relative">
                     <div
                       className={`inline-flex items-center justify-center w-10 h-10 sm:w-12 sm:h-12 rounded-xl border font-mono font-bold text-base sm:text-lg ${
@@ -235,7 +235,7 @@ export function InteractiveScoreDemo() {
                 </div>
 
                 {/* Status */}
-                <div className="hidden sm:block">
+                <div className="hidden sm:flex w-28 justify-end shrink-0">
                   <span
                     className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border ${
                       lead.score >= 70

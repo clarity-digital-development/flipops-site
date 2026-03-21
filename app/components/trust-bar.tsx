@@ -185,7 +185,7 @@ export function TrustBar() {
   }, [isDarkMode]);
 
   return (
-    <section className="relative py-8 sm:py-6 bg-white dark:bg-black overflow-hidden">
+    <section className="relative py-3 sm:py-6 bg-white dark:bg-black overflow-hidden">
       {/* Dark mode: side-light glows + dust particles (desktop only) */}
       {isDarkMode && (
         <>
