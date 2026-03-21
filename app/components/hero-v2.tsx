@@ -103,7 +103,7 @@ export function HeroV2() {
       </div>
 
       {/* Trust bar pinned to bottom of hero viewport on mobile */}
-      <div className="relative z-10" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
+      <div className="relative z-10 mt-auto" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
         <TrustBar />
       </div>
     </section>

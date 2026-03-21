@@ -269,7 +269,7 @@ body[data-scroll-locked][data-scroll-locked] {
 
 /* Hero fluid typography — clamp on mobile, fixed on desktop */
 .hero-headline {
-  font-size: clamp(32px, 9vw, 56px);
+  font-size: clamp(26px, 7vw, 56px);
   line-height: 1.15;
   letter-spacing: -0.03em;
 }
