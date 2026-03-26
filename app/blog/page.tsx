@@ -17,6 +17,8 @@ interface BlogPost {
   teaser: string;
   category: string;
   date: string;
+  slug?: string;
+  published?: boolean;
 }
 
 const featuredPost: BlogPost = {
@@ -28,6 +30,42 @@ const featuredPost: BlogPost = {
 };
 
 const posts: BlogPost[] = [
+  {
+    title: 'What 43% DOA Leads Cost You (And How Distress Scoring Fixes It)',
+    teaser:
+      'Nearly half of purchased real estate leads are dead on arrival. Here\'s what that costs per deal — in dollars, hours, and missed contracts.',
+    category: 'Data',
+    date: 'March 2026',
+    slug: 'what-doa-leads-cost-you-distress-scoring',
+    published: true,
+  },
+  {
+    title: "Why We're Building FlipOps: The Problem With Real Estate Investing Software",
+    teaser:
+      "Real estate investors juggle 4–6 disconnected tools to run their deal flow. Here's the real cost of that fragmentation — in money, time, and missed deals.",
+    category: 'Product',
+    date: 'March 2026',
+    slug: 'why-were-building-flipops',
+    published: true,
+  },
+  {
+    title: 'How to Build a Real Estate Buyers List That Actually Closes Deals',
+    teaser:
+      "Most wholesalers build buyers lists full of tire-kickers. Here's how to build a list of verified closers — sourced from public records, segmented by strategy, and maintained so it doesn't decay.",
+    category: 'Strategy',
+    date: 'March 2026',
+    slug: 'how-to-build-a-buyers-list-real-estate',
+    published: true,
+  },
+  {
+    title: "What Is Wholesaling Real Estate? The Complete Beginner's Guide",
+    teaser:
+      "Wholesaling requires no bank loans, no renovations, and no property ownership. Here's exactly how it works, what it costs to start, and what separates the operators who make money from those who don't.",
+    category: 'Guides',
+    date: 'March 2026',
+    slug: 'what-is-wholesaling-real-estate',
+    published: true,
+  },
   {
     title: 'The True Cost of Tool Sprawl for Real Estate Investors',
     teaser:
@@ -279,45 +317,68 @@ export default function BlogPage() {
         <section className="pb-20 lg:pb-28">
           <div className="container mx-auto px-4 max-w-6xl">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {posts.map((post) => (
-                <div
-                  key={post.title}
-                  className="rounded-2xl p-6 flex flex-col transition-transform duration-200 hover:-translate-y-1"
-                  style={cardStyle}
-                >
-                  {/* Category + Coming Soon */}
-                  <div className="flex items-center gap-2 mb-4">
-                    <span
-                      className={`text-xs font-medium px-2.5 py-1 rounded-full ${
-                        getCategoryStyle(post.category).bg
-                      } ${getCategoryStyle(post.category).text}`}
-                    >
-                      {post.category}
-                    </span>
-                    <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-emerald-100 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-400">
-                      Coming Soon
-                    </span>
-                  </div>
-
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
-                    {post.title}
-                  </h3>
-                  <p className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed flex-1">
-                    {post.teaser}
-                  </p>
-
-                  <div className="mt-5 flex items-center justify-between">
-                    <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-500">
-                      <Clock className="w-3.5 h-3.5" />
-                      {post.date}
+              {posts.map((post) => {
+                const cardContent = (
+                  <>
+                    {/* Category + Status */}
+                    <div className="flex items-center gap-2 mb-4">
+                      <span
+                        className={`text-xs font-medium px-2.5 py-1 rounded-full ${
+                          getCategoryStyle(post.category).bg
+                        } ${getCategoryStyle(post.category).text}`}
+                      >
+                        {post.category}
+                      </span>
+                      {post.published ? (
+                        <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-blue-100 dark:bg-blue-500/15 text-blue-700 dark:text-blue-400">
+                          Published
+                        </span>
+                      ) : (
+                        <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-emerald-100 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-400">
+                          Coming Soon
+                        </span>
+                      )}
                     </div>
-                    <div className="flex items-center gap-1 text-sm font-medium text-gray-400 dark:text-gray-500">
-                      Read article
-                      <ArrowRight className="w-4 h-4" />
+
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+                      {post.title}
+                    </h3>
+                    <p className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed flex-1">
+                      {post.teaser}
+                    </p>
+
+                    <div className="mt-5 flex items-center justify-between">
+                      <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-500">
+                        <Clock className="w-3.5 h-3.5" />
+                        {post.date}
+                      </div>
+                      <div className={`flex items-center gap-1 text-sm font-medium ${post.published ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-500'}`}>
+                        Read article
+                        <ArrowRight className="w-4 h-4" />
+                      </div>
                     </div>
+                  </>
+                );
+
+                return post.published && post.slug ? (
+                  <Link
+                    key={post.title}
+                    href={`/blog/${post.slug}`}
+                    className="rounded-2xl p-6 flex flex-col transition-transform duration-200 hover:-translate-y-1 cursor-pointer"
+                    style={cardStyle}
+                  >
+                    {cardContent}
+                  </Link>
+                ) : (
+                  <div
+                    key={post.title}
+                    className="rounded-2xl p-6 flex flex-col transition-transform duration-200 hover:-translate-y-1"
+                    style={cardStyle}
+                  >
+                    {cardContent}
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         </section>

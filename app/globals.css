@@ -1,5 +1,6 @@
 /* Tailwind v4 - Next.js 16 Production Configuration */
 @import "tailwindcss";
+@plugin "@tailwindcss/typography";
 
 /*
  * CRITICAL: Force consistent base sizing BEFORE Tailwind preflight
