@@ -2,14 +2,14 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { BookOpen, Clock, ArrowRight } from 'lucide-react';
+import { BookOpen, Clock, ArrowRight, Tag } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Header } from '../components/header';
 import { Footer } from '../components/footer';
 import { SectionPill } from '../components/section-pill';
 
 /* ------------------------------------------------------------------ */
-/*  Blog post placeholder data                                         */
+/*  Blog post data                                                      */
 /* ------------------------------------------------------------------ */
 
 interface BlogPost {
@@ -19,6 +19,7 @@ interface BlogPost {
   date: string;
   slug?: string;
   published?: boolean;
+  tags?: string[];
 }
 
 const featuredPost: BlogPost = {
@@ -29,6 +30,7 @@ const featuredPost: BlogPost = {
   date: 'March 2026',
   slug: 'ai-distress-scoring-changing-real-estate-investing',
   published: true,
+  tags: ['Lead Scoring', 'Distress Data', 'AI'],
 };
 
 const posts: BlogPost[] = [
@@ -40,6 +42,7 @@ const posts: BlogPost[] = [
     date: 'March 2026',
     slug: 'how-to-pick-real-estate-market-flipping',
     published: true,
+    tags: ['Fix & Flip', 'Market Analysis', 'Acquisition'],
   },
   {
     title: 'How to Build a Skip Tracing Workflow That Actually Converts',
@@ -49,6 +52,7 @@ const posts: BlogPost[] = [
     date: 'March 2026',
     slug: 'skip-tracing-workflow-that-converts',
     published: true,
+    tags: ['Skip Tracing', 'Lead Generation', 'Operations'],
   },
   {
     title: 'From Lead to Close: The All-in-One CRM Real Estate Investors Actually Need',
@@ -58,6 +62,7 @@ const posts: BlogPost[] = [
     date: 'March 2026',
     slug: 'lead-to-close-all-in-one-crm',
     published: true,
+    tags: ['CRM', 'Software Stack', 'Operations'],
   },
   {
     title: 'How to Pick Your Next Acquisition Market: A Data-Driven Framework',
@@ -67,6 +72,7 @@ const posts: BlogPost[] = [
     date: 'March 2026',
     slug: 'how-to-pick-your-next-acquisition-market',
     published: true,
+    tags: ['Market Analysis', 'Acquisition', 'Deal Analysis'],
   },
   {
     title: 'Best Real Estate Wholesaling Software in 2026: An Honest Comparison',
@@ -76,6 +82,7 @@ const posts: BlogPost[] = [
     date: 'March 2026',
     slug: 'best-real-estate-wholesaling-software-comparison',
     published: true,
+    tags: ['Software Stack', 'Wholesaling', 'Fix & Flip'],
   },
   {
     title: 'How to Analyze a Real Estate Deal: The No-Guesswork Guide for First-Time Investors',
@@ -85,6 +92,7 @@ const posts: BlogPost[] = [
     date: 'March 2026',
     slug: 'how-to-analyze-a-real-estate-deal',
     published: true,
+    tags: ['Deal Analysis', 'Beginners', 'Fix & Flip'],
   },
   {
     title: 'How Many Subscriptions Does It Take to Close a Deal? Why Your Software Stack Is Bleeding Profit',
@@ -94,6 +102,7 @@ const posts: BlogPost[] = [
     date: 'March 2026',
     slug: 'real-estate-investor-software-stack-tool-consolidation',
     published: true,
+    tags: ['Software Stack', 'Operations', 'Wholesaling'],
   },
   {
     title: "Why 80% of Your Motivated Seller Leads Never Convert (And How to Fix Your List)",
@@ -103,15 +112,17 @@ const posts: BlogPost[] = [
     date: 'March 2026',
     slug: 'why-your-motivated-seller-list-isnt-converting',
     published: true,
+    tags: ['Motivated Sellers', 'Lead Scoring', 'Distress Data'],
   },
   {
     title: 'What 43% DOA Leads Cost You (And How Distress Scoring Fixes It)',
     teaser:
-      'Nearly half of purchased real estate leads are dead on arrival. Here\'s what that costs per deal — in dollars, hours, and missed contracts.',
+      "Nearly half of purchased real estate leads are dead on arrival. Here's what that costs per deal — in dollars, hours, and missed contracts.",
     category: 'Data',
     date: 'March 2026',
     slug: 'what-doa-leads-cost-you-distress-scoring',
     published: true,
+    tags: ['Lead Scoring', 'Distress Data', 'Wholesaling'],
   },
   {
     title: "Why We're Building FlipOps: The Problem With Real Estate Investing Software",
@@ -121,6 +132,7 @@ const posts: BlogPost[] = [
     date: 'March 2026',
     slug: 'why-were-building-flipops',
     published: true,
+    tags: ['Software Stack', 'Operations', 'Wholesaling'],
   },
   {
     title: 'How to Build a Real Estate Buyers List That Actually Closes Deals',
@@ -130,6 +142,7 @@ const posts: BlogPost[] = [
     date: 'March 2026',
     slug: 'how-to-build-a-buyers-list-real-estate',
     published: true,
+    tags: ['Wholesaling', 'Acquisition', 'Fix & Flip'],
   },
   {
     title: "What Is Wholesaling Real Estate? The Complete Beginner's Guide",
@@ -139,15 +152,17 @@ const posts: BlogPost[] = [
     date: 'March 2026',
     slug: 'what-is-wholesaling-real-estate',
     published: true,
+    tags: ['Wholesaling', 'Beginners', 'Deal Analysis'],
   },
   {
     title: 'The True Cost of Tool Sprawl for Real Estate Investors',
     teaser:
-      'Six subscriptions. Six logins. Zero integration. Here\'s what fragmentation actually costs your business.',
+      "Six subscriptions. Six logins. Zero integration. Here's what fragmentation actually costs your business.",
     category: 'Strategy',
     date: 'March 2026',
     slug: 'true-cost-of-tool-sprawl-real-estate-investors',
     published: true,
+    tags: ['Software Stack', 'Operations', 'Wholesaling'],
   },
   {
     title: 'MAO Calculator: How to Never Overpay for a Property Again',
@@ -157,15 +172,17 @@ const posts: BlogPost[] = [
     date: 'March 2026',
     slug: 'mao-calculator-never-overpay-property',
     published: true,
+    tags: ['Deal Analysis', 'Fix & Flip', 'Wholesaling'],
   },
   {
     title: 'BRRRR Strategy: Why Most Platforms Only Cover Half the Lifecycle',
     teaser:
-      'Buy, rehab, rent, refinance, repeat. Most tools stop at the rehab. Here\'s why the full lifecycle matters.',
+      "Buy, rehab, rent, refinance, repeat. Most tools stop at the rehab. Here's why the full lifecycle matters.",
     category: 'Strategy',
     date: 'March 2026',
     slug: 'brrrr-strategy-platforms-cover-half-lifecycle',
     published: true,
+    tags: ['BRRRR', 'Rental', 'Fix & Flip'],
   },
   {
     title: '5 Distress Signals That Predict Motivated Sellers',
@@ -175,6 +192,7 @@ const posts: BlogPost[] = [
     date: 'March 2026',
     slug: 'distress-signals-predict-motivated-sellers',
     published: true,
+    tags: ['Distress Data', 'Motivated Sellers', 'Lead Scoring'],
   },
   {
     title: 'Financial Guardrails: The Automation Your Portfolio Needs',
@@ -184,6 +202,7 @@ const posts: BlogPost[] = [
     date: 'March 2026',
     slug: 'financial-guardrails-automation-portfolio',
     published: true,
+    tags: ['Operations', 'Fix & Flip', 'Deal Analysis'],
   },
 ];
 
@@ -221,6 +240,7 @@ const categoryColors: Record<string, { bg: string; text: string }> = {
 export default function BlogPage() {
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [email, setEmail] = useState('');
+  const [selectedTag, setSelectedTag] = useState<string | null>(null);
 
   useEffect(() => {
     const check = () =>
@@ -252,6 +272,16 @@ export default function BlogPage() {
       bg: 'bg-gray-100 dark:bg-gray-500/15',
       text: 'text-gray-700 dark:text-gray-400',
     };
+
+  // Derive sorted unique tags from all posts (including featured)
+  const allTags = Array.from(
+    new Set([...(featuredPost.tags || []), ...posts.flatMap((p) => p.tags || [])])
+  ).sort();
+
+  // Filter grid posts by selected tag
+  const filteredPosts = selectedTag
+    ? posts.filter((p) => p.tags?.includes(selectedTag))
+    : posts;
 
   return (
     <>
@@ -328,7 +358,6 @@ export default function BlogPage() {
                       key={row.addr}
                       className="flex items-center gap-2.5 rounded-lg bg-white/[0.04] px-2.5 py-1.5 border border-white/[0.06]"
                     >
-                      {/* Score circle */}
                       <div className="relative w-7 h-7 shrink-0">
                         <svg viewBox="0 0 36 36" className="w-full h-full -rotate-90">
                           <circle cx="18" cy="18" r="15" fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="3" />
@@ -341,7 +370,6 @@ export default function BlogPage() {
                           />
                         </svg>
                       </div>
-                      {/* Address + signals */}
                       <div className="flex-1 min-w-0">
                         <div className="text-[11px] font-medium text-white truncate">{row.addr}</div>
                         <div className="flex gap-1 mt-0.5">
@@ -355,7 +383,6 @@ export default function BlogPage() {
                           ))}
                         </div>
                       </div>
-                      {/* Score number */}
                       <span className={`text-sm font-bold tabular-nums shrink-0 ${
                         row.score >= 65 ? 'text-emerald-400' : row.score >= 50 ? 'text-amber-400' : row.score >= 35 ? 'text-orange-400' : 'text-red-400'
                       }`}>
@@ -399,6 +426,26 @@ export default function BlogPage() {
                   <p className="text-gray-600 dark:text-gray-400 leading-relaxed mb-4">
                     {featuredPost.teaser}
                   </p>
+
+                  {/* Tags */}
+                  {featuredPost.tags && featuredPost.tags.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 mb-4">
+                      {featuredPost.tags.map((tag) => (
+                        <button
+                          key={tag}
+                          onClick={() => setSelectedTag(selectedTag === tag ? null : tag)}
+                          className={`text-xs px-2.5 py-1 rounded-full transition-colors ${
+                            selectedTag === tag
+                              ? 'bg-emerald-500 text-white'
+                              : 'bg-gray-100 dark:bg-white/10 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-white/15'
+                          }`}
+                        >
+                          #{tag}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-500">
                       <Clock className="w-4 h-4" />
@@ -421,74 +468,143 @@ export default function BlogPage() {
         </section>
 
         {/* -------------------------------------------------------- */}
+        {/*  Tag filter bar                                           */}
+        {/* -------------------------------------------------------- */}
+        <section className="pb-8">
+          <div className="container mx-auto px-4 max-w-6xl">
+            <div className="flex items-center gap-2 mb-3">
+              <Tag className="w-3.5 h-3.5 text-gray-400 dark:text-gray-500" />
+              <span className="text-xs font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wider">
+                Filter by topic
+              </span>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={() => setSelectedTag(null)}
+                className={`text-xs px-3 py-1.5 rounded-full font-medium transition-colors ${
+                  !selectedTag
+                    ? 'bg-emerald-500 text-white'
+                    : 'bg-gray-100 dark:bg-white/10 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-white/15'
+                }`}
+              >
+                All
+              </button>
+              {allTags.map((tag) => (
+                <button
+                  key={tag}
+                  onClick={() => setSelectedTag(selectedTag === tag ? null : tag)}
+                  className={`text-xs px-3 py-1.5 rounded-full font-medium transition-colors ${
+                    selectedTag === tag
+                      ? 'bg-emerald-500 text-white'
+                      : 'bg-gray-100 dark:bg-white/10 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-white/15'
+                  }`}
+                >
+                  {tag}
+                </button>
+              ))}
+            </div>
+            {selectedTag && (
+              <p className="mt-3 text-sm text-gray-500 dark:text-gray-400">
+                Showing {filteredPosts.length} {filteredPosts.length === 1 ? 'article' : 'articles'} tagged{' '}
+                <span className="font-medium text-gray-700 dark:text-gray-300">#{selectedTag}</span>
+              </p>
+            )}
+          </div>
+        </section>
+
+        {/* -------------------------------------------------------- */}
         {/*  Article grid                                             */}
         {/* -------------------------------------------------------- */}
         <section className="pb-20 lg:pb-28">
           <div className="container mx-auto px-4 max-w-6xl">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {posts.map((post) => {
-                const cardContent = (
-                  <>
-                    {/* Category + Status */}
-                    <div className="flex items-center gap-2 mb-4">
-                      <span
-                        className={`text-xs font-medium px-2.5 py-1 rounded-full ${
-                          getCategoryStyle(post.category).bg
-                        } ${getCategoryStyle(post.category).text}`}
-                      >
-                        {post.category}
-                      </span>
-                      {post.published ? (
-                        <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-blue-100 dark:bg-blue-500/15 text-blue-700 dark:text-blue-400">
-                          Published
+            {filteredPosts.length === 0 ? (
+              <div className="text-center py-16 text-gray-500 dark:text-gray-400">
+                No articles found for <span className="font-medium">#{selectedTag}</span>.
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {filteredPosts.map((post) => {
+                  const cardContent = (
+                    <>
+                      {/* Category + Status */}
+                      <div className="flex items-center gap-2 mb-4">
+                        <span
+                          className={`text-xs font-medium px-2.5 py-1 rounded-full ${
+                            getCategoryStyle(post.category).bg
+                          } ${getCategoryStyle(post.category).text}`}
+                        >
+                          {post.category}
                         </span>
-                      ) : (
-                        <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-emerald-100 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-400">
-                          Coming Soon
-                        </span>
+                        {post.published ? (
+                          <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-blue-100 dark:bg-blue-500/15 text-blue-700 dark:text-blue-400">
+                            Published
+                          </span>
+                        ) : (
+                          <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-emerald-100 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-400">
+                            Coming Soon
+                          </span>
+                        )}
+                      </div>
+
+                      <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+                        {post.title}
+                      </h3>
+                      <p className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed flex-1">
+                        {post.teaser}
+                      </p>
+
+                      {/* Tags */}
+                      {post.tags && post.tags.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5 mt-4">
+                          {post.tags.map((tag) => (
+                            <span
+                              key={tag}
+                              className={`text-xs px-2 py-0.5 rounded-full ${
+                                selectedTag === tag
+                                  ? 'bg-emerald-500 text-white'
+                                  : 'bg-gray-100 dark:bg-white/10 text-gray-500 dark:text-gray-400'
+                              }`}
+                            >
+                              #{tag}
+                            </span>
+                          ))}
+                        </div>
                       )}
-                    </div>
 
-                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
-                      {post.title}
-                    </h3>
-                    <p className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed flex-1">
-                      {post.teaser}
-                    </p>
-
-                    <div className="mt-5 flex items-center justify-between">
-                      <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-500">
-                        <Clock className="w-3.5 h-3.5" />
-                        {post.date}
+                      <div className="mt-4 flex items-center justify-between">
+                        <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-500">
+                          <Clock className="w-3.5 h-3.5" />
+                          {post.date}
+                        </div>
+                        <div className={`flex items-center gap-1 text-sm font-medium ${post.published ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-500'}`}>
+                          Read article
+                          <ArrowRight className="w-4 h-4" />
+                        </div>
                       </div>
-                      <div className={`flex items-center gap-1 text-sm font-medium ${post.published ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-500'}`}>
-                        Read article
-                        <ArrowRight className="w-4 h-4" />
-                      </div>
-                    </div>
-                  </>
-                );
+                    </>
+                  );
 
-                return post.published && post.slug ? (
-                  <Link
-                    key={post.title}
-                    href={`/blog/${post.slug}`}
-                    className="rounded-2xl p-6 flex flex-col transition-transform duration-200 hover:-translate-y-1 cursor-pointer"
-                    style={cardStyle}
-                  >
-                    {cardContent}
-                  </Link>
-                ) : (
-                  <div
-                    key={post.title}
-                    className="rounded-2xl p-6 flex flex-col transition-transform duration-200 hover:-translate-y-1"
-                    style={cardStyle}
-                  >
-                    {cardContent}
-                  </div>
-                );
-              })}
-            </div>
+                  return post.published && post.slug ? (
+                    <Link
+                      key={post.title}
+                      href={`/blog/${post.slug}`}
+                      className="rounded-2xl p-6 flex flex-col transition-transform duration-200 hover:-translate-y-1 cursor-pointer"
+                      style={cardStyle}
+                    >
+                      {cardContent}
+                    </Link>
+                  ) : (
+                    <div
+                      key={post.title}
+                      className="rounded-2xl p-6 flex flex-col transition-transform duration-200 hover:-translate-y-1"
+                      style={cardStyle}
+                    >
+                      {cardContent}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </section>
 

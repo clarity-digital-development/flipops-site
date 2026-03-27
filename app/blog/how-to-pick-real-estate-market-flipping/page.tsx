@@ -53,6 +53,17 @@ export default function HowToPickRealEstateMarketFlippingPage() {
                 10 min read
               </div>
             </div>
+            {/* Tags */}
+            <div className="flex flex-wrap gap-1.5 mt-2">
+              {['Fix & Flip', 'Market Analysis', 'Acquisition'].map((tag) => (
+                <span
+                  key={tag}
+                  className="text-xs px-2.5 py-1 rounded-full bg-gray-100 dark:bg-white/10 text-gray-500 dark:text-gray-400"
+                >
+                  #{tag}
+                </span>
+              ))}
+            </div>
 
             <h1 className="text-3xl lg:text-5xl font-bold tracking-tight text-gray-900 dark:text-white mb-6 leading-tight">
               How to Pick a Real Estate Market for Flipping: The Data-Driven Checklist Most Investors Skip
