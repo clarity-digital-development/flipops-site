@@ -35,6 +35,56 @@ const featuredPost: BlogPost = {
 
 const posts: BlogPost[] = [
   {
+    title: 'The True Cost of Tool Sprawl for Real Estate Investors',
+    teaser:
+      "Six subscriptions. Six logins. Zero integration. Here's what fragmentation actually costs your business.",
+    category: 'Strategy',
+    date: 'March 2026',
+    slug: 'true-cost-of-tool-sprawl-real-estate-investors',
+    published: true,
+    tags: ['Software Stack', 'Operations', 'Wholesaling'],
+  },
+  {
+    title: 'MAO Calculator: How to Never Overpay for a Property Again',
+    teaser:
+      'A step-by-step guide to the Maximum Allowable Offer formula and how to adjust it for your market.',
+    category: 'Guides',
+    date: 'March 2026',
+    slug: 'mao-calculator-never-overpay-property',
+    published: true,
+    tags: ['Deal Analysis', 'Fix & Flip', 'Wholesaling'],
+  },
+  {
+    title: 'BRRRR Strategy: Why Most Platforms Only Cover Half the Lifecycle',
+    teaser:
+      "Buy, rehab, rent, refinance, repeat. Most tools stop at the rehab. Here's why the full lifecycle matters.",
+    category: 'Strategy',
+    date: 'March 2026',
+    slug: 'brrrr-strategy-platforms-cover-half-lifecycle',
+    published: true,
+    tags: ['BRRRR', 'Rental', 'Fix & Flip'],
+  },
+  {
+    title: '5 Distress Signals That Predict Motivated Sellers',
+    teaser:
+      'Not all distress signals are equal. These five indicators consistently surface the best off-market deals.',
+    category: 'Data',
+    date: 'March 2026',
+    slug: 'distress-signals-predict-motivated-sellers',
+    published: true,
+    tags: ['Distress Data', 'Motivated Sellers', 'Lead Scoring'],
+  },
+  {
+    title: 'Financial Guardrails: The Automation Your Portfolio Needs',
+    teaser:
+      'How automated budget alerts, deadline tracking, and margin protection keep your deals profitable.',
+    category: 'Product',
+    date: 'March 2026',
+    slug: 'financial-guardrails-automation-portfolio',
+    published: true,
+    tags: ['Operations', 'Fix & Flip', 'Deal Analysis'],
+  },
+  {
     title: "How to Pick a Real Estate Market for Flipping: The Data-Driven Checklist Most Investors Skip",
     teaser:
       "Most investors flip houses in whatever city they happen to live in. Here's the data checklist that separates profitable market selection from expensive guesswork.",
@@ -153,56 +203,6 @@ const posts: BlogPost[] = [
     slug: 'what-is-wholesaling-real-estate',
     published: true,
     tags: ['Wholesaling', 'Beginners', 'Deal Analysis'],
-  },
-  {
-    title: 'The True Cost of Tool Sprawl for Real Estate Investors',
-    teaser:
-      "Six subscriptions. Six logins. Zero integration. Here's what fragmentation actually costs your business.",
-    category: 'Strategy',
-    date: 'March 2026',
-    slug: 'true-cost-of-tool-sprawl-real-estate-investors',
-    published: true,
-    tags: ['Software Stack', 'Operations', 'Wholesaling'],
-  },
-  {
-    title: 'MAO Calculator: How to Never Overpay for a Property Again',
-    teaser:
-      'A step-by-step guide to the Maximum Allowable Offer formula and how to adjust it for your market.',
-    category: 'Guides',
-    date: 'March 2026',
-    slug: 'mao-calculator-never-overpay-property',
-    published: true,
-    tags: ['Deal Analysis', 'Fix & Flip', 'Wholesaling'],
-  },
-  {
-    title: 'BRRRR Strategy: Why Most Platforms Only Cover Half the Lifecycle',
-    teaser:
-      "Buy, rehab, rent, refinance, repeat. Most tools stop at the rehab. Here's why the full lifecycle matters.",
-    category: 'Strategy',
-    date: 'March 2026',
-    slug: 'brrrr-strategy-platforms-cover-half-lifecycle',
-    published: true,
-    tags: ['BRRRR', 'Rental', 'Fix & Flip'],
-  },
-  {
-    title: '5 Distress Signals That Predict Motivated Sellers',
-    teaser:
-      'Not all distress signals are equal. These five indicators consistently surface the best off-market deals.',
-    category: 'Data',
-    date: 'March 2026',
-    slug: 'distress-signals-predict-motivated-sellers',
-    published: true,
-    tags: ['Distress Data', 'Motivated Sellers', 'Lead Scoring'],
-  },
-  {
-    title: 'Financial Guardrails: The Automation Your Portfolio Needs',
-    teaser:
-      'How automated budget alerts, deadline tracking, and margin protection keep your deals profitable.',
-    category: 'Product',
-    date: 'March 2026',
-    slug: 'financial-guardrails-automation-portfolio',
-    published: true,
-    tags: ['Operations', 'Fix & Flip', 'Deal Analysis'],
   },
 ];
 
