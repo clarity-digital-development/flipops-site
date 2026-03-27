@@ -27,9 +27,20 @@ const featuredPost: BlogPost = {
     'Traditional lead lists are static. AI-powered scoring is dynamic, personalized, and gets smarter with every deal you work.',
   category: 'Technology',
   date: 'March 2026',
+  slug: 'ai-distress-scoring-changing-real-estate-investing',
+  published: true,
 };
 
 const posts: BlogPost[] = [
+  {
+    title: "How to Pick a Real Estate Market for Flipping: The Data-Driven Checklist Most Investors Skip",
+    teaser:
+      "Most investors flip houses in whatever city they happen to live in. Here's the data checklist that separates profitable market selection from expensive guesswork.",
+    category: 'Strategy',
+    date: 'March 2026',
+    slug: 'how-to-pick-real-estate-market-flipping',
+    published: true,
+  },
   {
     title: 'How to Build a Skip Tracing Workflow That Actually Converts',
     teaser:
@@ -135,6 +146,8 @@ const posts: BlogPost[] = [
       'Six subscriptions. Six logins. Zero integration. Here\'s what fragmentation actually costs your business.',
     category: 'Strategy',
     date: 'March 2026',
+    slug: 'true-cost-of-tool-sprawl-real-estate-investors',
+    published: true,
   },
   {
     title: 'MAO Calculator: How to Never Overpay for a Property Again',
@@ -142,6 +155,8 @@ const posts: BlogPost[] = [
       'A step-by-step guide to the Maximum Allowable Offer formula and how to adjust it for your market.',
     category: 'Guides',
     date: 'March 2026',
+    slug: 'mao-calculator-never-overpay-property',
+    published: true,
   },
   {
     title: 'BRRRR Strategy: Why Most Platforms Only Cover Half the Lifecycle',
@@ -149,6 +164,8 @@ const posts: BlogPost[] = [
       'Buy, rehab, rent, refinance, repeat. Most tools stop at the rehab. Here\'s why the full lifecycle matters.',
     category: 'Strategy',
     date: 'March 2026',
+    slug: 'brrrr-strategy-platforms-cover-half-lifecycle',
+    published: true,
   },
   {
     title: '5 Distress Signals That Predict Motivated Sellers',
@@ -156,6 +173,8 @@ const posts: BlogPost[] = [
       'Not all distress signals are equal. These five indicators consistently surface the best off-market deals.',
     category: 'Data',
     date: 'March 2026',
+    slug: 'distress-signals-predict-motivated-sellers',
+    published: true,
   },
   {
     title: 'Financial Guardrails: The Automation Your Portfolio Needs',
@@ -163,6 +182,8 @@ const posts: BlogPost[] = [
       'How automated budget alerts, deadline tracking, and margin protection keep your deals profitable.',
     category: 'Product',
     date: 'March 2026',
+    slug: 'financial-guardrails-automation-portfolio',
+    published: true,
   },
 ];
 
@@ -353,20 +374,45 @@ export default function BlogPage() {
                     >
                       {featuredPost.category}
                     </span>
-                    <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-emerald-100 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-400">
-                      Coming Soon
-                    </span>
+                    {featuredPost.published ? (
+                      <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-blue-100 dark:bg-blue-500/15 text-blue-700 dark:text-blue-400">
+                        Published
+                      </span>
+                    ) : (
+                      <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-emerald-100 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-400">
+                        Coming Soon
+                      </span>
+                    )}
                   </div>
 
-                  <h2 className="text-2xl lg:text-3xl font-bold text-gray-900 dark:text-white mb-3">
-                    {featuredPost.title}
-                  </h2>
+                  {featuredPost.published && featuredPost.slug ? (
+                    <Link href={`/blog/${featuredPost.slug}`}>
+                      <h2 className="text-2xl lg:text-3xl font-bold text-gray-900 dark:text-white mb-3 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors">
+                        {featuredPost.title}
+                      </h2>
+                    </Link>
+                  ) : (
+                    <h2 className="text-2xl lg:text-3xl font-bold text-gray-900 dark:text-white mb-3">
+                      {featuredPost.title}
+                    </h2>
+                  )}
                   <p className="text-gray-600 dark:text-gray-400 leading-relaxed mb-4">
                     {featuredPost.teaser}
                   </p>
-                  <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-500">
-                    <Clock className="w-4 h-4" />
-                    {featuredPost.date}
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-500">
+                      <Clock className="w-4 h-4" />
+                      {featuredPost.date}
+                    </div>
+                    {featuredPost.published && featuredPost.slug && (
+                      <Link
+                        href={`/blog/${featuredPost.slug}`}
+                        className="flex items-center gap-1 text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors"
+                      >
+                        Read article
+                        <ArrowRight className="w-4 h-4" />
+                      </Link>
+                    )}
                   </div>
                 </div>
               </div>
