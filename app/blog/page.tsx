@@ -31,6 +31,69 @@ const featuredPost: BlogPost = {
 
 const posts: BlogPost[] = [
   {
+    title: 'How to Build a Skip Tracing Workflow That Actually Converts',
+    teaser:
+      "Most investors skip trace in bulk and spray dials at a list. Here's how to build a workflow that turns raw property data into closed deals.",
+    category: 'Guides',
+    date: 'March 2026',
+    slug: 'skip-tracing-workflow-that-converts',
+    published: true,
+  },
+  {
+    title: 'From Lead to Close: The All-in-One CRM Real Estate Investors Actually Need',
+    teaser:
+      "Most CRMs cover one or two stages of the deal lifecycle. Here's what a platform built for the full pipeline actually looks like.",
+    category: 'Product',
+    date: 'March 2026',
+    slug: 'lead-to-close-all-in-one-crm',
+    published: true,
+  },
+  {
+    title: 'How to Pick Your Next Acquisition Market: A Data-Driven Framework',
+    teaser:
+      "Gut instinct and guru advice aren't market analysis. Here's a repeatable framework using data that actually predicts deal flow.",
+    category: 'Strategy',
+    date: 'March 2026',
+    slug: 'how-to-pick-your-next-acquisition-market',
+    published: true,
+  },
+  {
+    title: 'Best Real Estate Wholesaling Software in 2026: An Honest Comparison',
+    teaser:
+      "We break down PropStream, REsimpli, DealMachine, BatchLeads, and FlipOps side by side — what each does well, where each falls short, and which fits your operation.",
+    category: 'Strategy',
+    date: 'March 2026',
+    slug: 'best-real-estate-wholesaling-software-comparison',
+    published: true,
+  },
+  {
+    title: 'How to Analyze a Real Estate Deal: The No-Guesswork Guide for First-Time Investors',
+    teaser:
+      "Learn how to analyze a real estate deal from scratch — ARV, repair estimates, the 70% rule, and the exact numbers you need before making an offer.",
+    category: 'Guides',
+    date: 'March 2026',
+    slug: 'how-to-analyze-a-real-estate-deal',
+    published: true,
+  },
+  {
+    title: 'How Many Subscriptions Does It Take to Close a Deal? Why Your Software Stack Is Bleeding Profit',
+    teaser:
+      "Most real estate investors are paying for 5–8 separate tools that don't talk to each other. Here's how stack bloat kills deal velocity.",
+    category: 'Strategy',
+    date: 'March 2026',
+    slug: 'real-estate-investor-software-stack-tool-consolidation',
+    published: true,
+  },
+  {
+    title: "Why 80% of Your Motivated Seller Leads Never Convert (And How to Fix Your List)",
+    teaser:
+      "Most 'motivated seller leads' aren't motivated at all. Here's the scoring framework that separates real distress from demographic noise.",
+    category: 'Data',
+    date: 'March 2026',
+    slug: 'why-your-motivated-seller-list-isnt-converting',
+    published: true,
+  },
+  {
     title: 'What 43% DOA Leads Cost You (And How Distress Scoring Fixes It)',
     teaser:
       'Nearly half of purchased real estate leads are dead on arrival. Here\'s what that costs per deal — in dollars, hours, and missed contracts.',
