@@ -965,12 +965,12 @@ export default function UnderwritingPage() {
   const [newRepairDescription, setNewRepairDescription] = useState("");
   const [newRepairCost, setNewRepairCost] = useState(0);
 
-  // Fetch properties
+  // Fetch properties — trigger once Clerk has initialized (user may be null on public routes)
   useEffect(() => {
-    if (isLoaded && user) {
+    if (isLoaded) {
       fetchProperties();
     }
-  }, [isLoaded, user]);
+  }, [isLoaded]);
 
   // Convert leads seed data to underwriting Property format
   const convertLeadsToProperties = (): Property[] => {
@@ -1725,7 +1725,7 @@ export default function UnderwritingPage() {
   );
 
   // Loading state
-  if (!isLoaded || loadingProperties) {
+  if (loadingProperties) {
     return <UnderwritingSkeleton />;
   }
 
