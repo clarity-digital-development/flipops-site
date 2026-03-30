@@ -757,7 +757,7 @@ export function FeatureTabsV2() {
                     </li>
                   </ul>
                   <Link href="/features/distress-scoring" className="inline-flex items-center gap-1.5 text-sm font-semibold text-primary hover:gap-2.5 transition-all">
-                    Learn more <ArrowRight className="h-4 w-4" />
+                    Explore distress scoring <ArrowRight className="h-4 w-4" />
                   </Link>
                 </div>
                 <LeadScoringDemo isDarkMode={isDarkMode} />
@@ -806,7 +806,7 @@ export function FeatureTabsV2() {
                     </li>
                   </ul>
                   <Link href="/features/mao-calculator" className="inline-flex items-center gap-1.5 text-sm font-semibold text-primary hover:gap-2.5 transition-all">
-                    Learn more <ArrowRight className="h-4 w-4" />
+                    Explore the MAO calculator <ArrowRight className="h-4 w-4" />
                   </Link>
                 </div>
                 <MAOCalculatorDemo isDarkMode={isDarkMode} />
@@ -855,7 +855,7 @@ export function FeatureTabsV2() {
                     </li>
                   </ul>
                   <Link href="/features/deal-pipeline" className="inline-flex items-center gap-1.5 text-sm font-semibold text-primary hover:gap-2.5 transition-all">
-                    Learn more <ArrowRight className="h-4 w-4" />
+                    Explore the deal pipeline <ArrowRight className="h-4 w-4" />
                   </Link>
                 </div>
                 <UrgencyKanbanDemo isDarkMode={isDarkMode} />
@@ -904,7 +904,7 @@ export function FeatureTabsV2() {
                     </li>
                   </ul>
                   <Link href="/features/property-management" className="inline-flex items-center gap-1.5 text-sm font-semibold text-primary hover:gap-2.5 transition-all">
-                    Learn more <ArrowRight className="h-4 w-4" />
+                    Explore property management <ArrowRight className="h-4 w-4" />
                   </Link>
                 </div>
                 <ROIGaugeDemo isDarkMode={isDarkMode} />
