@@ -35,6 +35,16 @@ const featuredPost: BlogPost = {
 
 const posts: BlogPost[] = [
   {
+    title: 'How FlipOps Sources Leads and Keeps You DNC Compliant at Every Step',
+    teaser:
+      'Every cold call to a DNC-registered number can cost up to $43,792. Here\'s how FlipOps scrubs against the registry at the skip trace level so you never dial a number you shouldn\'t.',
+    category: 'Guides',
+    date: 'March 2026',
+    slug: 'dnc-compliance-skip-tracing-flipops',
+    published: true,
+    tags: ['Skip Tracing', 'TCPA Compliance', 'Lead Quality'],
+  },
+  {
     title: 'The True Cost of Tool Sprawl for Real Estate Investors',
     teaser:
       "Six subscriptions. Six logins. Zero integration. Here's what fragmentation actually costs your business.",
