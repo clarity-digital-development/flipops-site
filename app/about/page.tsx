@@ -214,10 +214,7 @@ export default function AboutPage() {
               The Vision
             </h2>
             <p className="text-lg text-gray-600 dark:text-gray-400 leading-relaxed max-w-2xl mx-auto">
-              We&apos;re building the Real Estate Investment Operating System —
-              the single platform that replaces the patchwork of tools investors
-              cobble together today. One login. One bill. One source of truth
-              for every deal, every dollar, every decision.
+              We&apos;re building your unfair advantage in real estate investing — a single platform that consolidates 90% of your investor tool stack. One source. All solutions.
             </p>
           </div>
         </section>

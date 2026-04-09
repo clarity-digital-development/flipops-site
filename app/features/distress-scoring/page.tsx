@@ -44,17 +44,17 @@ import { SectionPill } from '../../components/section-pill';
 
 /* ── Distress signal tier data ───────────────────────────────── */
 const tier1Signals = [
-  { name: 'Pre-Foreclosure Filing', desc: 'Foreclosure starts up 26% YoY — active financial pressure with a legal timeline', icon: AlertTriangle, pts: 25 },
-  { name: 'Tax Delinquency', desc: 'Recency and amount matter. $200 owed is different from $20,000 owed.', icon: FileWarning, pts: 20 },
+  { name: 'Pre-Foreclosure Filing', desc: 'Active financial pressure with a legal timeline — starts up 26% YoY', icon: AlertTriangle, pts: 25 },
+  { name: 'Tax Delinquency', desc: '$200 owed is different from $20,000 — recency and amount both factor in', icon: FileWarning, pts: 20 },
   { name: 'Vacant + Code Violations', desc: 'Municipal pressure plus financial burden — compounding signals', icon: Home, pts: 15 },
-  { name: 'Probate / Inherited', desc: 'Widely considered the highest-ROI niche. Heirs often motivated to sell quickly.', icon: ScrollText, pts: 15 },
+  { name: 'Probate / Inherited', desc: 'Heirs often motivated to sell quickly — highest-ROI niche', icon: ScrollText, pts: 15 },
 ];
 
 const tier2Signals = [
-  { name: 'Divorce Filing', desc: 'Life disruption creates urgency. Both parties often motivated to liquidate.', icon: Scale },
-  { name: 'Failed / Expired Listing', desc: 'Seller is frustrated. More willing to negotiate below market.', icon: XCircle },
-  { name: 'Liens (HOA, Mechanics, Tax)', desc: 'Financial obligations attached to the property. Pressure builds over time.', icon: FileWarning },
-  { name: 'Absentee Owner (15+ Years)', desc: 'Tired landlord. Long ownership without refinance signals potential exit.', icon: UserX },
+  { name: 'Divorce Filing', desc: 'Both parties often motivated to liquidate quickly', icon: Scale },
+  { name: 'Failed / Expired Listing', desc: 'Frustrated seller, more willing to negotiate below market', icon: XCircle },
+  { name: 'Liens (HOA, Mechanics, Tax)', desc: 'Financial obligations attached to the property — pressure compounds over time', icon: FileWarning },
+  { name: 'Absentee Owner (15+ Years)', desc: 'Long ownership without refinance signals potential exit', icon: UserX },
 ];
 
 const tier3Signals = [
@@ -68,19 +68,19 @@ const howItWorks = [
   {
     num: '01',
     title: 'You Work Deals',
-    desc: 'Every lead you pursue, skip, or close teaches the algorithm your preferences. It sees what you click, what you ignore, what you make offers on.',
+    desc: 'Every lead you pursue, skip, or close teaches the algorithm your preferences.',
     icon: Target,
   },
   {
     num: '02',
     title: 'The Algorithm Watches',
-    desc: '15+ behavioral signals tracked: price ranges, distress profiles, property types, markets, deal sizes, rehab levels, and how you respond to each.',
+    desc: '15+ behavioral signals tracked: price ranges, distress profiles, property types, markets, deal sizes, and rehab levels.',
     icon: Eye,
   },
   {
     num: '03',
     title: 'Your Scores Adapt',
-    desc: 'Over time, your lead scores become personalized to YOUR strategy. Two investors in the same market see different top leads — because they should.',
+    desc: 'Your lead scores personalize to YOUR strategy. Two investors in the same market see different top leads.',
     icon: Brain,
   },
 ];
@@ -89,28 +89,28 @@ const howItWorks = [
 const approaches = [
   {
     approach: 'Raw Data Filtering',
-    how: 'You get a database. You set filters. You get a list.',
-    limitation: 'No intelligence layer. A tax-delinquent property with $200 owed looks the same as one with $20,000 owed. You\'re the filter.',
+    how: 'Set filters, get a list.',
+    limitation: 'No intelligence layer. $200 owed looks the same as $20,000 owed.',
   },
   {
     approach: 'Manual Lead Tagging',
-    how: 'You review leads and manually mark them hot / warm / cold.',
-    limitation: 'Subjective. Time-consuming. Your "gut feel" doesn\'t scale. And it doesn\'t learn.',
+    how: 'Manually mark leads hot / warm / cold.',
+    limitation: 'Subjective, time-consuming, and doesn\'t learn.',
   },
   {
     approach: 'Static Lead Scoring',
     how: 'A platform assigns a score based on fixed rules.',
-    limitation: 'Same score for everyone. Doesn\'t adapt to your strategy. Doesn\'t incorporate deal outcomes.',
+    limitation: 'Same score for everyone. Doesn\'t adapt to strategy or incorporate outcomes.',
   },
   {
     approach: 'AI-Assisted Prospecting',
     how: 'AI identifies likely sellers based on aggregate patterns.',
-    limitation: 'Better than static scoring, but still one-size-fits-all. Doesn\'t personalize per user.',
+    limitation: 'Better than static, but still one-size-fits-all.',
   },
   {
     approach: 'FlipOps Distress Scoring',
     how: 'Weighted multi-signal scoring + per-user behavioral learning + outcome feedback loop.',
-    limitation: 'Requires time on the platform to personalize. Baseline scoring works immediately; behavioral learning improves over weeks of use.',
+    limitation: 'Baseline scoring works immediately. Behavioral learning improves over weeks of use.',
     highlight: true,
   },
 ];
@@ -174,7 +174,7 @@ export default function DistressScoringPage() {
             Know Which Properties Are Distressed Before They Hit Any List
           </h1>
           <p className="text-lg sm:text-xl text-muted-foreground max-w-3xl mx-auto relative z-10 mb-8">
-            FlipOps analyzes 15+ distress signals across 157M+ properties and assigns every one a score from 0 to 100. The higher the score, the more likely the owner is motivated to sell.
+            FlipOps analyzes 15+ distress signals across 157M+ properties and scores each one from 0 to 100 based on seller motivation.
           </p>
 
           {/* Hero stat callout */}
@@ -210,13 +210,10 @@ export default function DistressScoringPage() {
           </h2>
           <div className="space-y-6 text-muted-foreground leading-relaxed">
             <p className="text-lg">
-              Most platforms give you raw property data and let you filter by basic criteria — pre-foreclosure, tax delinquent, vacant, high equity. You get a list. You have no idea which leads on that list are actually likely to sell.
+              Most platforms give you raw property data and let you filter by basic criteria — pre-foreclosure, tax delinquent, vacant, high equity. You get a list with no way to know which leads are actually likely to sell.
             </p>
             <p className="text-lg">
-              Some platforms let you manually tag leads as &ldquo;hot&rdquo; or &ldquo;cold&rdquo; — but that&apos;s gut feel, not data. You&apos;re guessing. And guessing doesn&apos;t scale.
-            </p>
-            <p className="text-lg">
-              The result: investors report that roughly <span className="text-foreground font-semibold">43% of their leads are dead on arrival</span>. They&apos;re spending money on skip tracing, direct mail, and cold calls on properties where the owner has zero motivation to sell.
+              The result: investors report that roughly <span className="text-foreground font-semibold">43% of their leads are dead on arrival</span> — money spent on skip tracing, direct mail, and cold calls on properties where the owner has zero motivation to sell.
             </p>
 
             {/* Problem stats grid */}
@@ -236,7 +233,7 @@ export default function DistressScoringPage() {
             </div>
 
             <p className="text-lg pt-2">
-              The fundamental problem: <span className="text-foreground font-semibold">raw data without intelligence is just noise.</span> Knowing a property is tax delinquent doesn&apos;t tell you whether the owner is 6 months behind or 6 years behind. Knowing it&apos;s vacant doesn&apos;t tell you whether it&apos;s a snowbird&apos;s second home or an abandoned property headed for auction.
+              <span className="text-foreground font-semibold">Raw data without intelligence is noise.</span> Tax delinquent doesn&apos;t tell you whether the owner is 6 months behind or 6 years behind. Vacant doesn&apos;t tell you whether it&apos;s a snowbird&apos;s second home or an abandoned property headed for auction.
             </p>
           </div>
         </div>
@@ -249,7 +246,7 @@ export default function DistressScoringPage() {
             How FlipOps Distress Scoring Works
           </h2>
           <p className="text-lg text-muted-foreground text-center max-w-3xl mx-auto mb-14">
-            Investors respect specifics, not hand-waving. Here&apos;s exactly what happens under the hood.
+            Here&apos;s exactly what happens under the hood.
           </p>
 
           {/* The 0-100 scale explainer */}
@@ -261,7 +258,7 @@ export default function DistressScoringPage() {
               <div>
                 <h3 className="text-xl font-semibold mb-2">The 0–100 Scale</h3>
                 <p className="text-muted-foreground leading-relaxed">
-                  Every property in the database gets a composite distress score. <span className="text-foreground font-medium">0</span> = no distress signals detected. <span className="text-foreground font-medium">100</span> = maximum distress across multiple categories. The score isn&apos;t a simple count of flags — it&apos;s a weighted composite where different signals carry different weight based on their historical correlation with seller motivation.
+                  Every property gets a composite distress score. <span className="text-foreground font-medium">0</span> = no distress signals. <span className="text-foreground font-medium">100</span> = maximum distress across multiple categories. Signals are weighted by their historical correlation with seller motivation, not simply counted.
                 </p>
               </div>
             </div>
@@ -361,7 +358,7 @@ export default function DistressScoringPage() {
               </div>
               <h3 className="text-lg font-semibold mb-2">Multi-Signal Stacking</h3>
               <p className="text-sm text-muted-foreground leading-relaxed">
-                The real power is when multiple signals stack. A property that&apos;s tax delinquent AND vacant AND has code violations scores dramatically higher than one with only one flag. Stacked signals indicate compounding pressure on the owner, which increases motivation. Industry practitioners report <span className="text-foreground font-medium">3–5x improvement in conversion efficiency</span> when targeting properties with 3+ stacked distress indicators vs. single-signal lists.
+                A property that&apos;s tax delinquent AND vacant AND has code violations scores dramatically higher than one with a single flag. Stacked signals indicate compounding pressure. Industry practitioners report <span className="text-foreground font-medium">3–5x conversion improvement</span> when targeting properties with 3+ stacked distress indicators vs. single-signal lists.
               </p>
             </div>
 
@@ -371,7 +368,7 @@ export default function DistressScoringPage() {
               </div>
               <h3 className="text-lg font-semibold mb-2">The 70+ Threshold</h3>
               <p className="text-sm text-muted-foreground leading-relaxed">
-                When a property crosses a score of 70, FlipOps automatically triggers <Link href="/features/skip-tracing" className="text-purple-500 hover:underline">skip tracing</Link> to pull owner contact information. Below that threshold, the cost of skip tracing doesn&apos;t justify the conversion probability. Above 70, the lead is statistically worth pursuing. This threshold is adjustable per user.
+                When a property crosses 70, FlipOps automatically triggers <Link href="/features/skip-tracing" className="text-purple-500 hover:underline">skip tracing</Link> to pull owner contact info. Below that, skip trace cost doesn&apos;t justify conversion probability. Threshold is adjustable per user.
               </p>
             </div>
           </div>
@@ -394,7 +391,7 @@ export default function DistressScoringPage() {
               Behavioral Learning: No Competitor Has This
             </h2>
             <p className="text-lg text-muted-foreground max-w-3xl mx-auto relative z-10">
-              Every investor has a strategy, whether they&apos;ve articulated it or not. A wholesaler in Phoenix targeting low-value properties operates completely differently from a BRRRR operator in Jacksonville targeting high-equity rentals. A one-size-fits-all scoring system treats both the same. FlipOps doesn&apos;t.
+              A wholesaler in Phoenix targeting low-value properties operates differently from a BRRRR operator in Jacksonville targeting high-equity rentals. A one-size-fits-all scoring system treats both the same.
             </p>
           </div>
 
@@ -484,7 +481,7 @@ export default function DistressScoringPage() {
             <div className="rounded-lg bg-purple-500/5 border border-purple-500/10 px-5 py-4">
               <p className="text-sm text-foreground">
                 <span className="font-semibold">Same platform. Completely different top leads.</span>{' '}
-                <span className="text-muted-foreground">A wholesaler in Phoenix and a flipper in Atlanta get different top leads — because they should. Static scoring systems rank every property the same way for every user.</span>
+                <span className="text-muted-foreground">Static scoring ranks every property the same for every user.</span>
               </p>
             </div>
           </div>
@@ -497,7 +494,7 @@ export default function DistressScoringPage() {
               </div>
               <h3 className="text-lg font-semibold mb-2">The Feedback Loop</h3>
               <p className="text-sm text-muted-foreground leading-relaxed">
-                When you close a deal, that outcome data feeds back into the model. FlipOps now knows which score ranges, signal combinations, and property profiles actually convert into profitable deals for YOU. This is data no disconnected tool stack can ever produce — because tools that only see part of the pipeline can never correlate lead characteristics with deal outcomes.
+                When you close a deal, outcome data feeds back into the model. FlipOps learns which score ranges, signal combinations, and property profiles actually convert for you — data no disconnected tool stack can produce.
               </p>
             </div>
 
@@ -507,7 +504,7 @@ export default function DistressScoringPage() {
               </div>
               <h3 className="text-lg font-semibold mb-2">Privacy and Data</h3>
               <p className="text-sm text-muted-foreground leading-relaxed">
-                Your behavioral data trains YOUR model. Other users&apos; data contributes to the aggregate scoring algorithm (making the baseline smarter for everyone), but your specific pattern is yours alone. No investor sees another investor&apos;s behavioral model or lead preferences.
+                Your behavioral data trains YOUR model. Aggregate data improves the baseline for everyone, but your specific pattern is yours alone.
               </p>
             </div>
           </div>
@@ -542,7 +539,7 @@ export default function DistressScoringPage() {
             How This Is Different From Other Approaches
           </h2>
           <p className="text-muted-foreground text-center mb-10 max-w-2xl mx-auto">
-            Not all lead scoring is created equal. Here&apos;s how the major approaches compare.
+            How the major approaches compare.
           </p>
 
           <div className="rounded-2xl overflow-hidden" style={cardStyle}>
@@ -580,7 +577,7 @@ export default function DistressScoringPage() {
             What This Means For Your Deals
           </h2>
           <p className="text-muted-foreground text-center mb-12 max-w-2xl mx-auto">
-            Scoring isn&apos;t a feature — it&apos;s a compounding asset. The longer you use it, the smarter it gets.
+            Scoring is a compounding asset. The longer you use it, the smarter it gets.
           </p>
 
           <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -588,25 +585,25 @@ export default function DistressScoringPage() {
               {
                 icon: DollarSign,
                 title: 'Lower Skip Trace Costs',
-                desc: 'Only trace leads above the threshold. Stop paying to trace contacts you\'ll never call.',
+                desc: 'Only trace leads above the threshold — stop paying for contacts you\'ll never call.',
                 color: 'emerald',
               },
               {
                 icon: Clock,
                 title: 'Less Wasted Time',
-                desc: 'You\'re calling owners with actual motivation — not working through a random list hoping someone picks up.',
+                desc: 'Call owners with actual motivation instead of working through a random list.',
                 color: 'blue',
               },
               {
                 icon: TrendingUp,
                 title: 'Higher Conversion',
-                desc: 'The system surfaces leads that match YOUR proven pattern. Your close rate improves because the leads improve.',
+                desc: 'Surfaces leads matching YOUR proven pattern. Better leads, better close rate.',
                 color: 'purple',
               },
               {
                 icon: RefreshCw,
                 title: 'Compounds Over Time',
-                desc: 'The platform gets smarter specifically for you. It\'s an asset that improves with every deal you work.',
+                desc: 'The platform gets smarter with every deal you work.',
                 color: 'amber',
               },
             ].map((item) => (
@@ -667,14 +664,14 @@ export default function DistressScoringPage() {
           <div className="w-16 h-16 rounded-2xl bg-purple-500/10 flex items-center justify-center mx-auto mb-6">
             <Database className="w-8 h-8 text-purple-500" />
           </div>
-          <h2 className="text-2xl font-bold tracking-tight mb-4">Powered by CoreLogic</h2>
+          <h2 className="text-2xl font-bold tracking-tight mb-4">Elite Data Aggregation</h2>
           <p className="text-muted-foreground max-w-xl mx-auto mb-6">
-            Real-time scoring across 157M+ properties in all 50 states. Powered by CoreLogic&apos;s comprehensive property database — the same data source used by lenders, appraisers, and government agencies.
+            The most refined property data on the market — sourced from the same top-tier vendors used by lenders, appraisers, and institutional investors.
           </p>
           <div className="flex items-center justify-center gap-6 text-sm text-muted-foreground">
             <span className="flex items-center gap-2"><ShieldCheck className="w-4 h-4 text-emerald-500" /> 157M+ Properties</span>
             <span className="flex items-center gap-2"><MapPin className="w-4 h-4 text-blue-500" /> All 50 States</span>
-            <span className="flex items-center gap-2"><Zap className="w-4 h-4 text-amber-500" /> Real-Time</span>
+            <span className="flex items-center gap-2"><Zap className="w-4 h-4 text-amber-500" /> Real-Time Scoring</span>
           </div>
         </div>
       </section>
@@ -684,7 +681,7 @@ export default function DistressScoringPage() {
         <div className="max-w-2xl mx-auto px-6 text-center">
           <h2 className="text-3xl font-bold tracking-tight mb-4">See Scoring in Action</h2>
           <p className="text-muted-foreground mb-8">
-            Watch how FlipOps scores distressed properties and adapts to your investment strategy over time.
+            Watch how FlipOps scores properties and adapts to your strategy.
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
             <Button asChild size="lg" variant="outline">

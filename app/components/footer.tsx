@@ -46,7 +46,7 @@ export function Footer() {
               {brandName}
             </span>
             <p className="text-gray-400 mb-4">
-              The Real Estate Investment Operating System.
+              Your unfair advantage in real estate investing.
             </p>
             <div className="mt-4">
               <p className="text-sm text-gray-400 mb-2">Get investor insights delivered weekly.</p>
