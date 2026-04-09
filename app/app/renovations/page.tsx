@@ -107,8 +107,8 @@ const STATUS_CONFIG = {
     label: "Planning",
     icon: FileText,
     color: "text-gray-600 dark:text-gray-400",
-    bgColor: "bg-gray-100 dark:bg-gray-800",
-    borderColor: "border-gray-200 dark:border-gray-700",
+    bgColor: "bg-gray-100 dark:bg-muted",
+    borderColor: "border-gray-200 dark:border-border",
     gradientFrom: "from-gray-400",
     gradientTo: "to-gray-500",
   },
@@ -179,7 +179,7 @@ function StatChip({
     purple: "border-purple-200/50 dark:border-purple-800/50 bg-purple-500/5",
     amber: "border-amber-200/50 dark:border-amber-800/50 bg-amber-500/5",
     rose: "border-rose-200/50 dark:border-rose-800/50 bg-rose-500/5",
-    gray: "border-gray-200/50 dark:border-gray-800/50 bg-gray-500/5",
+    gray: "border-gray-200/50 dark:border-border/50 bg-gray-500/5",
     orange: "border-orange-200/50 dark:border-orange-800/50 bg-orange-500/5",
   };
 
@@ -247,7 +247,7 @@ function StatusPipeline({
   };
 
   return (
-    <div className="flex items-center justify-between bg-gray-50 dark:bg-gray-800/50 rounded-lg p-3 border border-gray-200 dark:border-gray-700">
+    <div className="flex items-center justify-between bg-gray-50 dark:bg-muted/50 rounded-lg p-3 border border-gray-200 dark:border-border">
       {PIPELINE_STAGES.map((stage, index) => {
         const config = STATUS_CONFIG[stage];
         const Icon = config.icon;
@@ -262,7 +262,7 @@ function StatusPipeline({
                 "flex items-center gap-2 px-3 py-2 rounded-md transition-all flex-1 justify-center",
                 isActive
                   ? cn(config.bgColor, config.borderColor, "border")
-                  : "hover:bg-gray-100 dark:hover:bg-gray-700"
+                  : "hover:bg-gray-100 dark:hover:bg-muted"
               )}
             >
               <Icon className={cn("h-4 w-4", isActive ? config.color : "text-gray-400")} />
@@ -374,7 +374,7 @@ function TradeChips({ trades, limit = 4 }: { trades: string[]; limit?: number })
         );
       })}
       {remaining > 0 && (
-        <span className="px-1.5 py-0.5 text-[10px] font-medium rounded bg-gray-100 dark:bg-gray-800 text-gray-500">
+        <span className="px-1.5 py-0.5 text-[10px] font-medium rounded bg-gray-100 dark:bg-muted text-gray-500">
           +{remaining}
         </span>
       )}
@@ -446,7 +446,7 @@ function RenovationCard({
       <Card
         className={cn(
           "group cursor-pointer transition-all duration-200",
-          "hover:bg-gray-50 dark:hover:bg-gray-800/50",
+          "hover:bg-gray-50 dark:hover:bg-muted/50",
           "border-l-4",
           renovation.status === "active" && "border-l-blue-500",
           renovation.status === "planning" && "border-l-gray-400",
@@ -503,7 +503,7 @@ function RenovationCard({
         "group relative overflow-hidden cursor-pointer transition-all duration-300",
         "hover:shadow-xl hover:shadow-black/5 dark:hover:shadow-black/20",
         "hover:-translate-y-1 hover:border-blue-200 dark:hover:border-blue-800",
-        "bg-gradient-to-br from-white to-gray-50/50 dark:from-gray-900 dark:to-gray-900/50"
+        "bg-gradient-to-br from-white to-gray-50/50 dark:from-card dark:to-card/50"
       )}
       onClick={onSelect}
     >
@@ -591,9 +591,9 @@ function RenovationCard({
 
         {/* Property Info */}
         {renovation.property && (
-          <div className="flex items-center gap-3 mb-4 pb-3 border-b border-gray-100 dark:border-gray-800">
+          <div className="flex items-center gap-3 mb-4 pb-3 border-b border-gray-100 dark:border-border">
             <div className="flex items-center gap-2 text-sm">
-              <div className="w-9 h-9 rounded-lg bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
+              <div className="w-9 h-9 rounded-lg bg-gray-100 dark:bg-muted flex items-center justify-center">
                 <Building2 className="h-4 w-4 text-gray-500" />
               </div>
               <div>
@@ -625,13 +625,13 @@ function RenovationCard({
 
         {/* Metrics Grid */}
         <div className="grid grid-cols-3 gap-3 mb-4">
-          <div className="text-center p-2.5 rounded-lg bg-gray-50 dark:bg-gray-800/50">
+          <div className="text-center p-2.5 rounded-lg bg-gray-50 dark:bg-muted/50">
             <div className="text-lg font-bold tabular-nums text-gray-900 dark:text-white">
               {renovation.arv ? formatCurrency(renovation.arv) : "—"}
             </div>
             <span className="text-[10px] uppercase tracking-wider text-muted-foreground">ARV</span>
           </div>
-          <div className="text-center p-2.5 rounded-lg bg-gray-50 dark:bg-gray-800/50">
+          <div className="text-center p-2.5 rounded-lg bg-gray-50 dark:bg-muted/50">
             <div className={cn(
               "text-lg font-bold tabular-nums",
               renovation.targetRoiPct >= 25 ? "text-emerald-600" : "text-blue-600"
@@ -640,7 +640,7 @@ function RenovationCard({
             </div>
             <span className="text-[10px] uppercase tracking-wider text-muted-foreground">Target ROI</span>
           </div>
-          <div className="text-center p-2.5 rounded-lg bg-gray-50 dark:bg-gray-800/50">
+          <div className="text-center p-2.5 rounded-lg bg-gray-50 dark:bg-muted/50">
             <div className="text-lg font-bold tabular-nums text-gray-900 dark:text-white">
               {daysActive > 0 ? `${daysActive}d` : "—"}
             </div>
@@ -658,7 +658,7 @@ function RenovationCard({
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between pt-3 border-t border-gray-100 dark:border-gray-800">
+        <div className="flex items-center justify-between pt-3 border-t border-gray-100 dark:border-border">
           <div className="flex items-center gap-2">
             {pendingBids > 0 && (
               <Badge variant="outline" className="text-[10px] border-blue-300 text-blue-600">
@@ -713,7 +713,7 @@ function KanbanCard({
 
   return (
     <Card
-      className="bg-white dark:bg-gray-800 hover:shadow-lg hover:-translate-y-0.5 transition-all cursor-pointer border-gray-200 dark:border-gray-700"
+      className="bg-white dark:bg-muted hover:shadow-lg hover:-translate-y-0.5 transition-all cursor-pointer border-gray-200 dark:border-border"
       onClick={onClick}
     >
       <CardContent className="p-3">
@@ -771,7 +771,7 @@ function RenovationCardSkeleton() {
             <Skeleton className="h-4 w-32" />
           </div>
         </div>
-        <div className="flex items-center gap-3 mb-4 pb-3 border-b border-gray-100 dark:border-gray-800">
+        <div className="flex items-center gap-3 mb-4 pb-3 border-b border-gray-100 dark:border-border">
           <Skeleton className="h-9 w-9 rounded-lg" />
           <div>
             <Skeleton className="h-3 w-24 mb-1" />
@@ -795,7 +795,7 @@ function RenovationCardSkeleton() {
           <Skeleton className="h-5 w-14 rounded" />
           <Skeleton className="h-5 w-10 rounded" />
         </div>
-        <div className="flex items-center justify-between pt-3 border-t border-gray-100 dark:border-gray-800">
+        <div className="flex items-center justify-between pt-3 border-t border-gray-100 dark:border-border">
           <Skeleton className="h-5 w-24 rounded" />
           <Skeleton className="h-4 w-20" />
         </div>
@@ -1225,11 +1225,11 @@ export default function RenovationsPage() {
                 placeholder="Search..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-9 bg-white dark:bg-gray-900"
+                className="pl-9 bg-white dark:bg-card"
               />
             </div>
             <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-[90px] sm:w-[126px] bg-white dark:bg-gray-900 flex-shrink-0">
+              <SelectTrigger className="w-[90px] sm:w-[126px] bg-white dark:bg-card flex-shrink-0">
                 <SelectValue placeholder="Status" />
               </SelectTrigger>
               <SelectContent>
@@ -1244,7 +1244,7 @@ export default function RenovationsPage() {
           </div>
 
           <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as "grid" | "list" | "kanban")}>
-            <TabsList className="bg-white dark:bg-gray-900 flex-shrink-0">
+            <TabsList className="bg-white dark:bg-card flex-shrink-0">
               <TabsTrigger value="grid" className="px-2.5 sm:px-3.5 py-2">
                 <LayoutGrid className="h-4 w-4" />
               </TabsTrigger>
@@ -1378,7 +1378,7 @@ export default function RenovationsPage() {
 
       {/* Detail Sheet */}
       <Sheet open={detailSheetOpen} onOpenChange={setDetailSheetOpen}>
-        <SheetContent side="right" className="w-full sm:max-w-[540px] p-0 flex flex-col bg-white dark:bg-gray-900">
+        <SheetContent side="right" className="w-full sm:max-w-[540px] p-0 flex flex-col bg-white dark:bg-card">
           {selectedRenovation && (
             <>
               <SheetHeader className="p-4 border-b flex-shrink-0">
@@ -1438,7 +1438,7 @@ export default function RenovationsPage() {
                         <h4 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">Property</h4>
                         <Card className="py-3 px-4">
                           <div className="flex items-center gap-3">
-                            <div className="h-12 w-12 rounded-lg bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
+                            <div className="h-12 w-12 rounded-lg bg-gray-100 dark:bg-muted flex items-center justify-center">
                               <Building2 className="h-6 w-6 text-gray-500" />
                             </div>
                             <div>
@@ -1583,7 +1583,7 @@ export default function RenovationsPage() {
                             )}>
                               <div className="flex items-center justify-between">
                                 <div className="flex items-center gap-3">
-                                  <div className="h-9 w-9 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
+                                  <div className="h-9 w-9 rounded-full bg-gray-100 dark:bg-muted flex items-center justify-center">
                                     <span className="text-sm font-medium text-gray-600">{bid.vendorName[0]}</span>
                                   </div>
                                   <div>
@@ -1759,7 +1759,7 @@ export default function RenovationsPage() {
 
       {/* Update Status Dialog */}
       <Dialog open={updateStatusDialogOpen} onOpenChange={setUpdateStatusDialogOpen}>
-        <DialogContent className="bg-white dark:bg-gray-900">
+        <DialogContent className="bg-white dark:bg-card">
           <DialogHeader>
             <DialogTitle>Update Renovation Status</DialogTitle>
             <DialogDescription>Change the status of this renovation project</DialogDescription>
@@ -1812,7 +1812,7 @@ export default function RenovationsPage() {
 
       {/* Request Bid Dialog */}
       <Dialog open={requestBidDialogOpen} onOpenChange={setRequestBidDialogOpen}>
-        <DialogContent className="sm:max-w-[450px] bg-white dark:bg-gray-900">
+        <DialogContent className="sm:max-w-[450px] bg-white dark:bg-card">
           <DialogHeader>
             <DialogTitle>Request Vendor Bid</DialogTitle>
             <DialogDescription>

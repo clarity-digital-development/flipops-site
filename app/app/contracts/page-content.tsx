@@ -1274,12 +1274,12 @@ export default function ContractsPage() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="sticky top-0 bg-card z-10">Property</TableHead>
+                      <TableHead className="sticky top-0 bg-card z-10 first:rounded-tl-xl">Property</TableHead>
                       <TableHead className="sticky top-0 bg-card z-10">Purchase Price</TableHead>
                       <TableHead className="sticky top-0 bg-card z-10">Status</TableHead>
                       <TableHead className="sticky top-0 bg-card z-10">Closing</TableHead>
                       <TableHead className="sticky top-0 bg-card z-10">Workflows</TableHead>
-                      <TableHead className="sticky top-0 bg-card z-10 text-right">Actions</TableHead>
+                      <TableHead className="sticky top-0 bg-card z-10 text-right last:rounded-tr-xl">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
