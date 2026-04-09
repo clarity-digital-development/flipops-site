@@ -246,7 +246,7 @@ export default function AppLayout({
   }
 
   return (
-    <div className="min-h-dvh bg-gray-50 dark:bg-gray-900">
+    <div className="min-h-dvh bg-gray-50 dark:bg-black">
       {/* Mobile sidebar overlay */}
       {sidebarOpen && (
         <div
@@ -257,14 +257,14 @@ export default function AppLayout({
 
       {/* Sidebar */}
       <div className={cn(
-        "fixed inset-y-0 left-0 z-50 w-72 bg-white dark:bg-gray-950 border-r border-gray-200 dark:border-gray-800 transform transition-transform lg:transform-none",
+        "fixed inset-y-0 left-0 z-50 w-72 bg-white dark:bg-[#141414] border-r border-gray-200 dark:border-[#2a2a2a] transform transition-transform lg:transform-none",
         sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
       )}>
         <div className="flex h-full flex-col">
           {/* Logo */}
-          <div className="flex h-16 items-center justify-between px-6 border-b border-gray-200 dark:border-gray-800">
+          <div className="flex h-16 items-center justify-between px-6 border-b border-gray-200 dark:border-[#2a2a2a]">
             <Link href="/app" className="flex items-center">
-              <span className="text-2xl font-bold bg-gradient-to-r from-blue-500 to-cyan-500 dark:from-blue-400 dark:to-cyan-400 bg-clip-text text-transparent">
+              <span className="text-2xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
                 FlipOps
               </span>
             </Link>
@@ -316,7 +316,7 @@ export default function AppLayout({
           </nav>
 
           {/* Bottom section: Settings + User */}
-          <div className="border-t border-gray-200 dark:border-gray-800 px-3 py-3 space-y-1">
+          <div className="border-t border-gray-200 dark:border-[#2a2a2a] px-3 py-3 space-y-1">
             <Link
               href="/app/settings"
               className={cn(
@@ -346,7 +346,7 @@ export default function AppLayout({
       {/* Main content */}
       <div className="lg:pl-72">
         {/* Top bar */}
-        <header className="sticky top-0 z-30 flex h-16 items-center gap-4 border-b border-gray-200 dark:border-gray-800 bg-white/95 dark:bg-gray-900/95 backdrop-blur px-6">
+        <header className="sticky top-0 z-30 flex h-16 items-center gap-4 border-b border-gray-200 dark:border-[#2a2a2a] bg-white/95 dark:bg-black/95 backdrop-blur px-6">
           <Button
             variant="ghost"
             size="icon"

@@ -134,7 +134,7 @@ function StatChip({
     purple: "border-purple-200/50 dark:border-purple-800/50 bg-purple-500/5",
     amber: "border-amber-200/50 dark:border-amber-800/50 bg-amber-500/5",
     rose: "border-rose-200/50 dark:border-rose-800/50 bg-rose-500/5",
-    gray: "border-gray-200/50 dark:border-gray-800/50 bg-gray-500/5"
+    gray: "border-gray-200/50 dark:border-border/50 bg-gray-500/5"
   };
 
   const iconColorMap: Record<string, string> = {
@@ -229,7 +229,7 @@ function StatusTimeline({ status, sentAt, responseAt }: {
               stepStatus === "success" && "bg-emerald-500 text-white",
               stepStatus === "failed" && "bg-rose-500 text-white",
               stepStatus === "expired" && "bg-gray-400 text-white",
-              stepStatus === "pending" && "bg-gray-100 dark:bg-gray-800 text-gray-400"
+              stepStatus === "pending" && "bg-gray-100 dark:bg-muted text-gray-400"
             )}>
               {stepStatus === "completed" ? (
                 <Check className="h-3 w-3" />
@@ -262,7 +262,7 @@ function StatusIndicator({ status }: { status: string }) {
   const config: Record<string, { color: string; bgColor: string; label: string; icon: React.ReactNode; pulse: boolean }> = {
     draft: {
       color: "text-gray-600 dark:text-gray-400",
-      bgColor: "bg-gray-100 dark:bg-gray-800",
+      bgColor: "bg-gray-100 dark:bg-muted",
       label: "Draft",
       icon: <FileText className="h-3 w-3" />,
       pulse: false
@@ -297,7 +297,7 @@ function StatusIndicator({ status }: { status: string }) {
     },
     expired: {
       color: "text-gray-500 dark:text-gray-500",
-      bgColor: "bg-gray-100 dark:bg-gray-800",
+      bgColor: "bg-gray-100 dark:bg-muted",
       label: "Expired",
       icon: <Clock className="h-3 w-3" />,
       pulse: false
@@ -389,7 +389,7 @@ function OfferCard({
       <Card
         className={cn(
           "group cursor-pointer transition-all duration-200",
-          "hover:bg-gray-50 dark:hover:bg-gray-800/50",
+          "hover:bg-gray-50 dark:hover:bg-muted/50",
           "border-l-4",
           offer.status === "accepted" && "border-l-emerald-500",
           offer.status === "sent" && "border-l-blue-500",
@@ -452,7 +452,7 @@ function OfferCard({
         "group relative overflow-hidden cursor-pointer transition-all duration-300",
         "hover:shadow-xl hover:shadow-black/5 dark:hover:shadow-black/20",
         "hover:-translate-y-1 hover:border-blue-200 dark:hover:border-blue-800",
-        "bg-gradient-to-br from-white to-gray-50/50 dark:from-gray-900 dark:to-gray-900/50"
+        "bg-gradient-to-br from-white to-gray-50/50 dark:from-card dark:to-card/50"
       )}
       onClick={onSelect}
     >
@@ -531,7 +531,7 @@ function OfferCard({
         </div>
 
         {/* Owner & Property Info */}
-        <div className="flex items-center justify-between mb-4 pb-3 border-b border-gray-100 dark:border-gray-800">
+        <div className="flex items-center justify-between mb-4 pb-3 border-b border-gray-100 dark:border-border">
           <div className="flex items-center gap-2 text-sm">
             <div className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
               <span className="text-blue-600 dark:text-blue-400 font-medium text-xs">
@@ -552,7 +552,7 @@ function OfferCard({
 
         {/* Offer Amount */}
         <div className="grid grid-cols-2 gap-3 mb-4">
-          <div className="text-center p-3 rounded-lg bg-gray-50 dark:bg-gray-800/50">
+          <div className="text-center p-3 rounded-lg bg-gray-50 dark:bg-muted/50">
             <div className="flex items-center justify-center gap-1 mb-1">
               <DollarSign className="h-4 w-4 text-blue-500" />
               <span className="text-xl font-bold tabular-nums text-gray-900 dark:text-white">
@@ -575,7 +575,7 @@ function OfferCard({
               <span className="text-[10px] uppercase tracking-wider text-amber-600 dark:text-amber-500">Counter Offer</span>
             </div>
           ) : offer.property.arv ? (
-            <div className="text-center p-3 rounded-lg bg-gray-50 dark:bg-gray-800/50">
+            <div className="text-center p-3 rounded-lg bg-gray-50 dark:bg-muted/50">
               <div className="flex items-center justify-center gap-1 mb-1">
                 <Home className="h-4 w-4 text-emerald-500" />
                 <span className="text-xl font-bold tabular-nums text-gray-900 dark:text-white">
@@ -585,7 +585,7 @@ function OfferCard({
               <span className="text-[10px] uppercase tracking-wider text-muted-foreground">ARV</span>
             </div>
           ) : (
-            <div className="text-center p-3 rounded-lg bg-gray-50 dark:bg-gray-800/50">
+            <div className="text-center p-3 rounded-lg bg-gray-50 dark:bg-muted/50">
               <div className="flex items-center justify-center gap-1 mb-1">
                 <Banknote className="h-4 w-4 text-emerald-500" />
                 <span className="text-xl font-bold tabular-nums text-gray-900 dark:text-white">
@@ -603,7 +603,7 @@ function OfferCard({
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between pt-3 border-t border-gray-100 dark:border-gray-800">
+        <div className="flex items-center justify-between pt-3 border-t border-gray-100 dark:border-border">
           <div className="flex items-center gap-2">
             {offer.terms && (
               <Badge variant="outline" className="capitalize text-xs">
@@ -656,7 +656,7 @@ function OfferCardSkeleton() {
             <Skeleton className="h-4 w-32" />
           </div>
         </div>
-        <div className="flex items-center justify-between mb-4 pb-3 border-b border-gray-100 dark:border-gray-800">
+        <div className="flex items-center justify-between mb-4 pb-3 border-b border-gray-100 dark:border-border">
           <div className="flex items-center gap-2">
             <Skeleton className="h-8 w-8 rounded-full" />
             <div>
@@ -675,7 +675,7 @@ function OfferCardSkeleton() {
             <Skeleton key={i} className="h-6 w-6 rounded-full" />
           ))}
         </div>
-        <div className="flex items-center justify-between pt-3 border-t border-gray-100 dark:border-gray-800">
+        <div className="flex items-center justify-between pt-3 border-t border-gray-100 dark:border-border">
           <Skeleton className="h-5 w-16 rounded" />
           <Skeleton className="h-4 w-24" />
         </div>
@@ -960,11 +960,11 @@ export default function OffersPage() {
                 placeholder="Search..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-9 bg-white dark:bg-gray-900"
+                className="pl-9 bg-white dark:bg-card"
               />
             </div>
             <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-[90px] sm:w-[126px] bg-white dark:bg-gray-900 flex-shrink-0">
+              <SelectTrigger className="w-[90px] sm:w-[126px] bg-white dark:bg-card flex-shrink-0">
                 <SelectValue placeholder="Status" />
               </SelectTrigger>
               <SelectContent>
@@ -980,7 +980,7 @@ export default function OffersPage() {
           </div>
 
           <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as "grid" | "list")}>
-            <TabsList className="bg-white dark:bg-gray-900 flex-shrink-0">
+            <TabsList className="bg-white dark:bg-card flex-shrink-0">
               <TabsTrigger value="grid" className="px-2.5 sm:px-3.5 py-2">
                 <LayoutGrid className="h-4 w-4" />
               </TabsTrigger>

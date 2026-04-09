@@ -460,7 +460,7 @@ function StatsCards({
     return (
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[...Array(4)].map((_, i) => (
-          <Card key={i} className="border-0 shadow-sm">
+          <Card key={i} className="shadow-sm">
             <CardContent className="p-4">
               <div className="flex items-center gap-3">
                 <Skeleton className="w-10 h-10 rounded-lg" />
@@ -481,7 +481,7 @@ function StatsCards({
       {stats.map((stat) => (
         <Card
           key={stat.label}
-          className="border-0 shadow-sm hover:shadow-md transition-shadow"
+          className="shadow-sm hover:shadow-md transition-shadow"
         >
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
@@ -1361,7 +1361,7 @@ export default function LeadsPage() {
       )}
 
       {/* Filters */}
-      <Card className="flex-shrink-0 border-0 shadow-sm mb-4">
+      <Card className="flex-shrink-0 shadow-sm mb-4">
         <CardContent className="p-4">
           <div className="flex flex-col lg:flex-row gap-4">
             <div className="flex-1 relative">
@@ -1413,7 +1413,7 @@ export default function LeadsPage() {
       </Card>
 
       {/* Leads Table - shows 8 rows max before scrolling */}
-      <Card className="border-0 shadow-sm overflow-hidden flex flex-col gap-0">
+      <Card className="shadow-sm overflow-hidden flex flex-col gap-0">
         {loading ? (
           <TableSkeleton />
         ) : filteredProperties.length === 0 ? (
@@ -1441,7 +1441,7 @@ export default function LeadsPage() {
             <Table>
               <TableHeader className="sticky top-0 bg-card z-10">
                 <TableRow className="hover:bg-transparent">
-                  <TableHead className="w-12">
+                  <TableHead className="w-12 pl-4">
                     <Checkbox
                       checked={allSelected}
                       onCheckedChange={toggleSelectAll}
@@ -1486,7 +1486,7 @@ export default function LeadsPage() {
                       onSort={handleSort}
                     />
                   </TableHead>
-                  <TableHead className="w-12"></TableHead>
+                  <TableHead className="w-12 pr-4"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -1502,7 +1502,7 @@ export default function LeadsPage() {
                       isSelected && "bg-primary/5"
                     )}
                   >
-                    <TableCell onClick={(e) => e.stopPropagation()}>
+                    <TableCell className="pl-4" onClick={(e) => e.stopPropagation()}>
                       <Checkbox
                         checked={isSelected}
                         onCheckedChange={() => toggleSelect(property.id)}
@@ -1554,7 +1554,7 @@ export default function LeadsPage() {
                         {formatDate(property.lastContactDate)}
                       </span>
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="pr-4">
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button variant="ghost" size="icon" className="h-8 w-8">

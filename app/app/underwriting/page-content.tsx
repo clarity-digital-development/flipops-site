@@ -430,7 +430,7 @@ function PropertyCard({
           score >= 85 ? "bg-gradient-to-br from-red-500 to-orange-500 text-white" :
           score >= 70 ? "bg-gradient-to-br from-amber-500 to-yellow-500 text-white" :
           score >= 50 ? "bg-gradient-to-br from-blue-500 to-cyan-500 text-white" :
-          "bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400"
+          "bg-gray-100 dark:bg-muted text-gray-600 dark:text-gray-400"
         )}>
           {score}
           {/* Fire icon for hot leads */}
@@ -530,7 +530,7 @@ function CompCard({
         "border",
         isSelected
           ? "bg-blue-50 dark:bg-blue-900/20 border-blue-300 dark:border-blue-700"
-          : "bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600",
+          : "bg-white dark:bg-card border-gray-200 dark:border-border hover:border-gray-300 dark:hover:border-border",
         isOutlier && "ring-2 ring-amber-400 ring-offset-2 dark:ring-offset-gray-900"
       )}
     >
@@ -539,7 +539,7 @@ function CompCard({
         "absolute top-2 right-2 w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all",
         isSelected
           ? "bg-blue-500 border-blue-500"
-          : "border-gray-300 dark:border-gray-600"
+          : "border-gray-300 dark:border-border"
       )}>
         {isSelected && <Check className="h-3 w-3 text-white" />}
       </div>
@@ -614,7 +614,7 @@ function NetSheetSummary({
   const dealMargin = arv > 0 ? ((arv - suggestedOffer - repairs) / arv * 100) : 0;
 
   return (
-    <div className="bg-white dark:bg-gray-900 rounded-2xl p-4 shadow-lg border border-gray-200 dark:border-gray-700">
+    <div className="bg-white dark:bg-card rounded-2xl p-4 shadow-lg border border-gray-200 dark:border-border">
       <div className="flex items-center justify-between gap-4">
         {/* Key metrics - centered alignment */}
         <div className="flex items-center gap-3">
@@ -623,7 +623,7 @@ function NetSheetSummary({
             <div className="flex items-center justify-center gap-1 text-[10px] uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1">
               <BarChart3 className="h-3 w-3" />
               ARV
-              <Badge variant="outline" className="ml-1 text-[8px] h-4 px-1 border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400">
+              <Badge variant="outline" className="ml-1 text-[8px] h-4 px-1 border-gray-300 dark:border-border text-gray-500 dark:text-gray-400">
                 {arvSource === "comps" ? "Comps" : "AVM"}
               </Badge>
             </div>
@@ -633,7 +633,7 @@ function NetSheetSummary({
           </div>
 
           {/* Minus sign */}
-          <div className="flex items-center justify-center w-6 h-6 rounded-full bg-gray-100 dark:bg-gray-800 mt-5">
+          <div className="flex items-center justify-center w-6 h-6 rounded-full bg-gray-100 dark:bg-muted mt-5">
             <Minus className="h-3.5 w-3.5 text-gray-500 dark:text-gray-400" />
           </div>
 
@@ -649,7 +649,7 @@ function NetSheetSummary({
           </div>
 
           {/* Equals sign */}
-          <div className="flex items-center justify-center w-6 h-6 rounded-full bg-gray-100 dark:bg-gray-800 mt-5">
+          <div className="flex items-center justify-center w-6 h-6 rounded-full bg-gray-100 dark:bg-muted mt-5">
             <Equal className="h-3.5 w-3.5 text-gray-500 dark:text-gray-400" />
           </div>
 
@@ -681,7 +681,7 @@ function NetSheetSummary({
           </div>
 
           {/* Deal Margin */}
-          <div className="text-center pl-4 border-l border-gray-300 dark:border-gray-700">
+          <div className="text-center pl-4 border-l border-gray-300 dark:border-border">
             <div className="text-[10px] uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1">
               Margin
             </div>
@@ -703,7 +703,7 @@ function NetSheetSummary({
             size="sm"
             onClick={onSaveAnalysis}
             disabled={saving}
-            className="border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white"
+            className="border-gray-300 dark:border-border text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white"
           >
             {saving ? (
               <div className="h-4 w-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin mr-2" />
@@ -1743,7 +1743,7 @@ export default function UnderwritingPage() {
       )}>
         <Card className="flex flex-col h-full border-0 shadow-lg py-0 gap-0">
           {/* Header */}
-          <div className="flex-shrink-0 p-3 border-b border-gray-100 dark:border-gray-800">
+          <div className="flex-shrink-0 p-3 border-b border-gray-100 dark:border-border">
             <div className="flex items-center justify-between">
               {!leftPanelCollapsed && (
                 <h2 className="font-semibold text-gray-900 dark:text-white">Properties</h2>
@@ -1765,7 +1765,7 @@ export default function UnderwritingPage() {
                   placeholder="Search properties..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-9 h-9 bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700"
+                  className="pl-9 h-9 bg-gray-50 dark:bg-muted border-gray-200 dark:border-border"
                 />
               </div>
             )}
@@ -1806,7 +1806,7 @@ export default function UnderwritingPage() {
             {/* Property Hero + Deal Gauge + Net Sheet Summary */}
             <div className="flex-shrink-0 space-y-4">
               {/* Property Hero Card with Deal Gauge */}
-              <Card className="border-0 shadow-lg overflow-hidden">
+              <Card className="shadow-lg overflow-hidden">
                 <div className="flex">
                   {/* Property photo */}
                   <div className="w-48 flex-shrink-0 m-3 mr-0">
@@ -1839,7 +1839,7 @@ export default function UnderwritingPage() {
                             "px-3 py-1.5 rounded-lg font-bold text-sm",
                             selectedProperty.score >= 85 ? "bg-gradient-to-r from-red-500 to-orange-500 text-white" :
                             selectedProperty.score >= 70 ? "bg-gradient-to-r from-amber-500 to-yellow-500 text-white" :
-                            "bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400"
+                            "bg-gray-100 dark:bg-muted text-gray-600 dark:text-gray-400"
                           )}>
                             Score: {selectedProperty.score}
                           </div>
@@ -1848,28 +1848,28 @@ export default function UnderwritingPage() {
 
                       {/* Property details grid */}
                       <div className="grid grid-cols-4 gap-4 mb-3">
-                        <div className="text-center p-2 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
+                        <div className="text-center p-2 bg-gray-50 dark:bg-muted/50 rounded-lg">
                           <div className="flex items-center justify-center gap-1 text-gray-500 dark:text-gray-400 mb-1">
                             <BedDouble className="h-4 w-4" />
                           </div>
                           <span className="text-lg font-bold text-gray-900 dark:text-white">{selectedProperty.bedrooms || '-'}</span>
                           <span className="text-xs text-gray-500 dark:text-gray-400 block">Beds</span>
                         </div>
-                        <div className="text-center p-2 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
+                        <div className="text-center p-2 bg-gray-50 dark:bg-muted/50 rounded-lg">
                           <div className="flex items-center justify-center gap-1 text-gray-500 dark:text-gray-400 mb-1">
                             <Bath className="h-4 w-4" />
                           </div>
                           <span className="text-lg font-bold text-gray-900 dark:text-white">{selectedProperty.bathrooms || '-'}</span>
                           <span className="text-xs text-gray-500 dark:text-gray-400 block">Baths</span>
                         </div>
-                        <div className="text-center p-2 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
+                        <div className="text-center p-2 bg-gray-50 dark:bg-muted/50 rounded-lg">
                           <div className="flex items-center justify-center gap-1 text-gray-500 dark:text-gray-400 mb-1">
                             <Ruler className="h-4 w-4" />
                           </div>
                           <span className="text-lg font-bold text-gray-900 dark:text-white">{selectedProperty.squareFeet?.toLocaleString() || '-'}</span>
                           <span className="text-xs text-gray-500 dark:text-gray-400 block">Sq Ft</span>
                         </div>
-                        <div className="text-center p-2 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
+                        <div className="text-center p-2 bg-gray-50 dark:bg-muted/50 rounded-lg">
                           <div className="flex items-center justify-center gap-1 text-gray-500 dark:text-gray-400 mb-1">
                             <Calendar className="h-4 w-4" />
                           </div>
@@ -1920,7 +1920,7 @@ export default function UnderwritingPage() {
                     </CardContent>
 
                   {/* Deal Gauge - inside the same card */}
-                  <div className="flex flex-col items-center justify-center px-6 border-l border-gray-100 dark:border-gray-800">
+                  <div className="flex flex-col items-center justify-center px-6 border-l border-gray-100 dark:border-border">
                     <DealGauge
                       value={adjustedARV > 0 ? Math.max(0, adjustedARV - suggestedOffer - adjustedRepairs) : 0}
                       maxValue={adjustedARV * 0.30}
@@ -1962,7 +1962,7 @@ export default function UnderwritingPage() {
             {/* Analysis Tabs */}
             <Card className="flex-1 min-h-0 border-0 shadow-lg overflow-hidden py-0 gap-0">
               <Tabs defaultValue="comps" className="flex flex-col h-full">
-                <TabsList className="flex-shrink-0 w-full justify-start rounded-none border-b border-gray-200 dark:border-gray-700 bg-transparent p-0 px-2">
+                <TabsList className="flex-shrink-0 w-full justify-start rounded-none border-b border-gray-200 dark:border-border bg-transparent p-0 px-2">
                   <TabsTrigger
                     value="comps"
                     className="rounded-t-lg border-0 px-5 py-2.5 text-gray-500 dark:text-gray-400 data-[state=active]:bg-blue-50 data-[state=active]:text-blue-600 dark:data-[state=active]:bg-blue-900/30 dark:data-[state=active]:text-blue-400 transition-colors"
@@ -2038,7 +2038,7 @@ export default function UnderwritingPage() {
                       </div>
 
                       {/* ARV Adjustment slider */}
-                      <div className="p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
+                      <div className="p-3 bg-gray-50 dark:bg-muted/50 rounded-lg">
                         <div className="flex items-center justify-between mb-2">
                           <Label className="text-sm">ARV Adjustment</Label>
                           <span className={cn(
@@ -2067,7 +2067,7 @@ export default function UnderwritingPage() {
                         </div>
                       ) : apiComps.length === 0 ? (
                         <div className="text-center py-8">
-                          <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
+                          <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-gray-100 dark:bg-muted flex items-center justify-center">
                             <BarChart3 className="h-6 w-6 text-gray-400" />
                           </div>
                           <p className="text-gray-500 dark:text-gray-400">No comparable properties found</p>
@@ -2111,7 +2111,7 @@ export default function UnderwritingPage() {
                       </div>
 
                       {/* Repairs adjustment slider */}
-                      <div className="p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
+                      <div className="p-3 bg-gray-50 dark:bg-muted/50 rounded-lg">
                         <div className="flex items-center justify-between mb-2">
                           <Label className="text-sm">Contingency Buffer</Label>
                           <span className={cn(
@@ -2134,7 +2134,7 @@ export default function UnderwritingPage() {
                       {/* Repair items list */}
                       {repairItems.length === 0 ? (
                         <div className="text-center py-8">
-                          <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
+                          <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-gray-100 dark:bg-muted flex items-center justify-center">
                             <Wrench className="h-6 w-6 text-gray-400" />
                           </div>
                           <p className="text-gray-500 dark:text-gray-400">No repair items added</p>
@@ -2147,7 +2147,7 @@ export default function UnderwritingPage() {
                           {repairItems.map(item => (
                             <div
                               key={item.id}
-                              className="flex items-center gap-3 p-3 bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700"
+                              className="flex items-center gap-3 p-3 bg-white dark:bg-card rounded-xl border border-gray-200 dark:border-border"
                             >
                               <RepairCategoryIcon category={item.category} />
                               <div className="flex-1 min-w-0">
@@ -2400,7 +2400,7 @@ export default function UnderwritingPage() {
                       "flex items-center gap-2 px-3 py-1.5 rounded-lg border cursor-pointer transition-colors",
                       offerContingencies.includes(contingency)
                         ? "bg-blue-50 border-blue-300 dark:bg-blue-900/30 dark:border-blue-700"
-                        : "border-gray-200 dark:border-gray-700 hover:border-gray-300"
+                        : "border-gray-200 dark:border-border hover:border-gray-300"
                     )}
                   >
                     <Checkbox

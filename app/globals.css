@@ -50,16 +50,16 @@ body[data-scroll-locked][data-scroll-locked] {
 .dark {
   --fo-background: #000000;
   --fo-foreground: oklch(0.95 0 0);
-  --fo-card: #111827;            /* gray-900 — matches page bg, blue tint */
+  --fo-card: #141414;            /* neutral dark — visible on black bg */
   --fo-card-foreground: oklch(0.95 0 0);
-  --fo-popover: #111827;         /* gray-900 */
+  --fo-popover: #141414;         /* matches card */
   --fo-popover-foreground: oklch(0.95 0 0);
-  --fo-secondary: #1f2937;       /* gray-800 */
+  --fo-secondary: #1c1c1c;       /* neutral gray */
   --fo-secondary-foreground: oklch(0.9 0 0);
-  --fo-muted: #1f2937;           /* gray-800 — visible against cards */
+  --fo-muted: #1c1c1c;           /* neutral gray */
   --fo-muted-foreground: oklch(0.7 0 0);
-  --fo-border: #374151;          /* gray-700 */
-  --fo-input: #1f2937;           /* gray-800 */
+  --fo-border: #2a2a2a;          /* neutral gray */
+  --fo-input: #1c1c1c;           /* neutral gray */
 }
 
 /*

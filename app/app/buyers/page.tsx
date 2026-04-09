@@ -198,7 +198,7 @@ function StatChip({
     purple: "border-purple-200/50 dark:border-purple-800/50 bg-purple-500/5",
     amber: "border-amber-200/50 dark:border-amber-800/50 bg-amber-500/5",
     rose: "border-rose-200/50 dark:border-rose-800/50 bg-rose-500/5",
-    gray: "border-gray-200/50 dark:border-gray-800/50 bg-gray-500/5"
+    gray: "border-gray-200/50 dark:border-border/50 bg-gray-500/5"
   };
 
   const iconColorMap: Record<string, string> = {
@@ -1058,18 +1058,18 @@ export default function BuyersPage() {
   // Prevent hydration issues by not rendering until mounted
   if (!mounted) {
     return (
-      <div className="flex h-[calc(100vh-6.5rem)] bg-gray-50 dark:bg-gray-950 p-2 gap-3 overflow-hidden items-center justify-center">
+      <div className="flex h-[calc(100vh-6.5rem)] bg-gray-50 dark:bg-black p-2 gap-3 overflow-hidden items-center justify-center">
         <div className="text-gray-500">Loading...</div>
       </div>
     );
   }
 
   return (
-    <div className="flex h-[calc(100vh-6.5rem)] bg-gray-50 dark:bg-gray-950 p-2 gap-3 overflow-hidden">
+    <div className="flex h-[calc(100vh-6.5rem)] bg-gray-50 dark:bg-black p-2 gap-3 overflow-hidden">
       {/* Main Content */}
-      <div className="flex-1 flex flex-col border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 rounded-lg overflow-hidden">
+      <div className="flex-1 flex flex-col border border-gray-200 dark:border-border bg-white dark:bg-card rounded-lg overflow-hidden">
         {/* Header with Stats */}
-        <div className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 p-4">
+        <div className="bg-white dark:bg-card border-b border-gray-200 dark:border-border p-4">
           <div className="flex items-center justify-between mb-4">
             <div>
               <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Buyers & Disposition</h1>
@@ -1136,7 +1136,7 @@ export default function BuyersPage() {
 
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
-          <TabsList className="w-full justify-start rounded-none border-b border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-950 px-4 h-10">
+          <TabsList className="w-full justify-start rounded-none border-b border-gray-200 dark:border-border bg-gray-50 dark:bg-black px-4 h-10">
             <TabsTrigger value="overview" className="gap-2">
               <BarChart3 className="h-4 w-4" />
               Overview
@@ -1182,7 +1182,7 @@ export default function BuyersPage() {
                             .map(buyer => {
                               const perf: BuyerPerformance | undefined = undefined;
                               return (
-                                <div key={buyer.id} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-750 transition-colors cursor-pointer">
+                                <div key={buyer.id} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-muted rounded-lg hover:bg-gray-100 dark:hover:bg-[#252525] transition-colors cursor-pointer">
                                   <div className="flex items-center gap-3 min-w-0">
                                     <Avatar className="h-8 w-8 flex-shrink-0">
                                       <AvatarFallback className="text-xs">{buyer.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
@@ -1237,7 +1237,7 @@ export default function BuyersPage() {
                             </div>
                           ) : (
                             apiBuyerOffers.slice(0, 10).map(offer => (
-                              <div key={offer.id} className="p-3 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
+                              <div key={offer.id} className="p-3 border border-gray-200 dark:border-border rounded-lg hover:bg-gray-50 dark:hover:bg-muted/50 transition-colors">
                                 <div className="flex items-start justify-between gap-3">
                                   <div className="min-w-0 flex-1">
                                     <div className="flex items-center gap-2 mb-1">
@@ -1449,13 +1449,13 @@ export default function BuyersPage() {
                       </DropdownMenuContent>
                     </DropdownMenu>
                     {/* View Toggle */}
-                    <div className="flex rounded-lg border border-gray-200 dark:border-gray-700 p-0.5 bg-gray-100 dark:bg-gray-800">
+                    <div className="flex rounded-lg border border-gray-200 dark:border-border p-0.5 bg-gray-100 dark:bg-muted">
                       <Button
                         variant="ghost"
                         size="sm"
                         className={cn(
                           "h-7 px-2.5",
-                          buyerViewMode === "grid" && "bg-white dark:bg-gray-900 shadow-sm"
+                          buyerViewMode === "grid" && "bg-white dark:bg-card shadow-sm"
                         )}
                         onClick={() => setBuyerViewMode("grid")}
                       >
@@ -1466,7 +1466,7 @@ export default function BuyersPage() {
                         size="sm"
                         className={cn(
                           "h-7 px-2.5",
-                          buyerViewMode === "list" && "bg-white dark:bg-gray-900 shadow-sm"
+                          buyerViewMode === "list" && "bg-white dark:bg-card shadow-sm"
                         )}
                         onClick={() => setBuyerViewMode("list")}
                       >
@@ -1618,7 +1618,7 @@ export default function BuyersPage() {
                     <Card className="overflow-hidden">
                       <ScrollArea className="h-[495px]">
                         <Table>
-                          <TableHeader className="sticky top-0 bg-white dark:bg-gray-900 z-10 border-b">
+                          <TableHeader className="sticky top-0 bg-white dark:bg-card z-10 border-b">
                             <TableRow className="hover:bg-transparent">
                               <TableHead className="w-[225px]">Buyer</TableHead>
                               <TableHead className="w-[162px]">Markets</TableHead>
@@ -1990,7 +1990,7 @@ export default function BuyersPage() {
                             ) : (
                               <div className="space-y-3">
                                 {smartMatches.map(match => (
-                                  <div key={match.buyerId} className="p-4 border border-gray-200 dark:border-gray-700 rounded-lg">
+                                  <div key={match.buyerId} className="p-4 border border-gray-200 dark:border-border rounded-lg">
                                     <div className="flex items-center justify-between mb-3">
                                       <div className="flex items-center gap-3">
                                         <div className={cn(
@@ -2130,7 +2130,7 @@ export default function BuyersPage() {
                         <div className="space-y-2">
                           <Label>Message</Label>
                           <textarea
-                            className="w-full h-32 px-3 py-2 border border-gray-200 dark:border-gray-700 rounded-md bg-white dark:bg-gray-900 text-sm resize-none"
+                            className="w-full h-32 px-3 py-2 border border-gray-200 dark:border-border rounded-md bg-white dark:bg-card text-sm resize-none"
                             placeholder="Property details and call to action..."
                             value={campaignForm.message}
                             onChange={(e) => setCampaignForm({...campaignForm, message: e.target.value})}
@@ -2203,7 +2203,7 @@ export default function BuyersPage() {
                         <ScrollArea className="h-[450px]">
                           <div className="space-y-3 p-6 pt-0">
                             {apiCampaigns.map(campaign => (
-                              <div key={campaign.id} className="p-4 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
+                              <div key={campaign.id} className="p-4 border border-gray-200 dark:border-border rounded-lg hover:bg-gray-50 dark:hover:bg-muted/50 transition-colors">
                                 <div className="flex items-start justify-between mb-3">
                                   <div className="min-w-0 flex-1">
                                     <p className="font-medium text-sm truncate">{campaign.subject || campaign.name}</p>
@@ -2257,7 +2257,7 @@ export default function BuyersPage() {
                                     </p>
                                   </div>
                                 </div>
-                                <div className="flex items-center gap-2 mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
+                                <div className="flex items-center gap-2 mt-3 pt-3 border-t border-gray-200 dark:border-border">
                                   <Badge variant="secondary" className="text-xs">
                                     {campaign.method === 'both' ? 'Email + SMS' : campaign.method.toUpperCase()}
                                   </Badge>
@@ -2488,7 +2488,7 @@ export default function BuyersPage() {
             {importMethod === "csv" && (
               <div className="space-y-2">
                 <Label htmlFor="csv-upload">Upload CSV File</Label>
-                <div className="border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-lg p-6 text-center">
+                <div className="border-2 border-dashed border-gray-300 dark:border-border rounded-lg p-6 text-center">
                   {importFile ? (
                     <>
                       <CheckCircle className="h-12 w-12 mx-auto text-green-500 mb-2" />
@@ -2571,7 +2571,7 @@ export default function BuyersPage() {
                 />
                 <div className="text-xs text-gray-500">
                   <p className="font-medium">Format example:</p>
-                  <code className="block bg-gray-100 dark:bg-gray-800 p-2 rounded mt-1">
+                  <code className="block bg-gray-100 dark:bg-muted p-2 rounded mt-1">
                     Name,Email,Phone,Markets,Types,Budget<br/>
                     John Doe,john@email.com,555-0123,"Phoenix, Tucson",SFH,200k-400k
                   </code>
@@ -3046,7 +3046,7 @@ export default function BuyersPage() {
           {assigningContract && (
             <div className="space-y-4">
               {/* Property Info */}
-              <div className="p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+              <div className="p-3 bg-gray-50 dark:bg-muted rounded-lg">
                 <p className="font-medium">{assigningContract.property.address}</p>
                 <p className="text-sm text-gray-500">
                   {assigningContract.property.city}, {assigningContract.property.state} {assigningContract.property.zip}

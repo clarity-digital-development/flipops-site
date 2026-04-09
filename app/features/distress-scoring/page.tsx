@@ -171,7 +171,7 @@ export default function DistressScoringPage() {
           </SectionPill>
 
           <h1 className="glow-heading-purple text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight mt-6 mb-6 relative z-10">
-            Know Which Properties Are Distressed Before They Hit Any List
+            Target Distressed Properties With Precision
           </h1>
           <p className="text-lg sm:text-xl text-muted-foreground max-w-3xl mx-auto relative z-10 mb-8">
             FlipOps analyzes 15+ distress signals across 157M+ properties and scores each one from 0 to 100 based on seller motivation.

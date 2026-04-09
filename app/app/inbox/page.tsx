@@ -621,7 +621,7 @@ export default function InboxPage() {
       case "Negotiating": return "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/50 dark:text-amber-300 dark:border-amber-800";
       case "Under Contract": return "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/50 dark:text-emerald-300 dark:border-emerald-800";
       case "Won": return "bg-green-50 text-green-700 border-green-200 dark:bg-green-950/50 dark:text-green-300 dark:border-green-800";
-      case "Lost": return "bg-gray-50 text-gray-600 border-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-700";
+      case "Lost": return "bg-gray-50 text-gray-600 border-gray-200 dark:bg-muted dark:text-gray-400 dark:border-border";
       default: return "bg-gray-50 text-gray-600 border-gray-200";
     }
   };
@@ -711,9 +711,9 @@ export default function InboxPage() {
   return (
     <div className="flex h-full gap-4">
       {/* Left Panel - Thread List */}
-      <div className="w-[306px] flex flex-col rounded-2xl border border-gray-200/80 dark:border-gray-800/80 bg-white dark:bg-gray-950 shadow-sm flex-shrink-0 min-h-0 overflow-hidden">
+      <div className="w-[306px] flex flex-col rounded-2xl border border-gray-200/80 dark:border-border bg-white dark:bg-card shadow-sm flex-shrink-0 min-h-0 overflow-hidden">
         {/* Search Header */}
-        <div className="p-4 border-b border-gray-100 dark:border-gray-800/80 bg-gray-50/50 dark:bg-gray-900/50 flex-shrink-0">
+        <div className="p-4 border-b border-gray-100 dark:border-border bg-gray-50/50 dark:bg-muted/50 flex-shrink-0">
           <div className="flex items-center gap-2">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
@@ -721,7 +721,7 @@ export default function InboxPage() {
                 placeholder="Search conversations..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-9 h-9 bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-800 rounded-xl text-sm shadow-sm focus-visible:ring-blue-500/20 focus-visible:ring-offset-0"
+                className="pl-9 h-9 bg-white dark:bg-muted border-gray-200 dark:border-border rounded-xl text-sm shadow-sm focus-visible:ring-blue-500/20 focus-visible:ring-offset-0"
               />
             </div>
             <Button
@@ -738,7 +738,7 @@ export default function InboxPage() {
           {/* Filter Row */}
           <div className="flex gap-2 mt-3">
             <Select value={filter} onValueChange={setFilter}>
-              <SelectTrigger className="flex-1 h-8 text-xs rounded-lg bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-800">
+              <SelectTrigger className="flex-1 h-8 text-xs rounded-lg bg-white dark:bg-muted border-gray-200 dark:border-border">
                 <SelectValue placeholder="All conversations" />
               </SelectTrigger>
               <SelectContent>
@@ -756,7 +756,7 @@ export default function InboxPage() {
                   variant="outline"
                   size="icon"
                   className={cn(
-                    "h-8 w-8 rounded-lg border-gray-200 dark:border-gray-800 relative",
+                    "h-8 w-8 rounded-lg border-gray-200 dark:border-border relative",
                     getActiveFilterCount() > 0 && "border-blue-500 bg-blue-50 dark:bg-blue-950/30"
                   )}
                 >
@@ -860,7 +860,7 @@ export default function InboxPage() {
                         "w-9 h-9 rounded-full flex items-center justify-center text-sm font-semibold flex-shrink-0",
                         isSelected
                           ? "bg-blue-500 text-white"
-                          : "bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400"
+                          : "bg-gray-100 dark:bg-muted text-gray-600 dark:text-gray-400"
                       )}>
                         {thread.leadName.charAt(0)}
                       </div>
@@ -911,11 +911,11 @@ export default function InboxPage() {
       </div>
 
       {/* Center Panel - Conversation */}
-      <div className="flex-1 flex flex-col rounded-2xl border border-gray-200/80 dark:border-gray-800/80 bg-white dark:bg-gray-950 shadow-sm min-w-0 min-h-0 overflow-hidden">
+      <div className="flex-1 flex flex-col rounded-2xl border border-gray-200/80 dark:border-border bg-white dark:bg-card shadow-sm min-w-0 min-h-0 overflow-hidden">
         {selectedThread ? (
           <>
             {/* Thread Header */}
-            <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-800/80 bg-gray-50/50 dark:bg-gray-900/50 flex-shrink-0">
+            <div className="px-5 py-4 border-b border-gray-100 dark:border-border bg-gray-50/50 dark:bg-muted/50 flex-shrink-0">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3 min-w-0">
                   <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-white font-semibold shadow-sm">
@@ -979,7 +979,7 @@ export default function InboxPage() {
                     <div key={message.id}>
                       {showDate && (
                         <div className="flex items-center justify-center my-4">
-                          <span className="text-[11px] text-gray-400 bg-gray-50 dark:bg-gray-900 px-3 py-1 rounded-full">
+                          <span className="text-[11px] text-gray-400 bg-gray-50 dark:bg-muted px-3 py-1 rounded-full">
                             {message.timestamp.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}
                           </span>
                         </div>
@@ -991,7 +991,7 @@ export default function InboxPage() {
                               "px-4 py-2.5 rounded-2xl shadow-sm",
                               isOut
                                 ? "bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-br-md"
-                                : "bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white rounded-bl-md"
+                                : "bg-gray-100 dark:bg-muted text-gray-900 dark:text-white rounded-bl-md"
                             )}
                           >
                             <p className="text-[13px] leading-relaxed whitespace-pre-wrap">{message.body}</p>
@@ -1054,7 +1054,7 @@ export default function InboxPage() {
             </ScrollArea>
 
             {/* Composer */}
-            <div className="p-4 border-t border-gray-100 dark:border-gray-800/80 bg-gray-50/50 dark:bg-gray-900/50 flex-shrink-0">
+            <div className="p-4 border-t border-gray-100 dark:border-border bg-gray-50/50 dark:bg-muted/50 flex-shrink-0">
               {showComplianceWarning && (
                 <div className="mb-3 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl">
                   <div className="flex items-start gap-3">
@@ -1080,7 +1080,7 @@ export default function InboxPage() {
               {/* Toolbar */}
               <div className="flex items-center gap-2 mb-3">
                 <Select value={selectedChannel} onValueChange={(v: any) => setSelectedChannel(v)}>
-                  <SelectTrigger className="w-28 h-8 text-xs rounded-lg bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-800">
+                  <SelectTrigger className="w-28 h-8 text-xs rounded-lg bg-white dark:bg-muted border-gray-200 dark:border-border">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -1088,11 +1088,11 @@ export default function InboxPage() {
                     <SelectItem value="email">Email</SelectItem>
                   </SelectContent>
                 </Select>
-                <div className="h-5 w-px bg-gray-200 dark:bg-gray-800" />
+                <div className="h-5 w-px bg-gray-200 dark:bg-muted" />
                 <Button
                   variant="ghost"
                   size="icon"
-                  className={cn("h-8 w-8 rounded-lg", showTemplates && "bg-gray-100 dark:bg-gray-800")}
+                  className={cn("h-8 w-8 rounded-lg", showTemplates && "bg-gray-100 dark:bg-muted")}
                   onClick={() => setShowTemplates(!showTemplates)}
                 >
                   <FileText className="h-4 w-4" />
@@ -1109,7 +1109,7 @@ export default function InboxPage() {
               </div>
 
               {showTemplates && (
-                <div className="mb-3 p-3 bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm">
+                <div className="mb-3 p-3 bg-white dark:bg-muted rounded-xl border border-gray-200 dark:border-border shadow-sm">
                   <p className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">Quick Templates</p>
                   <div className="space-y-1">
                     {messageTemplates.map((t) => (
@@ -1129,7 +1129,7 @@ export default function InboxPage() {
               {attachments.length > 0 && (
                 <div className="mb-3 flex flex-wrap gap-2">
                   {attachments.map((file, i) => (
-                    <div key={i} className="flex items-center gap-2 px-2.5 py-1.5 bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 text-xs shadow-sm">
+                    <div key={i} className="flex items-center gap-2 px-2.5 py-1.5 bg-white dark:bg-muted rounded-lg border border-gray-200 dark:border-border text-xs shadow-sm">
                       {getFileIcon(file)}
                       <span className="truncate max-w-[120px] font-medium">{file.name}</span>
                       <button
@@ -1149,7 +1149,7 @@ export default function InboxPage() {
                   placeholder="Type a message..."
                   value={messageBody}
                   onChange={(e) => setMessageBody(e.target.value)}
-                  className="flex-1 min-h-[47px] max-h-[108px] resize-none text-sm rounded-xl bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-800 focus-visible:ring-blue-500/20 focus-visible:ring-offset-0"
+                  className="flex-1 min-h-[47px] max-h-[108px] resize-none text-sm rounded-xl bg-white dark:bg-muted border-gray-200 dark:border-border focus-visible:ring-blue-500/20 focus-visible:ring-offset-0"
                   onKeyDown={(e) => {
                     if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
                       sendMessage();
@@ -1170,7 +1170,7 @@ export default function InboxPage() {
         ) : (
           <div className="flex-1 flex items-center justify-center">
             <div className="text-center">
-              <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
+              <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gray-100 dark:bg-muted flex items-center justify-center">
                 <MessageSquare className="h-8 w-8 text-gray-400" />
               </div>
               <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Select a conversation</p>
@@ -1184,7 +1184,7 @@ export default function InboxPage() {
       {selectedThread && (
         <div className="w-[252px] flex flex-col gap-4 flex-shrink-0 overflow-y-auto min-h-0">
           {/* Score Card */}
-          <Card className="rounded-2xl border-gray-200/80 dark:border-gray-800/80 shadow-sm overflow-hidden">
+          <Card className="rounded-2xl border-gray-200/80 dark:border-border shadow-sm overflow-hidden">
             <CardContent className="p-5">
               <div className="flex items-center justify-between">
                 <div>
@@ -1198,7 +1198,7 @@ export default function InboxPage() {
                   <Badge
                     key={i}
                     variant="secondary"
-                    className="text-[10px] font-medium px-2 py-0.5 rounded-md bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400"
+                    className="text-[10px] font-medium px-2 py-0.5 rounded-md bg-gray-100 dark:bg-muted text-gray-600 dark:text-gray-400"
                   >
                     {tag}
                   </Badge>
@@ -1208,7 +1208,7 @@ export default function InboxPage() {
           </Card>
 
           {/* Contact Info Card */}
-          <Card className="rounded-2xl border-gray-200/80 dark:border-gray-800/80 shadow-sm overflow-hidden">
+          <Card className="rounded-2xl border-gray-200/80 dark:border-border shadow-sm overflow-hidden">
             <CardHeader className="p-4 pb-2">
               <CardTitle className="text-xs font-medium text-gray-500 uppercase tracking-wider">Contact Info</CardTitle>
             </CardHeader>
@@ -1244,7 +1244,7 @@ export default function InboxPage() {
           </Card>
 
           {/* Quick Actions Card */}
-          <Card className="rounded-2xl border-gray-200/80 dark:border-gray-800/80 shadow-sm overflow-hidden">
+          <Card className="rounded-2xl border-gray-200/80 dark:border-border shadow-sm overflow-hidden">
             <CardHeader className="p-4 pb-2">
               <CardTitle className="text-xs font-medium text-gray-500 uppercase tracking-wider">Quick Actions</CardTitle>
             </CardHeader>
@@ -1252,7 +1252,7 @@ export default function InboxPage() {
               <Button
                 variant="outline"
                 size="sm"
-                className="w-full justify-start h-9 text-sm rounded-lg border-gray-200 dark:border-gray-800 hover:bg-blue-50 hover:border-blue-200 hover:text-blue-700 dark:hover:bg-blue-950/30 dark:hover:border-blue-800 dark:hover:text-blue-400 transition-colors"
+                className="w-full justify-start h-9 text-sm rounded-lg border-gray-200 dark:border-border hover:bg-blue-50 hover:border-blue-200 hover:text-blue-700 dark:hover:bg-blue-950/30 dark:hover:border-blue-800 dark:hover:text-blue-400 transition-colors"
               >
                 <PhoneCall className="h-4 w-4 mr-2.5" />
                 Schedule Call
@@ -1260,7 +1260,7 @@ export default function InboxPage() {
               <Button
                 variant="outline"
                 size="sm"
-                className="w-full justify-start h-9 text-sm rounded-lg border-gray-200 dark:border-gray-800 hover:bg-emerald-50 hover:border-emerald-200 hover:text-emerald-700 dark:hover:bg-emerald-950/30 dark:hover:border-emerald-800 dark:hover:text-emerald-400 transition-colors"
+                className="w-full justify-start h-9 text-sm rounded-lg border-gray-200 dark:border-border hover:bg-emerald-50 hover:border-emerald-200 hover:text-emerald-700 dark:hover:bg-emerald-950/30 dark:hover:border-emerald-800 dark:hover:text-emerald-400 transition-colors"
                 onClick={() => setShowOfferModal(true)}
               >
                 <FileText className="h-4 w-4 mr-2.5" />
@@ -1269,7 +1269,7 @@ export default function InboxPage() {
               <Button
                 variant="outline"
                 size="sm"
-                className="w-full justify-start h-9 text-sm rounded-lg border-gray-200 dark:border-gray-800 hover:bg-purple-50 hover:border-purple-200 hover:text-purple-700 dark:hover:bg-purple-950/30 dark:hover:border-purple-800 dark:hover:text-purple-400 transition-colors"
+                className="w-full justify-start h-9 text-sm rounded-lg border-gray-200 dark:border-border hover:bg-purple-50 hover:border-purple-200 hover:text-purple-700 dark:hover:bg-purple-950/30 dark:hover:border-purple-800 dark:hover:text-purple-400 transition-colors"
               >
                 <Zap className="h-4 w-4 mr-2.5" />
                 Enroll in Cadence

@@ -242,9 +242,9 @@ const URGENCY_CONFIG = {
     pulse: false,
   },
   normal: {
-    bg: "bg-gray-100 dark:bg-gray-800",
+    bg: "bg-gray-100 dark:bg-muted",
     text: "text-gray-600 dark:text-gray-400",
-    border: "border-gray-200 dark:border-gray-700",
+    border: "border-gray-200 dark:border-border",
     icon: "text-gray-400",
     pulse: false,
   },
@@ -491,7 +491,7 @@ function StatChip({
   return (
     <Card
       className={cn(
-        "bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 transition-all",
+        "bg-white dark:bg-muted border-gray-200 dark:border-border transition-all",
         onClick && "cursor-pointer hover:shadow-md hover:-translate-y-0.5",
         active && "ring-2 ring-blue-500 ring-offset-1"
       )}
@@ -532,7 +532,7 @@ function StatusPipeline({
   };
 
   return (
-    <div className="flex items-center justify-between bg-gray-50 dark:bg-gray-800/50 rounded-lg p-3 border border-gray-200 dark:border-gray-700">
+    <div className="flex items-center justify-between bg-gray-50 dark:bg-muted/50 rounded-lg p-3 border border-gray-200 dark:border-border">
       {PIPELINE_STAGES.map((stage, index) => {
         const config = STATUS_CONFIG[stage];
         const Icon = config.icon;
@@ -547,7 +547,7 @@ function StatusPipeline({
                 "flex items-center gap-2 px-3 py-2 rounded-md transition-all flex-1 justify-center",
                 isActive
                   ? cn(config.bg, config.border, "border")
-                  : "hover:bg-gray-100 dark:hover:bg-gray-700"
+                  : "hover:bg-gray-100 dark:hover:bg-muted"
               )}
             >
               <Icon className={cn("h-4 w-4", isActive ? config.iconColor : "text-gray-400")} />
@@ -593,7 +593,7 @@ function ContractCard({
 
   return (
     <Card
-      className="bg-white dark:bg-gray-800 hover:shadow-lg hover:-translate-y-0.5 transition-all cursor-pointer border-gray-200 dark:border-gray-700"
+      className="bg-white dark:bg-muted hover:shadow-lg hover:-translate-y-0.5 transition-all cursor-pointer border-gray-200 dark:border-border"
       onClick={onClick}
     >
       <CardContent className="p-3">
@@ -778,7 +778,7 @@ export default function ContractsPage() {
     const config = STATUS_CONFIG[status as keyof typeof STATUS_CONFIG] || {
       label: status,
       icon: Clock,
-      bg: "bg-gray-100 dark:bg-gray-800",
+      bg: "bg-gray-100 dark:bg-muted",
       text: "text-gray-700 dark:text-gray-300",
       iconColor: "text-gray-500"
     };
@@ -1294,7 +1294,7 @@ export default function ContractsPage() {
                         >
                           <TableCell>
                             <div className="flex items-center gap-3">
-                              <div className="h-10 w-10 rounded-md bg-gray-100 dark:bg-gray-800 flex items-center justify-center flex-shrink-0">
+                              <div className="h-10 w-10 rounded-md bg-gray-100 dark:bg-muted flex items-center justify-center flex-shrink-0">
                                 <Home className="h-5 w-5 text-gray-500" />
                               </div>
                               <div className="min-w-0">
@@ -1501,7 +1501,7 @@ export default function ContractsPage() {
                       <h4 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">Property</h4>
                       <Card className="py-3 px-4">
                         <div className="flex items-center gap-3">
-                          <div className="h-12 w-12 rounded-lg bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
+                          <div className="h-12 w-12 rounded-lg bg-gray-100 dark:bg-muted flex items-center justify-center">
                             <Home className="h-6 w-6 text-gray-500" />
                           </div>
                           <div>

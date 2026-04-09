@@ -283,7 +283,7 @@ function CampaignCard({
       <Card
         className={cn(
           "group cursor-pointer transition-all duration-200",
-          "hover:bg-gray-50 dark:hover:bg-gray-800/50",
+          "hover:bg-gray-50 dark:hover:bg-muted/50",
           "border-l-4",
           campaign.status === "running" && "border-l-emerald-500",
           campaign.status === "paused" && "border-l-amber-500",
@@ -380,7 +380,7 @@ function CampaignCard({
         "group relative overflow-hidden cursor-pointer transition-all duration-300",
         "hover:shadow-xl hover:shadow-black/5 dark:hover:shadow-black/20",
         "hover:-translate-y-1 hover:border-blue-200 dark:hover:border-blue-800",
-        "bg-gradient-to-br from-white to-gray-50/50 dark:from-gray-900 dark:to-gray-900/50"
+        "bg-gradient-to-br from-white to-gray-50/50 dark:from-card dark:to-card/50"
       )}
       onClick={onSelect}
     >
@@ -622,7 +622,7 @@ function StatChip({
 function CampaignCardSkeleton() {
   return (
     <Card className="overflow-hidden">
-      <div className="h-1 w-full bg-gray-200 dark:bg-gray-700" />
+      <div className="h-1 w-full bg-gray-200 dark:bg-border" />
       <CardContent className="p-5">
         <div className="flex items-start justify-between mb-4">
           <div className="flex-1">
@@ -863,11 +863,11 @@ export default function CampaignsPage() {
                 placeholder="Search..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-9 bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder:text-gray-500"
+                className="pl-9 bg-white dark:bg-muted text-gray-900 dark:text-white placeholder:text-gray-500"
               />
             </div>
             <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-[81px] sm:w-[117px] bg-white dark:bg-gray-900 flex-shrink-0">
+              <SelectTrigger className="w-[81px] sm:w-[117px] bg-white dark:bg-muted flex-shrink-0">
                 <SelectValue placeholder="Status" />
               </SelectTrigger>
               <SelectContent>
@@ -879,7 +879,7 @@ export default function CampaignsPage() {
               </SelectContent>
             </Select>
             <Select value={objectiveFilter} onValueChange={setObjectiveFilter}>
-              <SelectTrigger className="w-[135px] bg-white dark:bg-gray-900 hidden sm:flex flex-shrink-0">
+              <SelectTrigger className="w-[135px] bg-white dark:bg-muted hidden sm:flex flex-shrink-0">
                 <SelectValue placeholder="Objective" />
               </SelectTrigger>
               <SelectContent>
@@ -892,7 +892,7 @@ export default function CampaignsPage() {
           </div>
 
           <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as "grid" | "list")}>
-            <TabsList className="bg-white dark:bg-gray-900 flex-shrink-0">
+            <TabsList className="bg-white dark:bg-muted flex-shrink-0">
               <TabsTrigger value="grid" className="px-2.5 sm:px-3.5 py-2">
                 <LayoutGrid className="h-4 w-4" />
               </TabsTrigger>
