@@ -595,6 +595,7 @@ const foldersData: Folder[] = [
   { id: 'fld-8', name: 'NDAs', parentFolderId: 'fld-7', path: '/Global/NDAs', createdAt: new Date('2024-01-01'), documentCount: 2 },
   { id: 'fld-9', name: 'Templates', path: '/Templates', createdAt: new Date('2024-01-01'), color: '#3B82F6', documentCount: 6 },
   { id: 'fld-10', name: 'Archive', path: '/Archive', createdAt: new Date('2024-01-01'), color: '#6B7280', documentCount: 0 },
+  { id: 'fld-11', name: 'Lead Exports', path: '/Lead Exports', createdAt: new Date('2024-01-01'), color: '#8B5CF6', documentCount: 5 },
 ];
 
 // Sample Documents
@@ -760,6 +761,82 @@ const documentsData: Document[] = [
     ],
     createdAt: new Date('2024-01-15T13:00:00'),
     updatedAt: new Date('2024-01-15T13:00:00'),
+  },
+  // Lead Export seed documents
+  {
+    id: 'doc-export-1',
+    title: 'leads-export-2026-04-09.csv',
+    status: 'signed',
+    docType: 'Other',
+    signerRoles: [],
+    version: 1,
+    createdByUserId: 'user-1',
+    createdByUserName: 'You',
+    tags: ['lead-export', 'csv', 'export-initiated'],
+    folderId: 'fld-11',
+    auditLog: [{ action: 'Exported', timestamp: new Date('2026-04-09T14:30:00'), userId: 'user-1', userName: 'You', details: 'Exported 16 leads to CSV' }],
+    createdAt: new Date('2026-04-09T14:30:00'),
+    updatedAt: new Date('2026-04-09T14:30:00'),
+  },
+  {
+    id: 'doc-export-2',
+    title: 'leads-export-2026-04-07.csv',
+    status: 'signed',
+    docType: 'Other',
+    signerRoles: [],
+    version: 1,
+    createdByUserId: 'user-1',
+    createdByUserName: 'You',
+    tags: ['lead-export', 'csv', 'export-pending'],
+    folderId: 'fld-11',
+    auditLog: [{ action: 'Exported', timestamp: new Date('2026-04-07T09:15:00'), userId: 'user-1', userName: 'You', details: 'Exported 8 leads to CSV' }],
+    createdAt: new Date('2026-04-07T09:15:00'),
+    updatedAt: new Date('2026-04-07T09:15:00'),
+  },
+  {
+    id: 'doc-export-3',
+    title: 'leads-export-2026-04-03.csv',
+    status: 'signed',
+    docType: 'Other',
+    signerRoles: [],
+    version: 1,
+    createdByUserId: 'user-1',
+    createdByUserName: 'You',
+    tags: ['lead-export', 'csv'],
+    folderId: 'fld-11',
+    auditLog: [{ action: 'Exported', timestamp: new Date('2026-04-03T16:45:00'), userId: 'user-1', userName: 'You', details: 'Exported 23 leads to CSV' }],
+    createdAt: new Date('2026-04-03T16:45:00'),
+    updatedAt: new Date('2026-04-03T16:45:00'),
+  },
+  {
+    id: 'doc-export-4',
+    title: 'leads-export-2026-03-28.csv',
+    status: 'signed',
+    docType: 'Other',
+    signerRoles: [],
+    version: 1,
+    createdByUserId: 'user-1',
+    createdByUserName: 'You',
+    tags: ['lead-export', 'csv'],
+    folderId: 'fld-11',
+    auditLog: [{ action: 'Exported', timestamp: new Date('2026-03-28T11:00:00'), userId: 'user-1', userName: 'You', details: 'Exported 12 leads to CSV' }],
+    createdAt: new Date('2026-03-28T11:00:00'),
+    updatedAt: new Date('2026-03-28T11:00:00'),
+  },
+  {
+    id: 'doc-export-5',
+    title: 'leads-export-2026-03-21.csv',
+    status: 'signed',
+    docType: 'Other',
+    signerRoles: [],
+    version: 1,
+    createdByUserId: 'user-1',
+    createdByUserName: 'You',
+    tags: ['lead-export', 'csv'],
+    folderId: 'fld-11',
+    auditLog: [{ action: 'Exported', timestamp: new Date('2026-03-21T08:30:00'), userId: 'user-1', userName: 'You', details: 'Exported 31 leads to CSV' }],
+    createdAt: new Date('2026-03-21T08:30:00'),
+    updatedAt: new Date('2026-03-21T08:30:00'),
   },
 ];
 
@@ -940,6 +1017,37 @@ export function getTemplatesByCategory(category: string) {
 
 export function getDocumentVersions(documentId: string) {
   return documentVersionsData.filter(ver => ver.documentId === documentId);
+}
+
+export const LEAD_EXPORTS_FOLDER_ID = 'fld-11';
+
+export function saveLeadExport(filename: string, leadCount: number) {
+  const doc: Document = {
+    id: `doc-export-${Date.now()}`,
+    title: filename,
+    status: 'signed',
+    docType: 'Other',
+    signerRoles: [],
+    relatedEntity: undefined,
+    version: 1,
+    createdByUserId: 'user-1',
+    createdByUserName: 'You',
+    tags: ['lead-export', 'csv'],
+    folderId: LEAD_EXPORTS_FOLDER_ID,
+    auditLog: [{
+      action: 'Exported',
+      timestamp: new Date(),
+      userId: 'user-1',
+      userName: 'You',
+      details: `Exported ${leadCount} leads to CSV`,
+    }],
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  };
+  documentsData.push(doc);
+  const folder = foldersData.find(f => f.id === LEAD_EXPORTS_FOLDER_ID);
+  if (folder) folder.documentCount = (folder.documentCount || 0) + 1;
+  return doc;
 }
 
 export function calculateDocumentMetrics() {

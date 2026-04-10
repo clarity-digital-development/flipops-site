@@ -476,20 +476,22 @@ function RenovationCard({
           </div>
 
           <div className="flex items-center gap-4 text-xs flex-shrink-0">
-            <div className="text-center w-20">
+            <div className="w-24 flex justify-center">
               <BudgetGauge baseline={baseline} spent={spent} committed={committed} size="sm" />
             </div>
-            <div className="text-center hidden sm:block">
+            <div className="text-right hidden sm:block w-16">
               <div className="font-bold tabular-nums text-lg">{formatCurrency(baseline)}</div>
               <div className="text-muted-foreground text-[10px]">budget</div>
             </div>
-            <div className="text-center hidden sm:block">
+            <div className="text-center hidden sm:block w-14">
               <div className={cn("font-bold tabular-nums", renovation.targetRoiPct >= 25 ? "text-emerald-600" : "text-blue-600")}>
                 {renovation.targetRoiPct}%
               </div>
               <div className="text-muted-foreground text-[10px]">target ROI</div>
             </div>
-            <StatusBadge status={renovation.status} pulse={renovation.status === "active"} />
+            <div className="w-24 flex justify-end">
+              <StatusBadge status={renovation.status} pulse={renovation.status === "active"} />
+            </div>
           </div>
         </CardContent>
       </Card>

@@ -102,6 +102,7 @@ import {
   getTemplatesByCategory,
   getDocumentVersions,
   calculateDocumentMetrics,
+  LEAD_EXPORTS_FOLDER_ID,
 } from "./seed-data";
 
 type ViewMode = 'table' | 'kanban' | 'packets';
@@ -340,6 +341,8 @@ export default function DocumentsPage() {
     setMounted(true);
   }, []);
 
+  const isLeadExports = filterFolder === LEAD_EXPORTS_FOLDER_ID;
+
   // Filter documents
   const filterDocuments = () => {
     return documentsSeedData.documents.filter(doc => {
@@ -520,68 +523,74 @@ export default function DocumentsPage() {
         {/* Left Sidebar - Folders */}
         <div className="w-56 shrink-0 flex flex-col border rounded-lg bg-card overflow-hidden">
           {/* New Document Button */}
-          <div className="shrink-0 p-2 border-b">
-            <Button
-              className="w-full h-8 gap-2"
-              size="sm"
-              onClick={() => setShowTemplateLibrary(true)}
-            >
-              <Plus className="h-4 w-4" />
-              New Document
-            </Button>
-          </div>
+          {!isLeadExports && (
+            <div className="shrink-0 p-2 border-b">
+              <Button
+                className="w-full h-8 gap-2"
+                size="sm"
+                onClick={() => setShowTemplateLibrary(true)}
+              >
+                <Plus className="h-4 w-4" />
+                New Document
+              </Button>
+            </div>
+          )}
 
           {/* Quick Access */}
           <ScrollArea className="flex-1 min-h-0">
             <div className="p-2 space-y-1">
-              <div className="px-2 py-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
-                Quick Access
-              </div>
-              <div
-                className={cn(
-                  "flex items-center gap-2 px-2 py-1.5 rounded-md cursor-pointer transition-colors",
-                  "hover:bg-gray-100 dark:hover:bg-gray-800",
-                  filterStatus === 'sent' && "bg-blue-50 dark:bg-blue-900/20 text-blue-600"
-                )}
-                onClick={() => {
-                  setFilterStatus('sent');
-                  setFilterFolder('all');
-                  setSelectedFolder(null);
-                }}
-              >
-                <Send className="h-4 w-4" />
-                <span className="flex-1 text-sm">Awaiting Signature</span>
-                <span className="text-xs tabular-nums text-muted-foreground bg-blue-100 dark:bg-blue-900/50 px-1.5 py-0.5 rounded">
-                  {metrics.byStatus.sent}
-                </span>
-              </div>
-              <div
-                className={cn(
-                  "flex items-center gap-2 px-2 py-1.5 rounded-md cursor-pointer transition-colors",
-                  "hover:bg-gray-100 dark:hover:bg-gray-800",
-                  filterStatus === 'draft' && "bg-blue-50 dark:bg-blue-900/20 text-blue-600"
-                )}
-                onClick={() => {
-                  setFilterStatus('draft');
-                  setFilterFolder('all');
-                  setSelectedFolder(null);
-                }}
-              >
-                <FileText className="h-4 w-4" />
-                <span className="flex-1 text-sm">Drafts</span>
-                <span className="text-xs tabular-nums text-muted-foreground bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 rounded">
-                  {metrics.byStatus.draft}
-                </span>
-              </div>
-              <div
-                className="flex items-center gap-2 px-2 py-1.5 rounded-md cursor-pointer transition-colors hover:bg-gray-100 dark:hover:bg-gray-800"
-                onClick={() => setShowPacketBuilder(true)}
-              >
-                <Package className="h-4 w-4" />
-                <span className="flex-1 text-sm">Create Packet</span>
-              </div>
+              {!isLeadExports && (
+                <>
+                  <div className="px-2 py-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                    Quick Access
+                  </div>
+                  <div
+                    className={cn(
+                      "flex items-center gap-2 px-2 py-1.5 rounded-md cursor-pointer transition-colors",
+                      "hover:bg-gray-100 dark:hover:bg-gray-800",
+                      filterStatus === 'sent' && "bg-blue-50 dark:bg-blue-900/20 text-blue-600"
+                    )}
+                    onClick={() => {
+                      setFilterStatus('sent');
+                      setFilterFolder('all');
+                      setSelectedFolder(null);
+                    }}
+                  >
+                    <Send className="h-4 w-4" />
+                    <span className="flex-1 text-sm">Awaiting Signature</span>
+                    <span className="text-xs tabular-nums text-muted-foreground bg-blue-100 dark:bg-blue-900/50 px-1.5 py-0.5 rounded">
+                      {metrics.byStatus.sent}
+                    </span>
+                  </div>
+                  <div
+                    className={cn(
+                      "flex items-center gap-2 px-2 py-1.5 rounded-md cursor-pointer transition-colors",
+                      "hover:bg-gray-100 dark:hover:bg-gray-800",
+                      filterStatus === 'draft' && "bg-blue-50 dark:bg-blue-900/20 text-blue-600"
+                    )}
+                    onClick={() => {
+                      setFilterStatus('draft');
+                      setFilterFolder('all');
+                      setSelectedFolder(null);
+                    }}
+                  >
+                    <FileText className="h-4 w-4" />
+                    <span className="flex-1 text-sm">Drafts</span>
+                    <span className="text-xs tabular-nums text-muted-foreground bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 rounded">
+                      {metrics.byStatus.draft}
+                    </span>
+                  </div>
+                  <div
+                    className="flex items-center gap-2 px-2 py-1.5 rounded-md cursor-pointer transition-colors hover:bg-gray-100 dark:hover:bg-gray-800"
+                    onClick={() => setShowPacketBuilder(true)}
+                  >
+                    <Package className="h-4 w-4" />
+                    <span className="flex-1 text-sm">Create Packet</span>
+                  </div>
 
-              <Separator className="my-2" />
+                  <Separator className="my-2" />
+                </>
+              )}
 
               <div className="px-2 py-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
                 Folders
@@ -624,73 +633,77 @@ export default function DocumentsPage() {
           <div className="shrink-0 px-4 py-3 border-b">
             <div className="flex items-center justify-between">
               <div>
-                <h1 className="text-lg font-semibold">Documents</h1>
+                <h1 className="text-lg font-semibold">{isLeadExports ? 'Lead Exports' : 'Documents'}</h1>
                 <p className="text-xs text-muted-foreground">
-                  Manage contracts, agreements, and legal documents
+                  {isLeadExports ? 'CSV exports from the Leads tab' : 'Manage contracts, agreements, and legal documents'}
                 </p>
               </div>
 
-              <div className="flex items-center gap-2">
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setShowTemplateLibrary(true)}>
-                        <Layers className="h-4 w-4" />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>Template Library</TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
+              {!isLeadExports && (
+                <div className="flex items-center gap-2">
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setShowTemplateLibrary(true)}>
+                          <Layers className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>Template Library</TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
 
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setShowPacketBuilder(true)}>
-                        <Package className="h-4 w-4" />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>Packet Builder</TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setShowPacketBuilder(true)}>
+                          <Package className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>Packet Builder</TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
 
-                {/* View mode toggle */}
-                <div className="flex items-center border rounded-md">
-                  <Button
-                    variant={viewMode === 'table' ? 'secondary' : 'ghost'}
-                    size="sm"
-                    className="rounded-r-none h-8 px-2.5"
-                    onClick={() => setViewMode('table')}
-                  >
-                    <List className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant={viewMode === 'kanban' ? 'secondary' : 'ghost'}
-                    size="sm"
-                    className="rounded-none border-x h-8 px-2.5"
-                    onClick={() => setViewMode('kanban')}
-                  >
-                    <LayoutGrid className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant={viewMode === 'packets' ? 'secondary' : 'ghost'}
-                    size="sm"
-                    className="rounded-l-none h-8 px-2.5"
-                    onClick={() => setViewMode('packets')}
-                  >
-                    <Package className="h-4 w-4" />
-                  </Button>
+                  {/* View mode toggle */}
+                  <div className="flex items-center border rounded-md">
+                    <Button
+                      variant={viewMode === 'table' ? 'secondary' : 'ghost'}
+                      size="sm"
+                      className="rounded-r-none h-8 px-2.5"
+                      onClick={() => setViewMode('table')}
+                    >
+                      <List className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant={viewMode === 'kanban' ? 'secondary' : 'ghost'}
+                      size="sm"
+                      className="rounded-none border-x h-8 px-2.5"
+                      onClick={() => setViewMode('kanban')}
+                    >
+                      <LayoutGrid className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant={viewMode === 'packets' ? 'secondary' : 'ghost'}
+                      size="sm"
+                      className="rounded-l-none h-8 px-2.5"
+                      onClick={() => setViewMode('packets')}
+                    >
+                      <Package className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
 
             {/* Metrics bar - horizontal StatChip pattern */}
-            <div className="flex items-center gap-2 mt-3 overflow-x-auto pb-1">
-              <StatChip icon={FileText} label="total" value={metrics.total} color="gray" />
-              <StatChip icon={Send} label="awaiting" value={metrics.byStatus.sent} color="blue" />
-              <StatChip icon={CheckCircle} label="signed" value={metrics.byStatus.signed} color="emerald" />
-              <StatChip icon={Clock} label="avg time" value={`${metrics.avgSigningTimeHours}h`} color="purple" />
-              <StatChip icon={Layers} label="templates" value={metrics.templatesActive} color="amber" />
-            </div>
+            {!isLeadExports && (
+              <div className="flex items-center gap-2 mt-3 overflow-x-auto pb-1">
+                <StatChip icon={FileText} label="total" value={metrics.total} color="gray" />
+                <StatChip icon={Send} label="awaiting" value={metrics.byStatus.sent} color="blue" />
+                <StatChip icon={CheckCircle} label="signed" value={metrics.byStatus.signed} color="emerald" />
+                <StatChip icon={Clock} label="avg time" value={`${metrics.avgSigningTimeHours}h`} color="purple" />
+                <StatChip icon={Layers} label="templates" value={metrics.templatesActive} color="amber" />
+              </div>
+            )}
           </div>
 
           {/* Filters toolbar */}
@@ -706,7 +719,7 @@ export default function DocumentsPage() {
                 />
               </div>
 
-              <Select value={filterStatus} onValueChange={(value: DocumentStatus | 'all') => setFilterStatus(value)}>
+              {!isLeadExports && <Select value={filterStatus} onValueChange={(value: DocumentStatus | 'all') => setFilterStatus(value)}>
                 <SelectTrigger className="w-32 h-8 text-sm">
                   <SelectValue placeholder="Status" />
                 </SelectTrigger>
@@ -718,9 +731,9 @@ export default function DocumentsPage() {
                   <SelectItem value="expired">Expired</SelectItem>
                   <SelectItem value="void">Void</SelectItem>
                 </SelectContent>
-              </Select>
+              </Select>}
 
-              <Select value={filterDocType} onValueChange={(value: Document['docType'] | 'all') => setFilterDocType(value)}>
+              {!isLeadExports && <Select value={filterDocType} onValueChange={(value: Document['docType'] | 'all') => setFilterDocType(value)}>
                 <SelectTrigger className="w-32 h-8 text-sm">
                   <SelectValue placeholder="Type" />
                 </SelectTrigger>
@@ -733,7 +746,7 @@ export default function DocumentsPage() {
                   <SelectItem value="NDA">NDA</SelectItem>
                   <SelectItem value="Addendum">Addendum</SelectItem>
                 </SelectContent>
-              </Select>
+              </Select>}
 
               {selectedDocuments.length > 0 && (
                 <div className="flex items-center gap-2 ml-auto">
@@ -769,11 +782,11 @@ export default function DocumentsPage() {
                           />
                         </TableHead>
                         <TableHead>Document</TableHead>
-                        <TableHead className="w-24">Type</TableHead>
-                        <TableHead className="w-28">Status</TableHead>
-                        <TableHead>Related To</TableHead>
-                        <TableHead className="w-28">Created</TableHead>
-                        <TableHead className="w-28">Signers</TableHead>
+                        {!isLeadExports && <TableHead className="w-24">Type</TableHead>}
+                        {!isLeadExports && <TableHead className="w-28">Status</TableHead>}
+                        {!isLeadExports && <TableHead>Related To</TableHead>}
+                        <TableHead className="w-28">{isLeadExports ? 'Status' : 'Created'}</TableHead>
+                        {!isLeadExports && <TableHead className="w-28">Signers</TableHead>}
                         <TableHead className="w-12 text-right">Actions</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -830,72 +843,96 @@ export default function DocumentsPage() {
                                 </div>
                               </div>
                             </TableCell>
+                            {!isLeadExports && (
+                              <TableCell>
+                                <Badge variant="outline" className="text-xs">
+                                  {doc.docType}
+                                </Badge>
+                              </TableCell>
+                            )}
+                            {!isLeadExports && (
+                              <TableCell>
+                                <Badge className={cn("gap-1", config.bgColor, config.color)}>
+                                  <StatusIcon className="h-3 w-3" />
+                                  <span className="capitalize">{doc.status}</span>
+                                </Badge>
+                              </TableCell>
+                            )}
+                            {!isLeadExports && (
+                              <TableCell>
+                                {doc.relatedName && (
+                                  <div className="text-sm">
+                                    <div className="font-medium truncate max-w-[135px]">{doc.relatedName}</div>
+                                    <div className="text-xs text-muted-foreground capitalize">{doc.relatedEntity}</div>
+                                  </div>
+                                )}
+                              </TableCell>
+                            )}
                             <TableCell>
-                              <Badge variant="outline" className="text-xs">
-                                {doc.docType}
-                              </Badge>
-                            </TableCell>
-                            <TableCell>
-                              <Badge className={cn("gap-1", config.bgColor, config.color)}>
-                                <StatusIcon className="h-3 w-3" />
-                                <span className="capitalize">{doc.status}</span>
-                              </Badge>
-                            </TableCell>
-                            <TableCell>
-                              {doc.relatedName && (
+                              {isLeadExports ? (() => {
+                                const exportStatus = doc.tags.includes('export-initiated') ? 'initiated'
+                                  : doc.tags.includes('export-pending') ? 'pending'
+                                  : 'exported';
+                                const pill = {
+                                  initiated: 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-400',
+                                  pending: 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-400',
+                                  exported: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400',
+                                }[exportStatus];
+                                return (
+                                  <span className={cn("inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium capitalize", pill)}>
+                                    {exportStatus}
+                                  </span>
+                                );
+                              })() : (
                                 <div className="text-sm">
-                                  <div className="font-medium truncate max-w-[135px]">{doc.relatedName}</div>
-                                  <div className="text-xs text-muted-foreground capitalize">{doc.relatedEntity}</div>
+                                  <div className="tabular-nums">{new Date(doc.createdAt).toLocaleDateString()}</div>
+                                  <div className="text-xs text-muted-foreground">v{doc.version}</div>
                                 </div>
                               )}
                             </TableCell>
-                            <TableCell>
-                              <div className="text-sm">
-                                <div className="tabular-nums">{new Date(doc.createdAt).toLocaleDateString()}</div>
-                                <div className="text-xs text-muted-foreground">v{doc.version}</div>
-                              </div>
-                            </TableCell>
-                            <TableCell>
-                              {doc.signerRoles.length > 0 && (
-                                <div className="flex -space-x-2">
-                                  {doc.signerRoles.slice(0, 3).map((signer, idx) => (
-                                    <TooltipProvider key={idx}>
-                                      <Tooltip>
-                                        <TooltipTrigger asChild>
-                                          <Avatar className="h-7 w-7 border-2 border-white dark:border-gray-900">
-                                            <AvatarFallback
-                                              className={cn(
-                                                "text-xs",
-                                                signer.status === 'signed' && "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50",
-                                                signer.status === 'sent' && "bg-blue-100 text-blue-700 dark:bg-blue-900/50",
-                                                signer.status === 'viewed' && "bg-amber-100 text-amber-700 dark:bg-amber-900/50",
-                                                signer.status === 'pending' && "bg-gray-100 text-gray-700 dark:bg-gray-800"
-                                              )}
-                                            >
-                                              {signer.role[0]}
-                                            </AvatarFallback>
-                                          </Avatar>
-                                        </TooltipTrigger>
-                                        <TooltipContent>
-                                          <div className="text-xs">
-                                            <div className="font-medium">{signer.role}</div>
-                                            {signer.name && <div>{signer.name}</div>}
-                                            <div className="capitalize text-muted-foreground">{signer.status}</div>
-                                          </div>
-                                        </TooltipContent>
-                                      </Tooltip>
-                                    </TooltipProvider>
-                                  ))}
-                                  {doc.signerRoles.length > 3 && (
-                                    <Avatar className="h-7 w-7 border-2 border-white dark:border-gray-900">
-                                      <AvatarFallback className="text-xs bg-gray-100 dark:bg-gray-800">
-                                        +{doc.signerRoles.length - 3}
-                                      </AvatarFallback>
-                                    </Avatar>
-                                  )}
-                                </div>
-                              )}
-                            </TableCell>
+                            {!isLeadExports && (
+                              <TableCell>
+                                {doc.signerRoles.length > 0 && (
+                                  <div className="flex -space-x-2">
+                                    {doc.signerRoles.slice(0, 3).map((signer, idx) => (
+                                      <TooltipProvider key={idx}>
+                                        <Tooltip>
+                                          <TooltipTrigger asChild>
+                                            <Avatar className="h-7 w-7 border-2 border-white dark:border-gray-900">
+                                              <AvatarFallback
+                                                className={cn(
+                                                  "text-xs",
+                                                  signer.status === 'signed' && "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50",
+                                                  signer.status === 'sent' && "bg-blue-100 text-blue-700 dark:bg-blue-900/50",
+                                                  signer.status === 'viewed' && "bg-amber-100 text-amber-700 dark:bg-amber-900/50",
+                                                  signer.status === 'pending' && "bg-gray-100 text-gray-700 dark:bg-gray-800"
+                                                )}
+                                              >
+                                                {signer.role[0]}
+                                              </AvatarFallback>
+                                            </Avatar>
+                                          </TooltipTrigger>
+                                          <TooltipContent>
+                                            <div className="text-xs">
+                                              <div className="font-medium">{signer.role}</div>
+                                              {signer.name && <div>{signer.name}</div>}
+                                              <div className="capitalize text-muted-foreground">{signer.status}</div>
+                                            </div>
+                                          </TooltipContent>
+                                        </Tooltip>
+                                      </TooltipProvider>
+                                    ))}
+                                    {doc.signerRoles.length > 3 && (
+                                      <Avatar className="h-7 w-7 border-2 border-white dark:border-gray-900">
+                                        <AvatarFallback className="text-xs bg-gray-100 dark:bg-gray-800">
+                                          +{doc.signerRoles.length - 3}
+                                        </AvatarFallback>
+                                      </Avatar>
+                                    )}
+                                  </div>
+                                )}
+                              </TableCell>
+                            )}
                             <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                               <DropdownMenu>
                                 <DropdownMenuTrigger asChild>

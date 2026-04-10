@@ -408,7 +408,7 @@ function VendorCard({ vendor, isSelected, onClick, viewMode }: VendorCardProps) 
         </div>
 
         {/* Rating */}
-        <div className="flex items-center gap-1 shrink-0">
+        <div className="flex items-center gap-1 shrink-0 w-14 justify-end">
           <Star className="h-4 w-4 fill-amber-400 text-amber-400" />
           <span className="text-sm font-medium tabular-nums">
             {vendor.ratingAvg > 0 ? vendor.ratingAvg.toFixed(1) : "N/A"}
@@ -416,10 +416,12 @@ function VendorCard({ vendor, isSelected, onClick, viewMode }: VendorCardProps) 
         </div>
 
         {/* Reliability gauge */}
-        <ReliabilityGauge percentage={reliability} size="sm" />
+        <div className="shrink-0 w-10 flex justify-center">
+          <ReliabilityGauge percentage={reliability} size="sm" />
+        </div>
 
         {/* Availability badge */}
-        <Badge className={cn("shrink-0", availability.className)}>
+        <Badge className={cn("shrink-0 w-20 justify-center", availability.className)}>
           {availability.label}
         </Badge>
       </div>

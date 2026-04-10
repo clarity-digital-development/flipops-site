@@ -84,6 +84,7 @@ import {
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { seedProperties } from "./seed-data";
+import { saveLeadExport } from "../documents/seed-data";
 
 // =============================================================================
 // Types
@@ -1264,17 +1265,19 @@ export default function LeadsPage() {
       csvContent += `"${p.address}",${p.city},${p.state},${p.zip || ""},"${p.ownerName || ""}",${p.score || ""},${p.outreachStatus || "not_contacted"},${p.dataSource},${p.lastContactDate || ""},${p.sentiment || ""},"${signals}"\n`;
     });
 
+    const filename = `leads-export-${new Date().toISOString().split('T')[0]}.csv`;
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.setAttribute("href", url);
-    link.setAttribute("download", `leads-export-${new Date().toISOString().split('T')[0]}.csv`);
+    link.setAttribute("download", filename);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
 
-    toast.success(`Exported ${props.length} leads to CSV`);
+    saveLeadExport(filename, props.length);
+    toast.success(`Exported ${props.length} leads to CSV and saved to Documents`);
   };
 
   const openPropertyDrawer = (property: Property) => {
