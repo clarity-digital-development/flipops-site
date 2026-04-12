@@ -3,6 +3,7 @@ import { Geist_Mono } from "next/font/google";
 import { ClerkProvider } from "@clerk/nextjs";
 import { Toaster } from "@/components/ui/toaster";
 import { ThemeProvider } from "@/app/components/theme-provider";
+import { FontLoader } from "@/app/components/font-loader";
 import "./globals.css";
 
 const geistMono = Geist_Mono({
@@ -52,10 +53,11 @@ export default function RootLayout({
         <head>
           <link rel="preconnect" href="https://fonts.googleapis.com" />
           <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+          {/* Preconnects stay here; font stylesheet is loaded async via FontLoader client component below */}
           <link
+            rel="preload"
+            as="style"
             href="https://fonts.googleapis.com/css2?family=Questrial&display=swap"
-            rel="stylesheet"
-            precedence="default"
           />
         </head>
         <body
@@ -67,6 +69,7 @@ export default function RootLayout({
             enableSystem
             disableTransitionOnChange
           >
+            <FontLoader />
             {children}
             <Toaster />
           </ThemeProvider>
