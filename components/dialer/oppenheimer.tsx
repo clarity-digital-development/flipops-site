@@ -127,14 +127,14 @@ Do not negotiate, discuss price, or qualify deeper — just collect and hand off
   },
 ];
 
-// Provider (ElevenLabs / Telnyx) is intentionally hidden from users — it's
-// infrastructure, not a product choice. The selection maps to the right voice
-// engine at call time on the server.
+// Voices are served by Telnyx native (Kokoro + AWS Polly via Telnyx bridge).
+// ElevenLabs was dropped pre-beta — saved ~$0.15/min and one vendor dependency.
+// Voice IDs map to the underlying Telnyx voice config server-side at call time.
 const VOICES = [
-  { id: "eleven-alex", label: "Alex", tone: "Warm, masculine" },
-  { id: "eleven-jamie", label: "Jamie", tone: "Clear, neutral" },
-  { id: "eleven-pat", label: "Pat", tone: "Conversational" },
-  { id: "telnyx-kokoro", label: "Kokoro", tone: "Fastest option" },
+  { id: "alex", label: "Alex", tone: "Warm, masculine" },
+  { id: "jamie", label: "Jamie", tone: "Clear, neutral" },
+  { id: "pat", label: "Pat", tone: "Conversational" },
+  { id: "kokoro", label: "Kokoro", tone: "Fastest option" },
 ];
 
 // The user's home/operating state determines the default callback hours

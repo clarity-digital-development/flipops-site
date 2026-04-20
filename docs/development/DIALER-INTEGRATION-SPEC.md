@@ -181,7 +181,8 @@ UI shell: `components/dialer/oppenheimer.tsx` (rewritten for inbound-first).
 |---|---|---|
 | Orchestration | Telnyx AI Assistants (`/v2/ai/assistants`) | Manages conversation loop, tools, transcription |
 | LLM | Anthropic Claude Haiku (via Telnyx) | Cheap, fast, good enough for qualification conversations |
-| Voice | ElevenLabs (via Telnyx bridge) OR Telnyx KokoroTTS | ElevenLabs = more natural, costs extra; Telnyx = free tier |
+| Voice (Oppenheimer) | **Telnyx native** (Kokoro + AWS Polly via Telnyx bridge) | ElevenLabs dropped pre-beta — saves $0.15/min and one vendor dependency. Voice quality is sufficient for qualification calls. A/B test ElevenLabs later if beta feedback flags voice quality. |
+| Transcription (Flip Phone live) | **Deepgram direct** (streaming, `nova-3`) | $0.0043/min vs $0.05/min via Telnyx bundled Google — 10× cheaper. Oppenheimer transcription stays bundled in the Telnyx AI Assistant flat rate. |
 | PSTN | Telnyx Call Control API | Actual phone network, WebRTC bridge |
 
 ### Telnyx AI Assistant configuration for Oppenheimer
@@ -194,9 +195,9 @@ POST /v2/ai/assistants
   "instructions": "<system prompt from UI campaign builder>",
   "greeting": "Hi, this is Alex calling from FlipOps. This is an automated call — I can pull you straight to a human anytime if you prefer.",
   "voice_settings": {
-    "type": "elevenlabs",
-    "voice_id": "<ELEVENLABS_VOICE_ID from env>",
-    "model_id": "eleven_turbo_v2_5"
+    "type": "telnyx",
+    "voice": "Telnyx.KokoroTTS.af",  // or AWS Polly voice via "Polly.Joanna" etc.
+    "voice_speed": 1.0
   },
   "transcription_settings": { "model": "deepgram/nova-3", "language": "en" },
   "telephony_settings": {
@@ -435,11 +436,15 @@ TELNYX_TELEPHONY_CREDENTIAL_ID=...         # for /v2/telephony_credentials/.../t
 TELNYX_AI_ASSISTANT_ID=...                 # Oppenheimer's assistant
 NEXT_PUBLIC_TELNYX_CALLER_ID=+1XXXXXXXXXX  # default outbound caller ID
 
-# ElevenLabs (Oppenheimer's voice)
-ELEVENLABS_API_KEY=...
-ELEVENLABS_VOICE_ID_ALEX=...               # friendly acquisitions voice
-ELEVENLABS_VOICE_ID_JAMIE=...              # professional voice
-ELEVENLABS_VOICE_ID_PAT=...                # conversational voice
+# Deepgram (Flip Phone live transcription — 10× cheaper than Telnyx bundled Google)
+# Oppenheimer transcription is bundled in the Telnyx AI Assistant flat rate so
+# we don't need Deepgram for that path.
+DEEPGRAM_API_KEY=...
+
+# ElevenLabs — NOT required for beta.
+# Dropped in favor of Telnyx native voices (Kokoro + Polly). Re-enable only if
+# voice-quality feedback during beta demands it.
+# ELEVENLABS_API_KEY=
 
 # AWS S3 (call recording storage — Telnyx default recordings expire in 10 min)
 AWS_ACCESS_KEY_ID=...
@@ -494,26 +499,34 @@ SMRTPHONE_API_KEY=...
 
 ## 9. Cost model
 
-At 500 outbound AI calls/month (10-min avg) + 1,000 human-dialed calls/month + 5,000 external-dialer calls/month:
+At 500 inbound AI calls/mo (5-min avg, since Oppenheimer is inbound/callbacks only now) + 1,000 human-dialed calls/mo (8-min avg) + 5,000 external-dialer calls/mo:
 
 | Line item | Rate | Monthly |
 |---|---|---|
-| Telnyx AI calls (includes LLM + transcription) | $0.08/min | $400 |
-| ElevenLabs Turbo voice (via Telnyx bridge) | $0.15/min | $750 |
-| Telnyx PSTN outbound (Flip Phone) | $0.01/min | $100 |
-| Telnyx WebRTC bridge | $0.002/min | $20 |
-| BatchData DNC scrubs (1,500/mo @ $0.05 each) | $75 | $75 |
-| AWS S3 recording storage | ~$10 | $10 |
-| Phone numbers (10 DIDs) | $1.50 ea | $15 |
-| Mojo subscription (user-provided) | ~$99 | $99 |
-| smrtPhone subscription (user-provided) | ~$75 | $75 |
-| CallTools subscription (user-provided) | varies | varies |
-| **Subtotal (FlipOps-side infra)** |  | **~$1,370** |
+| Telnyx AI calls (includes LLM, Telnyx native voice, Deepgram transcription) | $0.08/min × 2,500 min | $200 |
+| Telnyx PSTN outbound (Flip Phone, 8,000 min) | $0.01/min | $80 |
+| Telnyx WebRTC bridge | $0.002/min | $16 |
+| Deepgram streaming transcription (Flip Phone live, 8,000 min) | $0.0043/min | $34 |
+| BatchData PAYG (1,000 property + 500 skip trace @ $0.30/call) | $0.30/call | $450 |
+| AWS S3 recording storage | — | $10 |
+| Phone numbers (10 DIDs) | $1.50/each | $15 |
+| External dialer subscriptions (Mojo / smrtPhone / CallTools, user-provided) | varies | ~$175 |
+| **Subtotal (FlipOps-side infra excluding ext. dialers)** |  | **~$805** |
+
+**What changed from the earlier $1,370/mo number:**
+- Dropped ElevenLabs (−$750/mo): Telnyx native voice is sufficient for qualification calls
+- Dropped Google transcription (−$370/mo): Deepgram direct at $0.0043/min replaces Telnyx bundled Google at $0.05/min
+- Corrected BatchData from $1K subscription floor to PAYG $0.30/call at actual volume
+- Oppenheimer pivoted inbound-only → shorter avg duration (5 min vs 10 min)
+
+**Optional future costs if voice quality becomes an issue:**
+- ElevenLabs Turbo v2.5 via Telnyx bridge: +$0.15/min → +$375/mo at 2,500 min
+- ElevenLabs voice cloning (brand voice): +$99/mo Pro plan
 
 **Cost levers:**
-- Switch Oppenheimer voice to Telnyx KokoroTTS → saves $750 but lower-quality voice
-- Use Telnyx Engine B transcription for Flip Phone ($0.025/min vs Google $0.05/min) → ~$30/mo savings
-- Cache DNC scrubs 7 days → avoid duplicate scrubs on re-queued leads
+- Cache Deepgram transcripts server-side so we don't re-transcribe when users replay recordings
+- Cache DNC scrubs 7 days to avoid duplicates on re-queued leads
+- Use Telnyx Engine B post-call transcription instead of Deepgram streaming if live view isn't critical ($0.025/min vs $0.0043/min streaming — Deepgram wins for real-time)
 
 ---
 
@@ -522,12 +535,14 @@ At 500 outbound AI calls/month (10-min avg) + 1,000 human-dialed calls/month + 5
 Items requiring user decision / credentials before shipping:
 
 1. **Telnyx account** — do you have one? If not, we'll register and spec one account per environment (dev + prod). Need credit-card-backed spending limits configured per Phase B.
-2. **ElevenLabs voices** — which voices do you want as Alex/Jamie/Pat? Recommend cloning a voice for FlipOps brand consistency ($22/mo Creator plan or $99/mo Pro for voice cloning + commercial license).
+2. **Deepgram account** — sign-up is self-serve at deepgram.com, $200 free credit out of the gate. Only needed for Flip Phone live transcription.
 3. **10DLC brand/campaign** — required for SMS at scale. Not required for voice alone but start registration now (1–7 day vetting). Covered in TELNYX-INTEGRATION-SPEC.md §8.
 4. **Fourth integration slot** — confirm: Batch Dialer / PhoneBurner / Kixie / something else?
-5. **Consent capture UI** — we need a dedicated consent capture surface in the Leads flow so `ai_legal` state starts accumulating. Should be its own mini-build after Phase B.
-6. **Ringless voicemail** — enable as an opt-in toggle with risk acknowledgment, or skip entirely? Growing litigation risk says "skip" but it's heavily used in the industry.
-7. **Barge-in UX** — should human supervisors be able to silently monitor or whisper-coach active Oppenheimer calls?
+5. **Ringless voicemail** — enable as an opt-in toggle with risk acknowledgment, or skip entirely? Growing litigation risk says "skip" but it's heavily used in the industry.
+6. **Barge-in UX** — should human supervisors be able to silently monitor or whisper-coach active Oppenheimer calls?
+
+**No longer required** (previously blocking, now deferred):
+- ~~ElevenLabs account~~ — dropped in favor of Telnyx native voices. Revisit only if beta voice-quality feedback is poor.
 
 ---
 
