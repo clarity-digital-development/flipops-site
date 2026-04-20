@@ -5,7 +5,6 @@ import {
   Bot,
   Sparkles,
   AudioLines,
-  Play,
   Activity,
   Settings2,
   PhoneIncoming,
@@ -13,7 +12,6 @@ import {
   VoicemailIcon,
   MessageSquareText,
   Clock,
-  ShieldCheck,
   Lock,
   ChevronDown,
   ChevronRight,
@@ -22,8 +20,19 @@ import {
   Check,
   Volume2,
   Info,
-  Power,
 } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  getQuietHoursForState,
+  STATE_NAMES,
+  type StateCode,
+} from "@/lib/dialer/quiet-hours";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -125,14 +134,12 @@ const VOICES = [
   { id: "telnyx-kokoro", label: "Kokoro", tone: "Fastest + free tier", provider: "Telnyx" },
 ];
 
-// State-law quiet hours matrix. Lookup by recipient area code → state → rule.
-// We display the strict reasonable default and note state overrides.
-const STATE_QUIET_HOURS_SUMMARY = [
-  { state: "FL · Florida", hours: "9am–8pm", note: "FTSA — 8am on Sat" },
-  { state: "OK · Oklahoma", hours: "8am–8pm", note: "State TCPA stricter" },
-  { state: "WA · Washington", hours: "8am–8pm", note: "State TCPA stricter" },
-  { state: "All other states", hours: "8am–9pm", note: "Federal TCPA floor" },
-];
+// The user's home/operating state determines the default callback hours
+// surface shown in the UI. In production this resolves from the authenticated
+// user's profile (Settings page). For demo/dev we default to FL to match
+// the seed data. Recipients outside the home state still get their own
+// stricter rule applied at call time — that's backend enforcement.
+const DEMO_USER_STATE: StateCode = "FL";
 
 // Mock live inbound calls
 const LIVE_INBOUND = [
@@ -304,114 +311,115 @@ export function Oppenheimer() {
           <div className="grid grid-cols-1 lg:grid-cols-[1fr_400px] gap-4">
             {/* ---------- CONFIGURATION ---------- */}
             <div className="space-y-4">
-              {/* Personality picker */}
+              {/* Voice + Personality (side-by-side dropdowns) */}
               <Card className="p-0 gap-0 overflow-hidden">
                 <div className="border-b px-5 py-3">
                   <h3 className="text-sm font-semibold flex items-center gap-1.5">
                     <MessageSquareText className="h-4 w-4" />
-                    How should Oppenheimer sound?
+                    Voice &amp; conversation style
                   </h3>
                   <p className="text-[11px] text-muted-foreground mt-0.5">
-                    Pick a conversation style. Tap to preview a sample line.
+                    Pick how Oppenheimer should sound and how it should speak.
                   </p>
                 </div>
-                <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-2">
-                  {PERSONALITIES.map((p) => {
-                    const active = personality === p.id;
-                    return (
-                      <button
-                        key={p.id}
-                        onClick={() => setPersonality(p.id)}
-                        className={cn(
-                          "text-left rounded-lg border p-3 transition-all",
-                          active
-                            ? "border-violet-400 bg-violet-50/60 dark:bg-violet-950/30 dark:border-violet-700 ring-2 ring-violet-500/20"
-                            : "border-border hover:bg-muted/40",
-                        )}
+
+                <div className="p-4 space-y-3">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {/* Conversation style dropdown */}
+                    <div>
+                      <Label className="text-xs font-medium mb-1.5 flex items-center gap-1.5">
+                        <Bot className="h-3 w-3" />
+                        How should Oppenheimer sound?
+                      </Label>
+                      <Select
+                        value={personality}
+                        onValueChange={(v) => {
+                          const next = v as PersonalityPreset;
+                          setPersonality(next);
+                          // Custom auto-opens Advanced so the prompt editor is immediately visible.
+                          if (next === "custom") setAdvancedOpen(true);
+                        }}
                       >
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="min-w-0">
-                            <p className="text-sm font-semibold">{p.name}</p>
-                            <p className="text-[11px] text-muted-foreground mt-0.5">
-                              {p.tagline}
-                            </p>
-                          </div>
-                          {active && (
-                            <Check className="h-4 w-4 text-violet-600 dark:text-violet-400 shrink-0" />
-                          )}
-                        </div>
-                        {p.id !== "custom" && (
-                          <p className="text-[11px] text-foreground/70 italic mt-2 line-clamp-2 leading-snug">
-                            "{p.sample}"
-                          </p>
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
+                        <SelectTrigger className="h-9 text-xs">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {PERSONALITIES.map((p) => (
+                            <SelectItem key={p.id} value={p.id} className="text-xs">
+                              <div className="flex flex-col gap-0.5">
+                                <span className="font-medium">{p.name}</span>
+                                <span className="text-[10px] text-muted-foreground">
+                                  {p.tagline}
+                                </span>
+                              </div>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {currentPersonality.id !== "custom" && (
+                        <p className="text-[11px] text-foreground/70 italic mt-1.5 leading-snug line-clamp-2">
+                          "{currentPersonality.sample}"
+                        </p>
+                      )}
+                    </div>
 
-                {/* Voice picker */}
-                <div className="border-t px-5 py-3">
-                  <div className="flex items-center justify-between mb-2">
-                    <Label className="text-xs flex items-center gap-1.5 font-medium">
-                      <AudioLines className="h-3.5 w-3.5" />
-                      Voice
-                    </Label>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-6 text-[11px] gap-1 text-muted-foreground"
+                    {/* Voice dropdown */}
+                    <div>
+                      <Label className="text-xs font-medium mb-1.5 flex items-center gap-1.5">
+                        <AudioLines className="h-3 w-3" />
+                        Voice
+                      </Label>
+                      <Select value={voiceId} onValueChange={setVoiceId}>
+                        <SelectTrigger className="h-9 text-xs">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {VOICES.map((v) => (
+                            <SelectItem key={v.id} value={v.id} className="text-xs">
+                              <div className="flex flex-col gap-0.5">
+                                <span className="font-medium">
+                                  {v.label}{" "}
+                                  <span className="text-muted-foreground font-normal">
+                                    · {v.tone}
+                                  </span>
+                                </span>
+                                <span className="text-[10px] text-muted-foreground">
+                                  {v.provider}
+                                </span>
+                              </div>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 text-[11px] gap-1 text-muted-foreground hover:text-foreground mt-1.5 -ml-2"
+                      >
+                        <Volume2 className="h-3 w-3" />
+                        Preview voice
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* Greeting */}
+                  <div className="pt-1">
+                    <Label
+                      htmlFor="greeting"
+                      className="text-xs font-medium mb-1.5 block"
                     >
-                      <Volume2 className="h-3 w-3" />
-                      Preview selected
-                    </Button>
+                      Opening line
+                    </Label>
+                    <Input
+                      id="greeting"
+                      value={greeting}
+                      onChange={(e) => setGreeting(e.target.value)}
+                      className="h-9 text-sm"
+                    />
+                    <p className="text-[10px] text-muted-foreground mt-1">
+                      Oppenheimer auto-appends "This is an automated call" where required by law.
+                    </p>
                   </div>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                    {VOICES.map((v) => {
-                      const active = voiceId === v.id;
-                      return (
-                        <button
-                          key={v.id}
-                          onClick={() => setVoiceId(v.id)}
-                          className={cn(
-                            "rounded-md border px-3 py-2 text-left transition-all",
-                            active
-                              ? "border-violet-400 bg-violet-50/40 dark:bg-violet-950/30 dark:border-violet-700"
-                              : "border-border hover:bg-muted/40",
-                          )}
-                        >
-                          <div className="flex items-center justify-between">
-                            <span className="text-xs font-semibold">{v.label}</span>
-                            {active && (
-                              <Check className="h-3 w-3 text-violet-600 dark:text-violet-400" />
-                            )}
-                          </div>
-                          <p className="text-[10px] text-muted-foreground mt-0.5">
-                            {v.tone}
-                          </p>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* Greeting */}
-                <div className="border-t px-5 py-3">
-                  <Label
-                    htmlFor="greeting"
-                    className="text-xs font-medium mb-1.5 block"
-                  >
-                    Opening line
-                  </Label>
-                  <Input
-                    id="greeting"
-                    value={greeting}
-                    onChange={(e) => setGreeting(e.target.value)}
-                    className="h-9 text-sm"
-                  />
-                  <p className="text-[10px] text-muted-foreground mt-1">
-                    Oppenheimer auto-appends "This is an automated call" where required by law.
-                  </p>
                 </div>
 
                 {/* Advanced settings disclosure */}
@@ -519,13 +527,13 @@ export function Oppenheimer() {
                     </div>
                   </div>
 
-                  {/* State-law quiet hours — locked */}
-                  <div className="rounded-lg border border-border bg-muted/30">
-                    <div className="px-3 py-2.5 flex items-center justify-between border-b border-border/60">
+                  {/* Callback hours — locked to the user's operating state */}
+                  <div className="rounded-lg border border-border bg-muted/30 px-3 py-2.5">
+                    <div className="flex items-center justify-between mb-1.5">
                       <div className="flex items-center gap-2">
                         <Lock className="h-3.5 w-3.5 text-muted-foreground" />
                         <Label className="text-xs font-medium">
-                          Callback hours
+                          Callback hours in {STATE_NAMES[DEMO_USER_STATE]}
                         </Label>
                       </div>
                       <TooltipProvider delayDuration={150}>
@@ -537,31 +545,27 @@ export function Oppenheimer() {
                             </button>
                           </TooltipTrigger>
                           <TooltipContent className="max-w-sm text-xs leading-relaxed">
-                            Calling hours are set by TCPA + recipient-state law. FlipOps looks up each recipient's state from their phone number and applies the stricter rule. You can't widen these — the fine is $500–$1,500 per violating call.
+                            Calling hours are set by TCPA + state law. FlipOps pulls your operating state from Settings. If you call into a state with stricter rules, that stricter rule is enforced automatically. You can't widen these — the fine is $500–$1,500 per violating call.
                           </TooltipContent>
                         </Tooltip>
                       </TooltipProvider>
                     </div>
-                    <div className="px-3 py-2.5 space-y-1.5">
-                      {STATE_QUIET_HOURS_SUMMARY.map((r) => (
-                        <div
-                          key={r.state}
-                          className="flex items-center justify-between text-[11px]"
-                        >
-                          <span className="text-foreground">{r.state}</span>
-                          <div className="flex items-center gap-2">
-                            <span className="tabular-nums font-medium">{r.hours}</span>
-                            <span className="text-muted-foreground text-[10px]">
-                              {r.note}
-                            </span>
-                          </div>
-                        </div>
-                      ))}
-                      <div className="pt-1.5 border-t border-border/50 mt-1.5 flex items-center gap-1.5 text-[10px] text-muted-foreground">
-                        <ShieldCheck className="h-3 w-3 text-emerald-500" />
-                        Enforced per recipient's state at call time.
-                      </div>
+                    <div className="flex items-baseline gap-2">
+                      <span className="text-lg font-semibold tabular-nums">
+                        {getQuietHoursForState(DEMO_USER_STATE).display}
+                      </span>
+                      {getQuietHoursForState(DEMO_USER_STATE).stricter && (
+                        <span className="text-[10px] text-amber-600 dark:text-amber-400 font-medium">
+                          state-stricter
+                        </span>
+                      )}
                     </div>
+                    <p className="text-[10px] text-muted-foreground mt-1 leading-snug">
+                      {getQuietHoursForState(DEMO_USER_STATE).basis}
+                      {getQuietHoursForState(DEMO_USER_STATE).note
+                        ? ` · ${getQuietHoursForState(DEMO_USER_STATE).note}`
+                        : ""}
+                    </p>
                   </div>
                 </div>
               </Card>

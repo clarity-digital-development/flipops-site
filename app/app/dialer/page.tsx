@@ -4,7 +4,6 @@ import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Phone, Bot, Plug, History, Info } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Badge } from "@/components/ui/badge";
 import { FlipPhone } from "@/components/dialer/flip-phone";
 import { Oppenheimer } from "@/components/dialer/oppenheimer";
 import { IntegrationsPanel } from "@/components/dialer/integrations-panel";
@@ -39,15 +38,7 @@ function DialerInner() {
         <div className="shrink-0 flex flex-col gap-3 border-b border-border bg-card/50 px-5 py-3">
           <div className="flex items-start justify-between gap-4">
             <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-xl font-semibold tracking-tight">Dialer</h1>
-                <Badge
-                  variant="outline"
-                  className="text-[10px] font-normal border-emerald-300 text-emerald-700 dark:text-emerald-300 dark:border-emerald-700/60"
-                >
-                  Telnyx · WebRTC + AI
-                </Badge>
-              </div>
+              <h1 className="text-xl font-semibold tracking-tight">Dialer</h1>
               <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1.5">
                 <Info className="h-3 w-3" />
                 Humans make outbound calls. AI handles inbound + callbacks — never cold outbound.
