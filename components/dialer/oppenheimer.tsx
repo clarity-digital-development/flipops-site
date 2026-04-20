@@ -127,11 +127,14 @@ Do not negotiate, discuss price, or qualify deeper — just collect and hand off
   },
 ];
 
+// Provider (ElevenLabs / Telnyx) is intentionally hidden from users — it's
+// infrastructure, not a product choice. The selection maps to the right voice
+// engine at call time on the server.
 const VOICES = [
-  { id: "eleven-alex", label: "Alex", tone: "Warm, masculine", provider: "ElevenLabs" },
-  { id: "eleven-jamie", label: "Jamie", tone: "Clear, neutral", provider: "ElevenLabs" },
-  { id: "eleven-pat", label: "Pat", tone: "Conversational", provider: "ElevenLabs" },
-  { id: "telnyx-kokoro", label: "Kokoro", tone: "Fastest + free tier", provider: "Telnyx" },
+  { id: "eleven-alex", label: "Alex", tone: "Warm, masculine" },
+  { id: "eleven-jamie", label: "Jamie", tone: "Clear, neutral" },
+  { id: "eleven-pat", label: "Pat", tone: "Conversational" },
+  { id: "telnyx-kokoro", label: "Kokoro", tone: "Fastest option" },
 ];
 
 // The user's home/operating state determines the default callback hours
@@ -324,9 +327,9 @@ export function Oppenheimer() {
                 </div>
 
                 <div className="p-4 space-y-3">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 items-start">
                     {/* Conversation style dropdown */}
-                    <div>
+                    <div className="min-w-0">
                       <Label className="text-xs font-medium mb-1.5 flex items-center gap-1.5">
                         <Bot className="h-3 w-3" />
                         How should Oppenheimer sound?
@@ -340,7 +343,7 @@ export function Oppenheimer() {
                           if (next === "custom") setAdvancedOpen(true);
                         }}
                       >
-                        <SelectTrigger className="h-9 text-xs">
+                        <SelectTrigger className="h-9 w-full text-xs">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -356,50 +359,51 @@ export function Oppenheimer() {
                           ))}
                         </SelectContent>
                       </Select>
-                      {currentPersonality.id !== "custom" && (
-                        <p className="text-[11px] text-foreground/70 italic mt-1.5 leading-snug line-clamp-2">
-                          "{currentPersonality.sample}"
-                        </p>
-                      )}
                     </div>
 
                     {/* Voice dropdown */}
-                    <div>
+                    <div className="min-w-0">
                       <Label className="text-xs font-medium mb-1.5 flex items-center gap-1.5">
                         <AudioLines className="h-3 w-3" />
                         Voice
                       </Label>
                       <Select value={voiceId} onValueChange={setVoiceId}>
-                        <SelectTrigger className="h-9 text-xs">
+                        <SelectTrigger className="h-9 w-full text-xs">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
                           {VOICES.map((v) => (
                             <SelectItem key={v.id} value={v.id} className="text-xs">
                               <div className="flex flex-col gap-0.5">
-                                <span className="font-medium">
-                                  {v.label}{" "}
-                                  <span className="text-muted-foreground font-normal">
-                                    · {v.tone}
-                                  </span>
-                                </span>
+                                <span className="font-medium">{v.label}</span>
                                 <span className="text-[10px] text-muted-foreground">
-                                  {v.provider}
+                                  {v.tone}
                                 </span>
                               </div>
                             </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-6 text-[11px] gap-1 text-muted-foreground hover:text-foreground mt-1.5 -ml-2"
-                      >
-                        <Volume2 className="h-3 w-3" />
-                        Preview voice
-                      </Button>
                     </div>
+                  </div>
+
+                  {/* Shared preview row below both dropdowns keeps the visual balance even */}
+                  <div className="flex items-start gap-3 pt-1 min-h-[24px]">
+                    {currentPersonality.id !== "custom" ? (
+                      <p className="flex-1 text-[11px] text-foreground/70 italic leading-snug line-clamp-2">
+                        "{currentPersonality.sample}"
+                      </p>
+                    ) : (
+                      <span className="flex-1" />
+                    )}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 text-[11px] gap-1 text-muted-foreground hover:text-foreground shrink-0"
+                    >
+                      <Volume2 className="h-3 w-3" />
+                      Preview voice
+                    </Button>
                   </div>
 
                   {/* Greeting */}
