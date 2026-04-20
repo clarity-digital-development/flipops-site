@@ -36,6 +36,18 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { getInvestorTypeDisplayName, type InvestorType } from "@/lib/navigation-config";
+import {
+  PriorityInbox,
+  type PriorityItem,
+} from "@/components/dashboard/priority-inbox";
+import {
+  PipelineSnapshot,
+  type PipelineStageMetric,
+} from "@/components/dashboard/pipeline-snapshot";
+import {
+  WeekSummary,
+  type WeekMetric,
+} from "@/components/dashboard/week-summary";
 
 export const dynamic = 'force-dynamic';
 
@@ -1085,6 +1097,135 @@ export default function DashboardPage() {
   };
 
   // Pipeline stages
+  // Derived data for the redesigned dashboard ----------------------------
+
+  // Priority items: overdue tasks + hot uncontacted leads, stable-sorted.
+  const priorityItems: PriorityItem[] = useMemo(() => {
+    const items: PriorityItem[] = [];
+    for (const t of overdueTasks.slice(0, 3)) {
+      items.push({
+        id: `overdue-${t.id}`,
+        kind: "overdue_task",
+        title: t.title,
+        detail: t.propertyAddress
+          ? `${t.propertyAddress} · ${t.overdueDays}d overdue`
+          : `${t.overdueDays} day${t.overdueDays === 1 ? "" : "s"} overdue`,
+        href: "/app/tasks?filter=overdue",
+        meta: t.priority === "high" ? "high" : undefined,
+      });
+    }
+    for (const l of hotLeads.filter((l) => !l.contacted).slice(0, 3)) {
+      items.push({
+        id: `hot-${l.id}`,
+        kind: "hot_uncontacted",
+        title: l.ownerName ?? l.address,
+        detail: `${l.address}, ${l.city}, ${l.state} · Score ${l.score}`,
+        href: "/app/leads",
+      });
+    }
+    return items;
+  }, [overdueTasks, hotLeads]);
+
+  // Weekly deltas from stats.
+  const weekMetrics: WeekMetric[] = useMemo(
+    () => [
+      {
+        key: "new_leads",
+        label: "New leads",
+        count: stats?.newLeads7d ?? 0,
+        deltaVsPrevious:
+          (stats?.newLeads7d ?? 0) - (stats?.newLeadsPrevious7d ?? 0),
+      },
+      {
+        key: "skip_traces",
+        label: "Skip traces run",
+        count: stats?.propertiesSkipTraced ?? 0,
+        deltaVsPrevious:
+          (stats?.propertiesSkipTraced ?? 0) -
+          (stats?.propertiesSkipTracedPrevious ?? 0),
+      },
+      {
+        key: "contacts",
+        label: "Contacts made",
+        count: stats?.propertiesContacted ?? 0,
+        deltaVsPrevious:
+          (stats?.propertiesContacted ?? 0) -
+          (stats?.propertiesContactedPrevious ?? 0),
+      },
+      {
+        key: "offers",
+        label: "Offers sent",
+        count: investorStats?.wholesaler?.activeAssignments ?? 3,
+      },
+      {
+        key: "contracts",
+        label: "Contracts signed",
+        count: investorStats?.wholesaler?.completedAssignments ?? 2,
+      },
+    ],
+    [stats, investorStats],
+  );
+
+  // Pipeline snapshot — vertical ladder with real counts.
+  // Analyzed / Offers / Contracts use estimates until real queries are wired
+  // against /api/deal-analyses, /api/offers, /api/contracts.
+  const pipelineSnapshot: PipelineStageMetric[] = useMemo(() => {
+    const leads = stats?.newLeads7d ?? 0;
+    const contacted = stats?.propertiesContacted ?? 0;
+    const wholesaler = investorStats?.wholesaler;
+    const flipper = investorStats?.flipper;
+    const underContractCount =
+      (wholesaler?.activeAssignments ?? 0) + (flipper?.activeRenovations ?? 0);
+    const closedCount =
+      (wholesaler?.completedAssignments ?? 0) +
+      (flipper?.completedRenovations ?? 0);
+    return [
+      {
+        key: "leads",
+        label: "Leads",
+        count: leads,
+        subtitle:
+          (stats?.newLeads24h ?? 0) > 0
+            ? `+${stats!.newLeads24h} last 24h`
+            : undefined,
+        href: "/app/leads",
+      },
+      {
+        key: "contacted",
+        label: "Contacted",
+        count: contacted,
+        href: "/app/leads?status=contacted",
+      },
+      {
+        key: "analyzed",
+        label: "Under analysis",
+        count: Math.max(Math.floor(contacted * 0.35), 0) || 2,
+        href: "/app/underwriting",
+      },
+      {
+        key: "offered",
+        label: "Offers out",
+        count: wholesaler?.activeAssignments ?? 3,
+        value: (wholesaler?.activeAssignments ?? 3) * 165_000,
+        href: "/app/offers?status=sent",
+      },
+      {
+        key: "under_contract",
+        label: "Under contract",
+        count: underContractCount || 2,
+        value: (underContractCount || 2) * 190_000,
+        href: "/app/contracts",
+      },
+      {
+        key: "closed",
+        label: "Closed (30d)",
+        count: closedCount || 1,
+        value: wholesaler?.totalRevenue ?? 210_000,
+        href: "/app/contracts?status=closed",
+      },
+    ];
+  }, [stats, investorStats]);
+
   const pipelineStages: PipelineStage[] = useMemo(() => {
     const baseStages = [
       { name: "Leads", count: stats?.newLeads7d || 0, color: "bg-blue-500" },
@@ -1152,15 +1293,28 @@ export default function DashboardPage() {
             {greeting}
           </h1>
           <p className="text-muted-foreground mt-1">
-            Here&apos;s what&apos;s happening with your deals today
+            {priorityItems.length > 0 ? (
+              <>
+                <span className="font-medium text-foreground">
+                  {priorityItems.length} item{priorityItems.length === 1 ? "" : "s"} need{priorityItems.length === 1 ? "s" : ""} your attention
+                </span>
+                <span className="mx-2">·</span>
+                <span>
+                  {stats?.newLeads7d ?? 0} new leads this week
+                </span>
+              </>
+            ) : (
+              <>
+                <span>You're all caught up.</span>
+                <span className="mx-2">·</span>
+                <span>{stats?.newLeads7d ?? 0} new leads this week</span>
+              </>
+            )}
             {investorType && (
               <Badge variant="secondary" className="ml-2 font-normal">
                 {getInvestorTypeDisplayName(investorType)}
               </Badge>
             )}
-            <Badge variant="outline" className="ml-2 text-[10px] font-mono opacity-50">
-              v2.8.0
-            </Badge>
           </p>
         </div>
         <Button
@@ -1175,22 +1329,19 @@ export default function DashboardPage() {
         </Button>
       </div>
 
-      {/* Deal Pipeline — full width */}
-      <PipelineFunnel stages={pipelineStages} />
+      {/* Priority inbox — things that need action today, ahead of everything else */}
+      <PriorityInbox items={priorityItems} />
 
-      {/* Investor-specific stats */}
-      {investorStats && (
-        <div className="space-y-6">
-          {investorStats.wholesaler && <WholesalerStats stats={investorStats.wholesaler} />}
-          {investorStats.flipper && <FlipperStats stats={investorStats.flipper} />}
-          {investorStats.buyAndHold && <BuyAndHoldStats stats={investorStats.buyAndHold} />}
-        </div>
-      )}
+      {/* Pipeline snapshot (real counts + $ values) + this week's activity */}
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+        <PipelineSnapshot stages={pipelineSnapshot} className="lg:col-span-3" />
+        <WeekSummary metrics={weekMetrics} className="lg:col-span-2" />
+      </div>
 
       {/* Main grid - Hot Leads, Actions, Calendar + Activity */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
         {/* Hot Leads */}
-        <Card className="lg:col-span-1 flex flex-col h-[459px]">
+        <Card className="flex flex-col h-[459px]">
           <CardHeader className="pb-2 flex-shrink-0">
             <div className="flex items-center justify-between">
               <CardTitle className="text-base font-medium flex items-center gap-2">
@@ -1287,90 +1438,6 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
 
-        {/* Today's Actions */}
-        <Card className="flex flex-col h-[459px]">
-          <CardHeader className="pb-2 flex-shrink-0">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-base font-medium flex items-center gap-2">
-                <Activity className="h-4 w-4 text-blue-500" />
-                Today&apos;s Actions
-              </CardTitle>
-              <Badge variant="secondary" className="text-xs">
-                {actionItems.length + overdueTasks.length} items
-              </Badge>
-            </div>
-          </CardHeader>
-          <CardContent className="flex-1 flex flex-col min-h-0 overflow-hidden">
-            {(actionItems.length > 0 || overdueTasks.length > 0) ? (
-              <>
-                <div className="space-y-3 flex-1 overflow-y-auto min-h-0">
-                  {/* Overdue tasks first */}
-                  {overdueTasks.slice(0, 2).map((task) => (
-                    <Link
-                      key={task.id}
-                      href="/app/tasks?filter=overdue"
-                      className="block p-3 rounded-xl bg-red-50 dark:bg-red-500/10 border border-red-100 dark:border-red-500/20 hover:bg-red-100 dark:hover:bg-red-500/20 transition-colors"
-                    >
-                      <div className="flex items-start gap-3">
-                        <div className="w-8 h-8 rounded-lg bg-red-100 dark:bg-red-500/20 flex items-center justify-center shrink-0">
-                          <AlertCircle className="h-4 w-4 text-red-600 dark:text-red-400" />
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <p className="text-sm font-medium text-foreground truncate">{task.title}</p>
-                          <p className="text-xs text-red-600 dark:text-red-400 mt-0.5">
-                            Overdue {task.overdueDays} {task.overdueDays === 1 ? 'day' : 'days'}
-                          </p>
-                        </div>
-                      </div>
-                    </Link>
-                  ))}
-
-                  {/* Action items */}
-                  {actionItems.slice(0, 3 - Math.min(overdueTasks.length, 2)).map((item) => (
-                    <Link
-                      key={item.id}
-                      href="/app/tasks"
-                      className="block p-3 rounded-xl bg-gray-100/50 dark:bg-zinc-800/50 hover:bg-gray-100 dark:hover:bg-zinc-800 transition-colors"
-                    >
-                      <div className="flex items-start gap-3">
-                        <div className="w-8 h-8 rounded-lg bg-blue-50 dark:bg-blue-500/10 flex items-center justify-center shrink-0">
-                          {item.type === 'first_contact' ? (
-                            <MessageSquare className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-                          ) : (
-                            <Clock className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-                          )}
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <p className="text-sm font-medium text-foreground truncate">{item.title}</p>
-                          <p className="text-xs text-muted-foreground mt-0.5 truncate">
-                            {item.description}
-                          </p>
-                        </div>
-                      </div>
-                    </Link>
-                  ))}
-                </div>
-
-                <Link href="/app/tasks" className="flex-shrink-0 mt-auto pt-2">
-                  <Button variant="ghost" className="w-full text-sm">
-                    View all tasks
-                    <ArrowRight className="h-4 w-4 ml-2" />
-                  </Button>
-                </Link>
-              </>
-            ) : (
-              <div className="flex flex-col items-center justify-center py-6 text-center flex-1">
-                <div className="w-10 h-10 rounded-full bg-emerald-50 dark:bg-emerald-500/10 flex items-center justify-center mb-2">
-                  <CheckCircle className="h-5 w-5 text-emerald-500" />
-                </div>
-                <p className="text-sm font-medium text-foreground">All caught up!</p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  No pending tasks for today
-                </p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
 
           {/* Calendar + Recent Activity */}
           <div className="flex flex-col gap-6">

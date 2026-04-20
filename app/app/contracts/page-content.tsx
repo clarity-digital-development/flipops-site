@@ -744,13 +744,18 @@ export default function ContractsPage() {
   };
 
   const fetchBuyers = async () => {
+    // Pre-launch: /app(.*) is public but /api/buyers is gated, so Clerk
+    // returns 404 for anon users. Fail silently to empty — UI handles that.
     try {
       const response = await fetch("/api/buyers");
-      if (!response.ok) throw new Error("Failed to fetch buyers");
+      if (!response.ok) {
+        setBuyers([]);
+        return;
+      }
       const data = await response.json();
       setBuyers(data.buyers || []);
-    } catch (error) {
-      console.error("Error fetching buyers:", error);
+    } catch {
+      setBuyers([]);
     }
   };
 
