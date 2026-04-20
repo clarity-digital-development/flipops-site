@@ -164,8 +164,8 @@ If we use Versium for skip-trace, **DNC scrub must be done downstream** (e.g., a
 | Relatives / associates | ✅ | ❌ not exposed | BatchData |
 | DNC scrub | ✅ bundled awareness | ❌ not documented | BatchData |
 | TCPA litigator flag | ✅ | ❌ not documented | BatchData |
-| Pricing minimum | $1K/mo property + $2K/mo skip-trace | $125 one-time floor; $250 credit pack | **Versium (10–40× cheaper at our volume)** |
-| Cost for 1,000 property appends + 500 skip traces/mo | ~$3K/mo minimum commit | ~$60–90/mo actual usage | **Versium** |
+| Pricing model at beta | **PAYG $0.30/call** (no monthly minimum — $2K only kicks in on subscription plans) | $125 one-time floor; $250 credit pack | tie |
+| Cost for 1,000 property + 500 skip traces/mo (beta PAYG) | **~$450/mo** | ~$25–30/mo skip-trace only; property search unavailable | Depends — see verdict |
 | Free trial / sandbox | Stoplight mock server | 5 free downloads + self-serve key | tie |
 | API auth / DX | API key, hand-rolled | `x-versium-api-Key`, **official Node SDK** | **Versium** |
 | Real-estate-specific features | ✅ full vertical product | partial (homeowner attrs only; no distress feed) | BatchData |
@@ -175,28 +175,47 @@ If we use Versium for skip-trace, **DNC scrub must be done downstream** (e.g., a
 
 ---
 
-## 10. Verdict
+## 10. Verdict — **Stick with BatchData PAYG. Skip Versium for beta.**
 
-**Recommendation: Use BOTH — split by function.**
+**Critical correction to earlier analysis:** BatchData on pay-as-you-go is **$0.30 per call** (both property data and skip trace). The $2K/mo "minimum" only applies if you choose a subscription plan. FlipOps is PAYG at beta, so the actual BatchData cost is:
 
-- **BatchData remains the property-discovery source.** Versium cannot replace this. The distress filters (pre-foreclosure, tax-delinquent, vacant, absentee, high-equity) are the entire reason we want a property-data vendor in the first place. There is no Versium endpoint for this workflow. Full stop.
-- **Versium is a strong candidate for skip-trace enrichment at beta volume.** At ~$0.05/match with a $250 floor, 500 skip traces/mo costs us under $30. That is 60–80× cheaper than BatchData's $2K/mo skip-trace minimum, with comparable match behavior and a better SDK.
+| Line item | Volume | Rate | Cost |
+|---|---|---|---|
+| Property data calls | 1,000/mo | $0.30 | $300 |
+| Skip-trace calls | 500/mo | $0.30 | $150 |
+| **BatchData PAYG total** |  |  | **$450/mo** |
 
-**However**, the skip-trace win comes with two caveats that need to be addressed before we flip the switch:
+Now the dual-vendor split costs:
 
-1. **No bundled DNC / TCPA-litigator scrub.** We must either add a DNC.com pass or rely on the dialer vendor's scrub (Telnyx/Twilio/CallTools partner). This is a real compliance requirement for the real-estate wholesaling outbound use case, not an academic concern.
-2. **No relatives / associates data.** Occasionally useful for skip-tracing hard-to-reach owners. BatchData has this; Versium does not.
+| Line item | Volume | Rate | Cost |
+|---|---|---|---|
+| Property data (BatchData — irreplaceable) | 1,000/mo | $0.30 | $300 |
+| Skip trace (Versium) | 500/mo | ~$0.05 | $25 |
+| DNC.com scrub (to replace missing DNC + litigator flag) | per lookup | — | ~$75 |
+| **Dual-vendor total** |  |  | **~$400/mo** |
 
-An alternative framing: if we cannot afford BatchData's $2K skip-trace minimum during beta anyway, then **Versium becomes the skip-trace primary and BatchData is property-only**. In that configuration, BatchData's $1K/mo property-only minimum is our data floor, plus ~$30/mo Versium credits, plus ~$50/mo DNC — call it **$1,080/mo** all-in. Versus $3K/mo all-BatchData. That saves ~$23K in year-1 beta spend.
+**Delta after DNC.com add-back: ~$50/mo savings.** Not worth the complexity.
+
+**Why BatchData-only wins at PAYG beta volume:**
+- One API integration, one contract, one billing relationship
+- DNC scrub + TCPA-litigator flag included (Versium has neither — must add DNC.com)
+- Relatives/associates data included (Versium lacks)
+- Single normalized response shape for the `SkipTraceResult` model
+- Cleaner migration path to Cotality later (one vendor swap, not two)
+- Operational simplicity > $50/mo during beta
+
+**When Versium becomes worth revisiting:**
+- Skip-trace volume climbs above ~3,000/mo (where $0.30 × 3,000 = $900/mo starts to hurt)
+- OR we outgrow PAYG and BatchData insists on subscription commit
+- OR we find the Node SDK DX meaningfully better in testing (which is a real Versium advantage)
 
 **Do NOT:**
-
-- Replace BatchData entirely with Versium (property search is fully absent).
-- Assume Versium covers compliance (it does not).
+- Replace BatchData with Versium for beta (property search is fully absent; dual-vendor overhead eats the savings)
+- Optimize prematurely — at $450/mo total data spend, vendor consolidation is worth more than $50/mo
 
 ---
 
-## 11. Concrete Next Steps (if we adopt Versium for skip-trace)
+## 11. If we ever adopt Versium later (reference only, not for beta)
 
 1. **Sign up.** Create a REACH account at `https://reach.versium.com/` (linked from versium.com). The 5 free downloads unlock immediately for validation.
 2. **Acquire API key.** Account dashboard → API Key section. The key format is a UUID-style string, passed as `x-versium-api-Key: <key>` header. No separate "sandbox key" — same key, development vs prod handled by your own env.
