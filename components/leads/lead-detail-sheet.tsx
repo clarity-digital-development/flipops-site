@@ -136,7 +136,9 @@ export function LeadDetailSheet({
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
         side="right"
-        className="w-full sm:max-w-lg p-0 bg-background"
+        /* [&>button.absolute]:hidden suppresses the Sheet's built-in close button
+           so we can render a custom one inside the header below. */
+        className="w-full sm:max-w-lg p-0 bg-background [&>button.absolute]:hidden"
       >
         <VisuallyHidden>
           <SheetTitle>{lead.address}</SheetTitle>

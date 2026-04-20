@@ -2,6 +2,7 @@
 export const dynamic = 'force-dynamic';
 
 import { useState, useEffect } from "react";
+import { PipelineBreadcrumb } from "@/components/shared/pipeline-breadcrumb";
 import {
   FileSignature,
   Clock,
@@ -1476,15 +1477,26 @@ export default function ContractsPage() {
                     {formatCurrency(selectedContract.purchasePrice)}
                   </span>
                 </div>
+                <div className="mt-3">
+                  <PipelineBreadcrumb
+                    currentStage={
+                      selectedContract.status === "closed" ? "closed" : "under_contract"
+                    }
+                    variant="compact"
+                  />
+                </div>
               </SheetHeader>
 
               <Tabs value={detailTab} onValueChange={setDetailTab} className="flex-1 flex flex-col min-h-0">
-                <TabsList className="flex-shrink-0 grid w-full grid-cols-4 rounded-none border-b bg-transparent h-auto p-0">
+                <TabsList className="flex-shrink-0 grid w-full grid-cols-5 rounded-none border-b bg-transparent h-auto p-0">
                   <TabsTrigger value="overview" className="rounded-none border-b-2 border-transparent data-[state=active]:border-blue-500 data-[state=active]:bg-transparent py-2.5">
                     Overview
                   </TabsTrigger>
                   <TabsTrigger value="timeline" className="rounded-none border-b-2 border-transparent data-[state=active]:border-blue-500 data-[state=active]:bg-transparent py-2.5">
                     Timeline
+                  </TabsTrigger>
+                  <TabsTrigger value="buyers" className="rounded-none border-b-2 border-transparent data-[state=active]:border-blue-500 data-[state=active]:bg-transparent py-2.5">
+                    Buyers
                   </TabsTrigger>
                   <TabsTrigger value="documents" className="rounded-none border-b-2 border-transparent data-[state=active]:border-blue-500 data-[state=active]:bg-transparent py-2.5">
                     Documents
@@ -1664,6 +1676,56 @@ export default function ContractsPage() {
                             </div>
                           );
                         })}
+                      </div>
+                    </div>
+                  </TabsContent>
+
+                  <TabsContent value="buyers" className="m-0 p-4 space-y-3">
+                    {selectedContract.assignment ? (
+                      <div>
+                        <h4 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">
+                          Assigned Buyer
+                        </h4>
+                        <Card className="py-3 px-4">
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="min-w-0">
+                              <p className="font-medium truncate">
+                                {selectedContract.assignment.buyer.name}
+                              </p>
+                              <p className="text-xs text-muted-foreground mt-0.5">
+                                Status: {selectedContract.assignment.status}
+                              </p>
+                            </div>
+                            <div className="text-right flex-shrink-0">
+                              <p className="text-xs text-muted-foreground">Assignment Fee</p>
+                              <p className="font-semibold">
+                                {formatCurrency(selectedContract.assignment.assignmentFee)}
+                              </p>
+                            </div>
+                          </div>
+                        </Card>
+                      </div>
+                    ) : (
+                      <div className="text-center py-10">
+                        <UserCheck className="h-10 w-10 mx-auto text-gray-400 mb-3" />
+                        <h4 className="font-medium text-gray-900 dark:text-white">
+                          No buyer assigned
+                        </h4>
+                        <p className="text-sm text-muted-foreground mt-1 max-w-xs mx-auto">
+                          If this is a wholesale deal, assign a buyer from your database
+                          to collect an assignment fee.
+                        </p>
+                      </div>
+                    )}
+
+                    <div className="pt-2">
+                      <h4 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">
+                        Buyer Offers
+                      </h4>
+                      <div className="text-center py-6 border border-dashed border-border rounded-lg">
+                        <p className="text-sm text-muted-foreground">
+                          Buyer offer tracking ships with the Campaigns → Contracts wire-up.
+                        </p>
                       </div>
                     </div>
                   </TabsContent>

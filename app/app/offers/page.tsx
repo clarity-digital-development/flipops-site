@@ -2,6 +2,7 @@
 export const dynamic = 'force-dynamic';
 
 import { useState, useEffect, useMemo } from "react";
+import { PipelineBreadcrumb } from "@/components/shared/pipeline-breadcrumb";
 import {
   Search,
   Plus,
@@ -1054,6 +1055,17 @@ export default function OffersPage() {
           </DialogHeader>
           {selectedOffer && (
             <div className="space-y-4">
+              {/* Pipeline stage — reflects whether offer has advanced to contract/closed */}
+              <PipelineBreadcrumb
+                currentStage={
+                  selectedOffer.contract?.status === "closed"
+                    ? "closed"
+                    : selectedOffer.contract
+                      ? "under_contract"
+                      : "offered"
+                }
+                variant="compact"
+              />
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label className="text-muted-foreground">Property</Label>

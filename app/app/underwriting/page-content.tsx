@@ -2,6 +2,8 @@
 export const dynamic = 'force-dynamic';
 
 import { useState, useEffect, useCallback } from "react";
+import { useSearchParams } from "next/navigation";
+import { PipelineBreadcrumb, derivePipelineStage } from "@/components/shared/pipeline-breadcrumb";
 import {
   Search,
   Home,
@@ -926,6 +928,8 @@ function EmptyState() {
 
 export default function UnderwritingPage() {
   const { isLoaded, user } = useUser();
+  const searchParams = useSearchParams();
+  const urlPropertyId = searchParams?.get("propertyId") ?? null;
 
   // State management
   const [properties, setProperties] = useState<Property[]>([]);
@@ -1209,6 +1213,16 @@ export default function UnderwritingPage() {
 
     return repairs;
   };
+
+  // Sync ?propertyId=X from URL → selection once properties have loaded.
+  // Fired when the Leads drawer's "Underwrite" button routes here.
+  useEffect(() => {
+    if (!urlPropertyId || properties.length === 0) return;
+    const exists = properties.some((p) => p.id === urlPropertyId);
+    if (exists && selectedPropertyId !== urlPropertyId) {
+      setSelectedPropertyId(urlPropertyId);
+    }
+  }, [urlPropertyId, properties, selectedPropertyId]);
 
   // Fetch comps when property changes
   useEffect(() => {
@@ -1844,6 +1858,20 @@ export default function UnderwritingPage() {
                             Score: {selectedProperty.score}
                           </div>
                         )}
+                      </div>
+
+                      {/* Pipeline stage — property is in Underwriting so show "analyzed" */}
+                      <div className="mb-3">
+                        <PipelineBreadcrumb
+                          currentStage={derivePipelineStage({
+                            outreachStatus: selectedProperty.outreachStatus,
+                            hasAnalysis: true,
+                            hasOffer: false,
+                            hasSignedContract: false,
+                            isClosed: false,
+                          })}
+                          variant="compact"
+                        />
                       </div>
 
                       {/* Property details grid */}
