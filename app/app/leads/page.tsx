@@ -122,7 +122,8 @@ export default function LeadsPage() {
   };
 
   const handleAddToCampaign = (id: string) => {
-    router.push(`/app/campaigns?addLeadId=${encodeURIComponent(id)}`);
+    // Route to Oppenheimer (the AI dialer) with the lead pre-queued.
+    router.push(`/app/dialer?tab=oppenheimer&addLeadId=${encodeURIComponent(id)}`);
   };
 
   const handleLogContact = async (id: string) => {

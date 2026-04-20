@@ -330,7 +330,7 @@ export function LeadDetailSheet({
                 className="gap-1.5"
               >
                 <Send className="h-4 w-4" />
-                Add to Campaign
+                Send to Dialer
               </Button>
               <Button
                 size="sm"

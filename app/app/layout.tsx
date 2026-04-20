@@ -9,7 +9,7 @@ import {
   Home,
   Users,
   MessageSquare,
-  Megaphone,
+  Phone,
   Calculator,
   UserCheck,
   CheckSquare,
@@ -49,19 +49,25 @@ import {
 // ============================================================================
 
 // Sidebar reflects the deal pipeline flow, top → bottom:
-// Overview → Leads → Outreach → Underwriting → Deal Execution → Post-Close → Support → Analytics
+// Overview → Leads (All Leads + Underwriting) → Outreach → Deal Execution → Post-Close → Workspace → Analytics
 const baseSidebar: SidebarEntry[] = [
   { name: "Overview", href: "/app", icon: Home },
-  { name: "Leads", href: "/app/leads", icon: Users },
+  {
+    name: "Leads",
+    icon: Users,
+    children: [
+      { name: "All Leads", href: "/app/leads", icon: Users },
+      { name: "Underwriting", href: "/app/underwriting", icon: Calculator },
+    ],
+  },
   {
     name: "Outreach",
     icon: Send,
     children: [
       { name: "Inbox", href: "/app/inbox", icon: MessageSquare },
-      { name: "Campaigns", href: "/app/campaigns", icon: Megaphone },
+      { name: "Dialer", href: "/app/dialer", icon: Phone },
     ],
   },
-  { name: "Underwriting", href: "/app/underwriting", icon: Calculator },
   {
     name: "Deal Execution",
     icon: GitBranch,
@@ -80,7 +86,7 @@ const baseSidebar: SidebarEntry[] = [
     ],
   },
   {
-    name: "Support",
+    name: "Workspace",
     icon: Briefcase,
     children: [
       { name: "Vendors", href: "/app/vendors", icon: Briefcase },
