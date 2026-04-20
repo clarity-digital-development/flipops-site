@@ -48,6 +48,8 @@ import {
 // SIDEBAR STRUCTURE
 // ============================================================================
 
+// Sidebar reflects the deal pipeline flow, top → bottom:
+// Overview → Leads → Outreach → Underwriting → Deal Execution → Post-Close → Support → Analytics
 const baseSidebar: SidebarEntry[] = [
   { name: "Overview", href: "/app", icon: Home },
   { name: "Leads", href: "/app/leads", icon: Users },
@@ -59,27 +61,33 @@ const baseSidebar: SidebarEntry[] = [
       { name: "Campaigns", href: "/app/campaigns", icon: Megaphone },
     ],
   },
+  { name: "Underwriting", href: "/app/underwriting", icon: Calculator },
   {
-    name: "Deal Pipeline",
+    name: "Deal Execution",
     icon: GitBranch,
     children: [
-      { name: "Underwriting", href: "/app/underwriting", icon: Calculator },
       { name: "Offers", href: "/app/offers", icon: FileText },
       { name: "Contracts", href: "/app/contracts", icon: FileSignature },
       { name: "Buyers", href: "/app/buyers", icon: UserCheck, visibleTo: NAVIGATION_RULES['Buyers'] },
     ],
   },
   {
-    name: "Operations",
+    name: "Post-Close",
     icon: HardHat,
     children: [
       { name: "Renovations", href: "/app/renovations", icon: Hammer, visibleTo: NAVIGATION_RULES['Renovations'] },
       { name: "Rentals", href: "/app/rentals", icon: Building2, visibleTo: NAVIGATION_RULES['Rentals'] },
-      { name: "Vendors", href: "/app/vendors", icon: Briefcase },
     ],
   },
-  { name: "Tasks", href: "/app/tasks", icon: CheckSquare },
-  { name: "Documents", href: "/app/documents", icon: FileText },
+  {
+    name: "Support",
+    icon: Briefcase,
+    children: [
+      { name: "Vendors", href: "/app/vendors", icon: Briefcase },
+      { name: "Tasks", href: "/app/tasks", icon: CheckSquare },
+      { name: "Documents", href: "/app/documents", icon: FileText },
+    ],
+  },
   { name: "Analytics", href: "/app/analytics", icon: BarChart },
 ];
 

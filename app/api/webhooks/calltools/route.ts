@@ -113,12 +113,18 @@ export async function POST(request: NextRequest) {
 
   try {
     // --- Auth: API key (required) ---
+    // Accepts dedicated CALLTOOLS_API_KEY or the shared FO_API_KEY
     const apiKey =
       request.headers.get('x-api-key') ??
       request.headers.get('authorization')?.replace('Bearer ', '');
-    const expectedKey = process.env.FO_API_KEY || process.env.FLIPOPS_API_KEY;
+    const calltoolsKey = process.env.CALLTOOLS_API_KEY;
+    const foKey = process.env.FO_API_KEY || process.env.FLIPOPS_API_KEY;
 
-    if (!expectedKey || apiKey !== expectedKey) {
+    const keyMatch =
+      (calltoolsKey && apiKey === calltoolsKey) ||
+      (foKey && apiKey === foKey);
+
+    if (!keyMatch) {
       return NextResponse.json(
         { error: 'Unauthorized', requestId },
         { status: 401 },
