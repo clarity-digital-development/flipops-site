@@ -1,173 +1,252 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import {
   Bot,
   Sparkles,
-  ShieldCheck,
-  Clock,
   AudioLines,
-  FileText,
   Play,
-  Pause,
-  Users,
-  Flame,
-  Info,
-  AlertTriangle,
   Activity,
-  Phone,
-  Mic,
-  Volume2,
   Settings2,
+  PhoneIncoming,
+  PhoneForwarded,
+  VoicemailIcon,
+  MessageSquareText,
+  Clock,
+  ShieldCheck,
+  Lock,
+  ChevronDown,
+  ChevronRight,
+  Flame,
+  Mic,
+  Check,
+  Volume2,
+  Info,
+  Power,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
-import { ConsentBadge } from "./consent-badge";
 
 // ---------------------------------------------------------------------------
-// Oppenheimer — the AI voice dialer. Runs on Telnyx AI Assistants with an
-// ElevenLabs voice. Its superpower AND its legal exposure is the same thing:
-// it speaks to sellers on your behalf.
+// Oppenheimer — INBOUND AI + callback automation. No cold outbound.
 //
-// This component enforces TCPA compliance at the UX layer:
-//   1. Only leads with consent state = "ai_legal" are callable
-//   2. Four compliance gates must be checked to launch a campaign
-//   3. Calling hours are enforced per recipient timezone
-//   4. DNC scrub runs before launch and every 7 days during
+// Pivot rationale: TCPA liability on cold outbound AI > operator benefit.
+// Most value sits on the inbound side (never miss a seller call) and on
+// inbound-derived callbacks (return a missed call or voicemail). Both are
+// legally safe: inbound has no consent requirement at all, and returning
+// an initiated contact within a reasonable window is covered without PEWC.
 // ---------------------------------------------------------------------------
 
-type InboundMode = "ai_answer" | "route_to_human" | "voicemail";
+type PersonalityPreset = "friendly" | "professional" | "brief" | "custom";
+type CallbackPolicy = "instant" | "five_min" | "fifteen_min" | "human_first";
 
-const VOICES = [
-  {
-    id: "oppenheimer-alex",
-    name: "Alex · Friendly acquisitions",
-    provider: "ElevenLabs",
-    preview: "Hey, this is Alex with FlipOps. Got a quick question about your property...",
-  },
-  {
-    id: "oppenheimer-jamie",
-    name: "Jamie · Professional",
-    provider: "ElevenLabs",
-    preview: "Hi, I'm Jamie calling from FlipOps regarding the property at...",
-  },
-  {
-    id: "oppenheimer-pat",
-    name: "Pat · Conversational",
-    provider: "ElevenLabs",
-    preview: "Hi there, Pat from FlipOps. Got a second?",
-  },
-  {
-    id: "telnyx-kokoro",
-    name: "Kokoro · Telnyx TTS (no extra cost)",
-    provider: "Telnyx",
-    preview: "Telnyx default voice — cheapest option.",
-  },
-];
-
-interface AudienceLead {
-  id: string;
+interface Personality {
+  id: PersonalityPreset;
   name: string;
-  phone: string;
-  score: number;
-  consent: "ai_legal" | "human_only" | "dnc" | "unknown";
+  tagline: string;
+  sample: string;
+  prompt: string;
 }
 
-const DEMO_AUDIENCE: AudienceLead[] = [
-  { id: "al-1", name: "Margaret Sullivan", phone: "+19045551234", score: 92, consent: "ai_legal" },
-  { id: "al-2", name: "James Rodriguez", phone: "+14075559876", score: 89, consent: "ai_legal" },
-  { id: "al-3", name: "Patricia Chen", phone: "+18135554321", score: 85, consent: "ai_legal" },
-  { id: "al-4", name: "David Park", phone: "+12795556655", score: 81, consent: "human_only" },
-  { id: "al-5", name: "Maria Lopez", phone: "+13055550987", score: 78, consent: "human_only" },
-  { id: "al-6", name: "Unknown Owner", phone: "+17275552211", score: 77, consent: "unknown" },
-  { id: "al-7", name: "Robert Kim", phone: "+14075558800", score: 74, consent: "ai_legal" },
-  { id: "al-8", name: "Jessie Brown", phone: "+18135559933", score: 71, consent: "dnc" },
+const PERSONALITIES: Personality[] = [
+  {
+    id: "friendly",
+    name: "Friendly acquisitions",
+    tagline: "Warm, conversational, rapport-first",
+    sample: "Hey — thanks for calling FlipOps. I'm Alex. You've got a property you're thinking about selling?",
+    prompt: `You are Alex, a warm, friendly acquisitions specialist for FlipOps.
+Your first priority is rapport: ask how they're doing, listen, don't rush.
+Once rapport is established, gently gather:
+  • Property address
+  • Reason for selling + timeline
+  • Condition of the property
+  • Price expectation
+If they're interested, offer to schedule a human follow-up call within 24h.
+Keep responses under 2 sentences. This is a phone call, not a pitch.`,
+  },
+  {
+    id: "professional",
+    name: "Professional analyst",
+    tagline: "Direct, business-like, specific questions",
+    sample: "Thanks for calling FlipOps. I can get you a preliminary offer in about two minutes — can I ask you a few questions about the property?",
+    prompt: `You are a professional acquisitions analyst at FlipOps.
+Be respectful but direct. Gather the qualification data efficiently:
+  1. Property address (confirm)
+  2. Reason for selling + timeline (days, weeks, months)
+  3. Property condition (scale 1–5)
+  4. Asking price or price range
+  5. Whether other parties are involved in the decision
+Book a callback with a human offer specialist if qualification is complete.
+Keep responses under 2 sentences.`,
+  },
+  {
+    id: "brief",
+    name: "Brief receptionist",
+    tagline: "Takes info, hands off, minimal AI footprint",
+    sample: "Thanks for calling FlipOps. So I can route you to the right person — what's the property address?",
+    prompt: `You are a brief receptionist for FlipOps. Your only job is to:
+  1. Get the caller's name
+  2. Get the property address they want to discuss
+  3. Note the best callback time
+Then end the call with: "A specialist will call you back within 2 hours. Thanks!"
+Do not negotiate, discuss price, or qualify deeper — just collect and hand off.`,
+  },
+  {
+    id: "custom",
+    name: "Custom prompt",
+    tagline: "Write your own system prompt (advanced)",
+    sample: "(Your custom script preview appears here.)",
+    prompt: "",
+  },
 ];
 
-const LIVE_CALLS = [
+const VOICES = [
+  { id: "eleven-alex", label: "Alex", tone: "Warm, masculine", provider: "ElevenLabs" },
+  { id: "eleven-jamie", label: "Jamie", tone: "Clear, neutral", provider: "ElevenLabs" },
+  { id: "eleven-pat", label: "Pat", tone: "Conversational", provider: "ElevenLabs" },
+  { id: "telnyx-kokoro", label: "Kokoro", tone: "Fastest + free tier", provider: "Telnyx" },
+];
+
+// State-law quiet hours matrix. Lookup by recipient area code → state → rule.
+// We display the strict reasonable default and note state overrides.
+const STATE_QUIET_HOURS_SUMMARY = [
+  { state: "FL · Florida", hours: "9am–8pm", note: "FTSA — 8am on Sat" },
+  { state: "OK · Oklahoma", hours: "8am–8pm", note: "State TCPA stricter" },
+  { state: "WA · Washington", hours: "8am–8pm", note: "State TCPA stricter" },
+  { state: "All other states", hours: "8am–9pm", note: "Federal TCPA floor" },
+];
+
+// Mock live inbound calls
+const LIVE_INBOUND = [
   {
-    id: "live-1",
+    id: "ib-1",
     name: "Margaret Sullivan",
-    duration: "0:42",
-    stage: "Qualifying motivation",
+    address: "1234 Oak St, Jacksonville FL",
+    duration: "1:14",
+    stage: "Sharing price expectation",
     sentiment: "positive",
   },
+];
+
+const TODAY_STATS = {
+  inboundHandled: 14,
+  callbacksCompleted: 8,
+  apptsBooked: 5,
+  afterHoursSaves: 3,
+};
+
+// Completed calls surface here with AI-extracted disposition + notes
+const RECENT_CALLS = [
   {
-    id: "live-2",
+    id: "r-1",
     name: "Robert Kim",
-    duration: "1:18",
-    stage: "Negotiating timeline",
+    address: "890 Pine Rd, Tampa FL",
+    minutesAgo: 12,
+    source: "inbound" as const,
+    disposition: "appt_set",
+    sentiment: "positive",
+    keyNotes: [
+      "Wants to sell due to job relocation (Arizona in 6 weeks)",
+      "Asking $310k; willing to negotiate",
+      "Property needs new roof + HVAC (~$18k est.)",
+      "Walkthrough booked Thursday 2pm",
+    ],
+  },
+  {
+    id: "r-2",
+    name: "Amanda Lee",
+    address: "321 Cedar Ln, Orlando FL",
+    minutesAgo: 47,
+    source: "callback" as const,
+    disposition: "callback",
     sentiment: "neutral",
+    keyNotes: [
+      "Still undecided — talking to siblings",
+      "Timeline 3–6 months",
+      "Requested callback Monday afternoon",
+    ],
+  },
+  {
+    id: "r-3",
+    name: "Unknown caller",
+    address: "—",
+    minutesAgo: 138,
+    source: "inbound" as const,
+    disposition: "voicemail",
+    sentiment: "neutral",
+    keyNotes: [
+      "Caller hung up before stating address",
+      "AI returned to main menu, no data captured",
+    ],
   },
 ];
 
-const RESULTS = [
-  { label: "Completed", value: 47, tone: "text-foreground" },
-  { label: "Interested", value: 11, tone: "text-emerald-600 dark:text-emerald-400" },
-  { label: "Appt set", value: 4, tone: "text-emerald-600 dark:text-emerald-400" },
-  { label: "Callback req", value: 8, tone: "text-blue-600 dark:text-blue-400" },
-  { label: "Not interested", value: 18, tone: "text-amber-600 dark:text-amber-400" },
-  { label: "Voicemail", value: 6, tone: "text-muted-foreground" },
-];
+const DISPOSITION_LABELS: Record<string, { label: string; className: string }> = {
+  appt_set: {
+    label: "Appt set",
+    className: "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800/60",
+  },
+  interested: {
+    label: "Interested",
+    className: "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800/60",
+  },
+  callback: {
+    label: "Callback",
+    className: "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800/60",
+  },
+  not_interested: {
+    label: "Not interested",
+    className: "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800/60",
+  },
+  voicemail: {
+    label: "Voicemail/hang-up",
+    className: "bg-muted text-muted-foreground border-border",
+  },
+  dnc_request: {
+    label: "DNC requested",
+    className: "bg-red-50 text-red-700 border-red-200 dark:bg-red-950/40 dark:text-red-300 dark:border-red-800/60",
+  },
+};
 
 export function Oppenheimer() {
+  const [enabled, setEnabled] = useState(true);
+  const [personality, setPersonality] = useState<PersonalityPreset>("friendly");
   const [voiceId, setVoiceId] = useState(VOICES[0].id);
-  const [campaignName, setCampaignName] = useState("Pre-FC outreach · Jacksonville");
-  const [script, setScript] = useState(
-    `You are Alex, an acquisitions specialist for FlipOps — a real-estate investment company that buys houses for cash.\n\nYour goal on this outbound call: confirm the property owner is still considering selling, ask about their timeline and price expectation, and if they're interested, schedule a callback with a human acquisitions agent.\n\nDynamic variables available:\n  {{owner_name}} — how to greet them\n  {{property_address}} — the property you're calling about\n  {{prior_contact_note}} — how they opted in (web form, prior inbound call, etc.)\n\nCRITICAL: This is a recorded call. If the caller asks to be removed, immediately say "I'll take you off our list right now" and call the end_call tool with reason="dnc_request".`,
+  const [greeting, setGreeting] = useState(
+    "Thanks for calling FlipOps — I'm Alex. How can I help?",
   );
-  const [inboundMode, setInboundMode] = useState<InboundMode>("ai_answer");
-  const [quietHoursStart, setQuietHoursStart] = useState("09:00");
-  const [quietHoursEnd, setQuietHoursEnd] = useState("19:00");
-  const [maxConcurrent, setMaxConcurrent] = useState(3);
+  const [callbacksEnabled, setCallbacksEnabled] = useState(true);
+  const [callbackPolicy, setCallbackPolicy] = useState<CallbackPolicy>("five_min");
+  const [customPrompt, setCustomPrompt] = useState("");
+  const [advancedOpen, setAdvancedOpen] = useState(false);
 
-  // Compliance gates — campaign cannot launch unless all checked
-  const [consentVerified, setConsentVerified] = useState(false);
-  const [dncScrubbed, setDncScrubbed] = useState(false);
-  const [disclosureEnabled, setDisclosureEnabled] = useState(true);
-  const [optOutEnabled, setOptOutEnabled] = useState(true);
-
-  const audience = DEMO_AUDIENCE;
-  const audienceBreakdown = useMemo(() => {
-    const callable = audience.filter((a) => a.consent === "ai_legal");
-    const skipped = audience.filter((a) => a.consent !== "ai_legal");
-    return { callable, skipped };
-  }, [audience]);
-
-  const launchReady =
-    consentVerified &&
-    dncScrubbed &&
-    disclosureEnabled &&
-    optOutEnabled &&
-    audienceBreakdown.callable.length > 0;
-
-  const launchBlockedReasons: string[] = [];
-  if (!consentVerified) launchBlockedReasons.push("Consent records not verified");
-  if (!dncScrubbed) launchBlockedReasons.push("DNC scrub hasn't run");
-  if (!disclosureEnabled) launchBlockedReasons.push("AI disclosure is required by law");
-  if (!optOutEnabled) launchBlockedReasons.push("Opt-out keyword must be enabled");
-  if (audienceBreakdown.callable.length === 0)
-    launchBlockedReasons.push("Audience has 0 AI-consented leads");
+  const currentPersonality = PERSONALITIES.find((p) => p.id === personality)!;
+  const effectivePrompt =
+    personality === "custom" ? customPrompt : currentPersonality.prompt;
 
   return (
     <div className="h-full flex flex-col overflow-hidden">
       <ScrollArea className="h-full">
         <div className="space-y-4 pb-4">
-          {/* ----- Hero banner ----- */}
+          {/* Hero status banner */}
           <Card className="overflow-hidden p-0 gap-0 border-violet-200/60 dark:border-violet-900/60">
             <div className="bg-gradient-to-r from-violet-500/10 via-fuchsia-500/10 to-violet-500/10 px-6 py-4 flex items-center justify-between">
               <div className="flex items-center gap-3">
@@ -182,387 +261,458 @@ export function Oppenheimer() {
                       className="text-[10px] border-violet-300 text-violet-700 dark:text-violet-300 dark:border-violet-700"
                     >
                       <Sparkles className="h-3 w-3 mr-1" />
-                      AI Dialer
+                      Inbound AI
                     </Badge>
+                    {enabled && (
+                      <span className="inline-flex items-center gap-1.5 text-[11px] text-emerald-600 dark:text-emerald-400 font-medium">
+                        <span className="relative flex h-1.5 w-1.5">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                          <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500" />
+                        </span>
+                        Live · answering
+                      </span>
+                    )}
                   </div>
                   <p className="text-xs text-muted-foreground mt-0.5">
-                    Outbound AI voice calls via Telnyx + ElevenLabs. Runs only against consented leads.
+                    Never miss a seller call. AI answers 24/7, qualifies, and hands warm leads to you.
                   </p>
                 </div>
               </div>
-              <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm" className="gap-1.5">
-                  <Activity className="h-3.5 w-3.5" />
-                  Live monitor
-                </Button>
-                <Button
-                  size="sm"
-                  disabled={!launchReady}
-                  className={cn(
-                    "gap-1.5",
-                    launchReady
-                      ? "bg-violet-600 hover:bg-violet-700 text-white"
-                      : "",
-                  )}
-                >
-                  <Play className="h-3.5 w-3.5" />
-                  Launch campaign
-                </Button>
-              </div>
-            </div>
-
-            {!launchReady && (
-              <div className="bg-amber-50/60 dark:bg-amber-950/20 border-t border-amber-200/60 dark:border-amber-900/40 px-6 py-2 flex items-center gap-2">
-                <AlertTriangle className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
-                <p className="text-xs text-amber-700 dark:text-amber-300">
-                  Launch blocked: {launchBlockedReasons.join(" · ")}
-                </p>
-              </div>
-            )}
-          </Card>
-
-          {/* ----- Compliance rail (TCPA gates) ----- */}
-          <Card className="p-0 gap-0 overflow-hidden">
-            <div className="border-b px-5 py-3 flex items-center justify-between">
-              <div>
-                <h3 className="text-sm font-semibold flex items-center gap-1.5">
-                  <ShieldCheck className="h-4 w-4 text-emerald-500" />
-                  TCPA compliance rail
-                </h3>
-                <p className="text-[11px] text-muted-foreground">
-                  All four must be true before Oppenheimer places a single outbound call.
-                </p>
-              </div>
-              <Badge
-                variant="outline"
-                className={cn(
-                  launchReady
-                    ? "border-emerald-300 text-emerald-700 dark:text-emerald-300"
-                    : "border-amber-300 text-amber-700 dark:text-amber-300",
-                )}
-              >
-                {launchReady ? "Cleared" : "Action required"}
-              </Badge>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-border">
-              <GateRow
-                checked={consentVerified}
-                onToggle={() => setConsentVerified((v) => !v)}
-                title="Consent records verified"
-                body="Every lead in the audience has documented prior express written consent (website opt-in, signed form, or inbound call)."
-              />
-              <GateRow
-                checked={dncScrubbed}
-                onToggle={() => setDncScrubbed((v) => !v)}
-                title="DNC scrub run within 7 days"
-                body="Federal + state Do-Not-Call registries checked. Re-scrub runs automatically every 7 days during the campaign."
-              />
-              <GateRow
-                checked={disclosureEnabled}
-                onToggle={() => setDisclosureEnabled((v) => !v)}
-                title="AI identifies itself (required)"
-                body="First utterance includes 'This is an automated call from FlipOps.' Mandatory under the FCC Feb 2024 ruling."
-              />
-              <GateRow
-                checked={optOutEnabled}
-                onToggle={() => setOptOutEnabled((v) => !v)}
-                title="Opt-out path enabled"
-                body="If the seller says 'stop,' 'remove me,' or presses 9, Oppenheimer calls end_call with reason=dnc_request and writes the number to the opt-out list."
-              />
-            </div>
-          </Card>
-
-          {/* ----- Two-column: builder + audience ----- */}
-          <div className="grid grid-cols-1 lg:grid-cols-[1fr_380px] gap-4">
-            {/* Campaign builder */}
-            <Card className="p-0 gap-0 overflow-hidden">
-              <div className="border-b px-5 py-3">
-                <h3 className="text-sm font-semibold flex items-center gap-1.5">
-                  <Settings2 className="h-4 w-4" />
-                  Campaign
-                </h3>
-              </div>
-              <div className="p-5 space-y-4">
-                <div className="space-y-1.5">
-                  <Label htmlFor="camp-name" className="text-xs">
-                    Campaign name
-                  </Label>
-                  <Input
-                    id="camp-name"
-                    value={campaignName}
-                    onChange={(e) => setCampaignName(e.target.value)}
-                    className="h-9"
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground">
+                    {enabled ? "Active" : "Paused"}
+                  </span>
+                  <Switch
+                    checked={enabled}
+                    onCheckedChange={setEnabled}
+                    aria-label="Toggle Oppenheimer"
                   />
                 </div>
+              </div>
+            </div>
 
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1.5">
-                    <Label className="text-xs flex items-center gap-1">
-                      <AudioLines className="h-3 w-3" />
+            <div className="grid grid-cols-4 divide-x divide-border border-t border-border">
+              <StatCell label="Inbound handled today" value={TODAY_STATS.inboundHandled} />
+              <StatCell label="Callbacks today" value={TODAY_STATS.callbacksCompleted} />
+              <StatCell label="Appts booked" value={TODAY_STATS.apptsBooked} emphasis />
+              <StatCell label="After-hours saves" value={TODAY_STATS.afterHoursSaves} />
+            </div>
+          </Card>
+
+          {/* Two columns: configuration | live monitor + recent */}
+          <div className="grid grid-cols-1 lg:grid-cols-[1fr_400px] gap-4">
+            {/* ---------- CONFIGURATION ---------- */}
+            <div className="space-y-4">
+              {/* Personality picker */}
+              <Card className="p-0 gap-0 overflow-hidden">
+                <div className="border-b px-5 py-3">
+                  <h3 className="text-sm font-semibold flex items-center gap-1.5">
+                    <MessageSquareText className="h-4 w-4" />
+                    How should Oppenheimer sound?
+                  </h3>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">
+                    Pick a conversation style. Tap to preview a sample line.
+                  </p>
+                </div>
+                <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-2">
+                  {PERSONALITIES.map((p) => {
+                    const active = personality === p.id;
+                    return (
+                      <button
+                        key={p.id}
+                        onClick={() => setPersonality(p.id)}
+                        className={cn(
+                          "text-left rounded-lg border p-3 transition-all",
+                          active
+                            ? "border-violet-400 bg-violet-50/60 dark:bg-violet-950/30 dark:border-violet-700 ring-2 ring-violet-500/20"
+                            : "border-border hover:bg-muted/40",
+                        )}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="text-sm font-semibold">{p.name}</p>
+                            <p className="text-[11px] text-muted-foreground mt-0.5">
+                              {p.tagline}
+                            </p>
+                          </div>
+                          {active && (
+                            <Check className="h-4 w-4 text-violet-600 dark:text-violet-400 shrink-0" />
+                          )}
+                        </div>
+                        {p.id !== "custom" && (
+                          <p className="text-[11px] text-foreground/70 italic mt-2 line-clamp-2 leading-snug">
+                            "{p.sample}"
+                          </p>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Voice picker */}
+                <div className="border-t px-5 py-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <Label className="text-xs flex items-center gap-1.5 font-medium">
+                      <AudioLines className="h-3.5 w-3.5" />
                       Voice
                     </Label>
-                    <Select value={voiceId} onValueChange={setVoiceId}>
-                      <SelectTrigger className="h-9 text-xs">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {VOICES.map((v) => (
-                          <SelectItem key={v.id} value={v.id} className="text-xs">
-                            {v.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="h-7 text-[11px] gap-1 text-muted-foreground hover:text-foreground -ml-2"
+                      className="h-6 text-[11px] gap-1 text-muted-foreground"
                     >
                       <Volume2 className="h-3 w-3" />
-                      Preview voice
+                      Preview selected
                     </Button>
                   </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs flex items-center gap-1">
-                      <Phone className="h-3 w-3" />
-                      Inbound behavior
-                    </Label>
-                    <Select
-                      value={inboundMode}
-                      onValueChange={(v) => setInboundMode(v as InboundMode)}
-                    >
-                      <SelectTrigger className="h-9 text-xs">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="ai_answer" className="text-xs">
-                          AI answers &amp; qualifies
-                        </SelectItem>
-                        <SelectItem value="route_to_human" className="text-xs">
-                          Route to a human agent
-                        </SelectItem>
-                        <SelectItem value="voicemail" className="text-xs">
-                          Send to voicemail
-                        </SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <p className="text-[10px] text-muted-foreground leading-snug">
-                      Inbound always legal — no consent gate applies.
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                    {VOICES.map((v) => {
+                      const active = voiceId === v.id;
+                      return (
+                        <button
+                          key={v.id}
+                          onClick={() => setVoiceId(v.id)}
+                          className={cn(
+                            "rounded-md border px-3 py-2 text-left transition-all",
+                            active
+                              ? "border-violet-400 bg-violet-50/40 dark:bg-violet-950/30 dark:border-violet-700"
+                              : "border-border hover:bg-muted/40",
+                          )}
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-semibold">{v.label}</span>
+                            {active && (
+                              <Check className="h-3 w-3 text-violet-600 dark:text-violet-400" />
+                            )}
+                          </div>
+                          <p className="text-[10px] text-muted-foreground mt-0.5">
+                            {v.tone}
+                          </p>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Greeting */}
+                <div className="border-t px-5 py-3">
+                  <Label
+                    htmlFor="greeting"
+                    className="text-xs font-medium mb-1.5 block"
+                  >
+                    Opening line
+                  </Label>
+                  <Input
+                    id="greeting"
+                    value={greeting}
+                    onChange={(e) => setGreeting(e.target.value)}
+                    className="h-9 text-sm"
+                  />
+                  <p className="text-[10px] text-muted-foreground mt-1">
+                    Oppenheimer auto-appends "This is an automated call" where required by law.
+                  </p>
+                </div>
+
+                {/* Advanced settings disclosure */}
+                <Collapsible open={advancedOpen} onOpenChange={setAdvancedOpen}>
+                  <CollapsibleTrigger asChild>
+                    <button className="w-full border-t px-5 py-2.5 flex items-center justify-between hover:bg-muted/40 transition-colors group">
+                      <span className="text-xs font-medium flex items-center gap-1.5 text-muted-foreground group-hover:text-foreground">
+                        <Settings2 className="h-3.5 w-3.5" />
+                        Advanced settings
+                      </span>
+                      {advancedOpen ? (
+                        <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+                      ) : (
+                        <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
+                      )}
+                    </button>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent>
+                    <div className="px-5 py-3 border-t space-y-3 bg-muted/20">
+                      <div>
+                        <Label className="text-xs font-medium mb-1.5 block">
+                          System prompt
+                        </Label>
+                        <Textarea
+                          value={personality === "custom" ? customPrompt : effectivePrompt}
+                          onChange={(e) => {
+                            if (personality !== "custom") {
+                              setPersonality("custom");
+                            }
+                            setCustomPrompt(e.target.value);
+                          }}
+                          className="min-h-[140px] text-xs font-mono resize-none"
+                          placeholder={
+                            personality !== "custom"
+                              ? "Editing switches to Custom preset automatically."
+                              : "You are a real estate acquisitions specialist..."
+                          }
+                        />
+                        <p className="text-[10px] text-muted-foreground mt-1">
+                          Dynamic variables injected per caller: &#123;&#123;caller_name&#125;&#125;, &#123;&#123;property_address&#125;&#125;, &#123;&#123;prior_contact_note&#125;&#125;
+                        </p>
+                      </div>
+                    </div>
+                  </CollapsibleContent>
+                </Collapsible>
+              </Card>
+
+              {/* Callback rules */}
+              <Card className="p-0 gap-0 overflow-hidden">
+                <div className="border-b px-5 py-3 flex items-center justify-between">
+                  <div>
+                    <h3 className="text-sm font-semibold flex items-center gap-1.5">
+                      <PhoneForwarded className="h-4 w-4" />
+                      Callbacks
+                    </h3>
+                    <p className="text-[11px] text-muted-foreground mt-0.5">
+                      Automatically return missed inbound calls and voicemails. Legally safe — returning a call initiated by the seller doesn't need consent.
                     </p>
                   </div>
-                </div>
-
-                <div className="grid grid-cols-3 gap-3">
-                  <div className="space-y-1.5 col-span-1">
-                    <Label className="text-xs flex items-center gap-1">
-                      <Clock className="h-3 w-3" />
-                      Quiet hours start
-                    </Label>
-                    <Input
-                      type="time"
-                      value={quietHoursStart}
-                      onChange={(e) => setQuietHoursStart(e.target.value)}
-                      className="h-9"
-                    />
-                  </div>
-                  <div className="space-y-1.5 col-span-1">
-                    <Label className="text-xs">Quiet hours end</Label>
-                    <Input
-                      type="time"
-                      value={quietHoursEnd}
-                      onChange={(e) => setQuietHoursEnd(e.target.value)}
-                      className="h-9"
-                    />
-                  </div>
-                  <div className="space-y-1.5 col-span-1">
-                    <Label className="text-xs">Max concurrent</Label>
-                    <Input
-                      type="number"
-                      min={1}
-                      max={20}
-                      value={maxConcurrent}
-                      onChange={(e) => setMaxConcurrent(Number(e.target.value))}
-                      className="h-9"
-                    />
-                  </div>
-                </div>
-
-                <div className="rounded-md border border-blue-200/60 dark:border-blue-900/60 bg-blue-50/50 dark:bg-blue-950/20 px-3 py-2 flex items-start gap-2">
-                  <Info className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400 mt-0.5 shrink-0" />
-                  <p className="text-[11px] text-blue-700 dark:text-blue-300 leading-relaxed">
-                    Calling hours are enforced in each recipient's local timezone. Federal floor is 8am–9pm; FlipOps defaults to 9am–7pm to stay inside state-level restrictions (FL, OK, WA).
-                  </p>
-                </div>
-
-                <div className="space-y-1.5">
-                  <Label className="text-xs flex items-center gap-1">
-                    <FileText className="h-3 w-3" />
-                    System prompt
-                  </Label>
-                  <Textarea
-                    value={script}
-                    onChange={(e) => setScript(e.target.value)}
-                    className="min-h-[160px] text-xs font-mono resize-none"
+                  <Switch
+                    checked={callbacksEnabled}
+                    onCheckedChange={setCallbacksEnabled}
+                    aria-label="Toggle callbacks"
                   />
-                  <p className="text-[10px] text-muted-foreground">
-                    Dynamic variables resolve per caller from the CRM at call start.
+                </div>
+
+                <div className="p-4 space-y-3">
+                  <div>
+                    <Label className="text-xs font-medium mb-2 block">
+                      When a seller's call is missed
+                    </Label>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                      {[
+                        { id: "instant", label: "Call back instantly", sub: "Within 30 seconds" },
+                        { id: "five_min", label: "After 5 minutes", sub: "Give humans first shot" },
+                        { id: "fifteen_min", label: "After 15 minutes", sub: "Conservative" },
+                        { id: "human_first", label: "Humans only", sub: "AI never calls back" },
+                      ].map((opt) => {
+                        const active = callbackPolicy === opt.id;
+                        return (
+                          <button
+                            key={opt.id}
+                            disabled={!callbacksEnabled}
+                            onClick={() => setCallbackPolicy(opt.id as CallbackPolicy)}
+                            className={cn(
+                              "rounded-md border px-3 py-2 text-left transition-all",
+                              active
+                                ? "border-violet-400 bg-violet-50/40 dark:bg-violet-950/30 dark:border-violet-700"
+                                : "border-border hover:bg-muted/40",
+                              !callbacksEnabled && "opacity-50 cursor-not-allowed",
+                            )}
+                          >
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs font-semibold">{opt.label}</span>
+                              {active && (
+                                <Check className="h-3 w-3 text-violet-600 dark:text-violet-400" />
+                              )}
+                            </div>
+                            <p className="text-[10px] text-muted-foreground mt-0.5">
+                              {opt.sub}
+                            </p>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* State-law quiet hours — locked */}
+                  <div className="rounded-lg border border-border bg-muted/30">
+                    <div className="px-3 py-2.5 flex items-center justify-between border-b border-border/60">
+                      <div className="flex items-center gap-2">
+                        <Lock className="h-3.5 w-3.5 text-muted-foreground" />
+                        <Label className="text-xs font-medium">
+                          Callback hours
+                        </Label>
+                      </div>
+                      <TooltipProvider delayDuration={150}>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <button className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground">
+                              <Info className="h-3 w-3" />
+                              Why can't I change this?
+                            </button>
+                          </TooltipTrigger>
+                          <TooltipContent className="max-w-sm text-xs leading-relaxed">
+                            Calling hours are set by TCPA + recipient-state law. FlipOps looks up each recipient's state from their phone number and applies the stricter rule. You can't widen these — the fine is $500–$1,500 per violating call.
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    </div>
+                    <div className="px-3 py-2.5 space-y-1.5">
+                      {STATE_QUIET_HOURS_SUMMARY.map((r) => (
+                        <div
+                          key={r.state}
+                          className="flex items-center justify-between text-[11px]"
+                        >
+                          <span className="text-foreground">{r.state}</span>
+                          <div className="flex items-center gap-2">
+                            <span className="tabular-nums font-medium">{r.hours}</span>
+                            <span className="text-muted-foreground text-[10px]">
+                              {r.note}
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                      <div className="pt-1.5 border-t border-border/50 mt-1.5 flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                        <ShieldCheck className="h-3 w-3 text-emerald-500" />
+                        Enforced per recipient's state at call time.
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </Card>
+            </div>
+
+            {/* ---------- RIGHT RAIL ---------- */}
+            <div className="space-y-4">
+              {/* Live monitor */}
+              <Card className="p-0 gap-0 overflow-hidden">
+                <div className="border-b px-4 py-3 flex items-center justify-between">
+                  <h3 className="text-sm font-semibold flex items-center gap-1.5">
+                    <Activity className="h-4 w-4 text-violet-500" />
+                    Live right now
+                  </h3>
+                  <Badge variant="secondary" className="text-[10px] tabular-nums">
+                    {LIVE_INBOUND.length} active
+                  </Badge>
+                </div>
+                <div className="p-3 space-y-2">
+                  {LIVE_INBOUND.length === 0 ? (
+                    <div className="text-center py-6 text-xs text-muted-foreground">
+                      No active calls right now.
+                    </div>
+                  ) : (
+                    LIVE_INBOUND.map((c) => (
+                      <div
+                        key={c.id}
+                        className="rounded-lg border px-3 py-2.5 space-y-1.5"
+                      >
+                        <div className="flex items-center gap-2">
+                          <span className="relative flex h-2 w-2 shrink-0">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-violet-400 opacity-75" />
+                            <span className="relative inline-flex rounded-full h-2 w-2 bg-violet-500" />
+                          </span>
+                          <p className="text-sm font-medium truncate">{c.name}</p>
+                          <span className="ml-auto text-xs tabular-nums text-muted-foreground">
+                            {c.duration}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-muted-foreground truncate">
+                          {c.address}
+                        </p>
+                        <p className="text-[11px] italic text-muted-foreground">
+                          → {c.stage}
+                        </p>
+                        <div className="flex items-center gap-1 pt-1">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-7 gap-1 text-[11px] flex-1"
+                          >
+                            <Mic className="h-3 w-3" />
+                            Take over
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 gap-1 text-[11px]"
+                          >
+                            Listen
+                          </Button>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </Card>
+
+              {/* Recent completed calls with AI disposition */}
+              <Card className="p-0 gap-0 overflow-hidden">
+                <div className="border-b px-4 py-3">
+                  <h3 className="text-sm font-semibold">Recent Oppenheimer calls</h3>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">
+                    Auto-classified &amp; notes extracted by AI. Click any call to review.
                   </p>
                 </div>
-              </div>
-            </Card>
-
-            {/* Audience side */}
-            <Card className="p-0 gap-0 overflow-hidden">
-              <div className="border-b px-5 py-3">
-                <h3 className="text-sm font-semibold flex items-center gap-1.5">
-                  <Users className="h-4 w-4" />
-                  Audience
-                </h3>
-                <p className="text-[11px] text-muted-foreground mt-0.5">
-                  {audience.length} leads · {audienceBreakdown.callable.length} callable by AI
-                </p>
-              </div>
-
-              {/* Audience breakdown */}
-              <div className="border-b px-5 py-3 grid grid-cols-2 gap-3 text-center">
-                <div>
-                  <div className="text-2xl font-semibold tabular-nums text-emerald-600 dark:text-emerald-400">
-                    {audienceBreakdown.callable.length}
-                  </div>
-                  <div className="text-[10px] uppercase tracking-wide text-muted-foreground">
-                    AI-legal
-                  </div>
-                </div>
-                <div>
-                  <div className="text-2xl font-semibold tabular-nums text-muted-foreground">
-                    {audienceBreakdown.skipped.length}
-                  </div>
-                  <div className="text-[10px] uppercase tracking-wide text-muted-foreground">
-                    Skipped
-                  </div>
-                </div>
-              </div>
-
-              <ScrollArea className="flex-1 min-h-0 max-h-[400px]">
-                <ul className="divide-y divide-border">
-                  {audience.map((lead) => {
-                    const willCall = lead.consent === "ai_legal";
-                    return (
-                      <li
-                        key={lead.id}
-                        className={cn(
-                          "px-5 py-2.5 flex items-center gap-3",
-                          !willCall && "opacity-60",
-                        )}
-                      >
-                        <span
-                          className={cn(
-                            "h-1.5 w-1.5 rounded-full shrink-0",
-                            willCall ? "bg-emerald-500" : "bg-muted-foreground/40",
+                <ScrollArea className="max-h-[420px]">
+                  <ul className="divide-y divide-border">
+                    {RECENT_CALLS.map((call) => {
+                      const disp = DISPOSITION_LABELS[call.disposition] ?? DISPOSITION_LABELS.voicemail;
+                      return (
+                        <li
+                          key={call.id}
+                          className="px-4 py-3 hover:bg-muted/30 cursor-pointer transition-colors"
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-1.5 min-w-0">
+                              {call.source === "inbound" ? (
+                                <PhoneIncoming className="h-3 w-3 text-blue-500 shrink-0" />
+                              ) : call.source === "callback" ? (
+                                <PhoneForwarded className="h-3 w-3 text-violet-500 shrink-0" />
+                              ) : (
+                                <VoicemailIcon className="h-3 w-3 text-muted-foreground shrink-0" />
+                              )}
+                              <p className="text-sm font-medium truncate">
+                                {call.name}
+                              </p>
+                            </div>
+                            <span className="text-[10px] text-muted-foreground whitespace-nowrap">
+                              {call.minutesAgo}m ago
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-muted-foreground truncate mt-0.5">
+                            {call.address}
+                          </p>
+                          <div className="flex items-center gap-1.5 mt-1.5">
+                            <span
+                              className={cn(
+                                "inline-flex items-center rounded-full border px-1.5 py-0.5 text-[10px] font-medium",
+                                disp.className,
+                              )}
+                            >
+                              {disp.label}
+                            </span>
+                            {call.sentiment === "positive" && (
+                              <span className="inline-flex items-center gap-0.5 text-[10px] text-emerald-600 dark:text-emerald-400 font-medium">
+                                <Flame className="h-2.5 w-2.5" />
+                                hot
+                              </span>
+                            )}
+                          </div>
+                          {call.keyNotes.length > 0 && (
+                            <ul className="mt-1.5 space-y-0.5">
+                              {call.keyNotes.slice(0, 2).map((n, i) => (
+                                <li
+                                  key={i}
+                                  className="text-[11px] text-muted-foreground leading-snug flex items-start gap-1"
+                                >
+                                  <span className="text-foreground/40 mt-0.5">•</span>
+                                  <span className="truncate">{n}</span>
+                                </li>
+                              ))}
+                              {call.keyNotes.length > 2 && (
+                                <li className="text-[10px] text-muted-foreground italic">
+                                  +{call.keyNotes.length - 2} more note{call.keyNotes.length - 2 === 1 ? "" : "s"} · click to view
+                                </li>
+                              )}
+                            </ul>
                           )}
-                        />
-                        <div className="flex-1 min-w-0">
-                          <p className="text-xs font-medium truncate">
-                            {lead.name}
-                          </p>
-                          <p className="text-[10px] text-muted-foreground tabular-nums">
-                            {lead.phone}
-                          </p>
-                        </div>
-                        <span className="text-[10px] font-semibold tabular-nums shrink-0">
-                          {lead.score}
-                        </span>
-                        <ConsentBadge state={lead.consent} showLabel={false} />
-                      </li>
-                    );
-                  })}
-                </ul>
-              </ScrollArea>
-
-              <div className="border-t px-5 py-2">
-                <Button variant="ghost" size="sm" className="w-full text-xs h-8">
-                  Import from Leads →
-                </Button>
-              </div>
-            </Card>
-          </div>
-
-          {/* ----- Live monitor + results summary ----- */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-            {/* Live monitor */}
-            <Card className="lg:col-span-2 p-0 gap-0 overflow-hidden">
-              <div className="border-b px-5 py-3 flex items-center justify-between">
-                <h3 className="text-sm font-semibold flex items-center gap-1.5">
-                  <Activity className="h-4 w-4 text-violet-500" />
-                  Live calls
-                </h3>
-                <Badge variant="secondary" className="text-[10px] tabular-nums">
-                  {LIVE_CALLS.length} active
-                </Badge>
-              </div>
-              <div className="p-4 space-y-2">
-                {LIVE_CALLS.map((c) => (
-                  <div
-                    key={c.id}
-                    className="rounded-lg border border-border px-3 py-2.5 flex items-center gap-3"
-                  >
-                    <div className="relative flex h-2 w-2 shrink-0">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-violet-400 opacity-75" />
-                      <span className="relative inline-flex rounded-full h-2 w-2 bg-violet-500" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate">{c.name}</p>
-                      <p className="text-[11px] text-muted-foreground truncate">
-                        {c.stage}
-                      </p>
-                    </div>
-                    <span className="text-xs tabular-nums text-muted-foreground">
-                      {c.duration}
-                    </span>
-                    <div
-                      className={cn(
-                        "flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded",
-                        c.sentiment === "positive"
-                          ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300"
-                          : "bg-muted text-muted-foreground",
-                      )}
-                    >
-                      <Flame className="h-2.5 w-2.5" />
-                      {c.sentiment}
-                    </div>
-                    <Button variant="ghost" size="sm" className="h-7 gap-1 text-xs">
-                      <Mic className="h-3 w-3" />
-                      Barge
-                    </Button>
-                  </div>
-                ))}
-                {LIVE_CALLS.length === 0 && (
-                  <div className="text-center py-6 text-xs text-muted-foreground">
-                    No active calls. Launch a campaign to start dialing.
-                  </div>
-                )}
-              </div>
-            </Card>
-
-            {/* Results summary */}
-            <Card className="p-0 gap-0 overflow-hidden">
-              <div className="border-b px-5 py-3">
-                <h3 className="text-sm font-semibold">Last 24h results</h3>
-              </div>
-              <ul className="divide-y divide-border">
-                {RESULTS.map((r) => (
-                  <li
-                    key={r.label}
-                    className="flex items-center justify-between px-5 py-2"
-                  >
-                    <span className="text-xs text-muted-foreground">{r.label}</span>
-                    <span className={cn("text-lg font-semibold tabular-nums", r.tone)}>
-                      {r.value}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </Card>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </ScrollArea>
+                <div className="border-t px-4 py-2">
+                  <p className="text-[10px] text-muted-foreground text-center">
+                    Full transcripts &amp; recordings live in the <span className="font-medium">History</span> tab and on each lead's detail page.
+                  </p>
+                </div>
+              </Card>
+            </div>
           </div>
         </div>
       </ScrollArea>
@@ -572,35 +722,28 @@ export function Oppenheimer() {
 
 // ---------------------------------------------------------------------------
 
-function GateRow({
-  checked,
-  onToggle,
-  title,
-  body,
+function StatCell({
+  label,
+  value,
+  emphasis = false,
 }: {
-  checked: boolean;
-  onToggle: () => void;
-  title: string;
-  body: string;
+  label: string;
+  value: number;
+  emphasis?: boolean;
 }) {
   return (
-    <label
-      className={cn(
-        "flex items-start gap-3 px-5 py-3 cursor-pointer transition-colors",
-        checked ? "bg-emerald-50/30 dark:bg-emerald-950/10" : "hover:bg-muted/30",
-      )}
-    >
-      <Checkbox
-        checked={checked}
-        onCheckedChange={onToggle}
-        className="mt-0.5 shrink-0"
-      />
-      <div className="min-w-0">
-        <p className="text-sm font-medium">{title}</p>
-        <p className="text-[11px] text-muted-foreground leading-relaxed mt-0.5">
-          {body}
-        </p>
+    <div className="px-5 py-3">
+      <div
+        className={cn(
+          "text-2xl font-semibold tabular-nums tracking-tight",
+          emphasis && "text-emerald-600 dark:text-emerald-400",
+        )}
+      >
+        {value}
       </div>
-    </label>
+      <div className="text-[10px] uppercase tracking-wide text-muted-foreground mt-0.5">
+        {label}
+      </div>
+    </div>
   );
 }

@@ -50,7 +50,7 @@ function DialerInner() {
               </div>
               <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1.5">
                 <Info className="h-3 w-3" />
-                Talk to sellers. Humans anytime; AI only with documented consent.
+                Humans make outbound calls. AI handles inbound + callbacks — never cold outbound.
               </p>
             </div>
 

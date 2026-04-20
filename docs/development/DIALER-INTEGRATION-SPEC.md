@@ -163,9 +163,17 @@ UI shell: `components/dialer/flip-phone.tsx` (already built).
 
 ---
 
-## 4. Oppenheimer (AI Dialer)
+## 4. Oppenheimer (INBOUND AI + callback automation)
 
-UI shell: `components/dialer/oppenheimer.tsx` (already built).
+**Pivot note (2026-04-20):** Cold outbound AI was dropped after a partner review concluded TCPA liability outweighed the upside. Oppenheimer now handles inbound calls and returns of inbound-initiated contact only — both legally safe paths.
+
+UI shell: `components/dialer/oppenheimer.tsx` (rewritten for inbound-first).
+
+### UX principles baked into the UI
+- **Personality presets** (friendly / professional / brief / custom) replace the raw system prompt in the primary surface. The full prompt lives inside an "Advanced settings" disclosure.
+- **Quiet hours are locked** and displayed read-only. Each state's rule is surfaced in the summary; the backend enforces per-recipient on every callback attempt.
+- **No "max concurrent" control** — it was technical jargon. Inbound concurrency is a Telnyx-side channel limit (backend). Callback pacing is handled by the callback-policy picker (instant / 5min / 15min / human-first).
+- **Haiku auto-disposition** — every completed call runs through a cheap LLM call that extracts disposition, sentiment, key notes, asking price, timeline. Results appear on the Recent Calls card and in the full Call History detail sheet.
 
 ### Stack
 
@@ -210,13 +218,88 @@ POST /v2/ai/assistants
 
 Mandatory under FCC Feb 2024. The greeting contains identification as automated. If the user's script doesn't include it, we prepend automatically before uploading to Telnyx. UI surface: greeting preview with highlighted "auto-disclosure" span.
 
-### Outbound dial loop
+### Inbound + callback dial loop
 
-For each AI-legal lead in the audience:
-1. `POST /v2/calls` — originate call, `client_state=btoa({ leadId, campaignId, consentRecordId })`
-2. On `call.answered` webhook → `POST /v2/calls/{id}/actions/ai_assistant_start` with Oppenheimer's assistant ID
-3. Stream progress to `POST /api/ai/live-events` for the live monitor UI
-4. On `call.conversation.ended` → pull transcript → write `PhoneCall` row → fire disposition logic
+**Inbound (primary):**
+1. Seller calls a FlipOps DID → Telnyx posts `call.initiated` webhook
+2. Our handler: `POST /v2/calls/{id}/actions/answer`
+3. On `call.answered` → `POST /v2/calls/{id}/actions/ai_assistant_start` with Oppenheimer's assistant ID
+4. Conversation runs until seller or AI hangs up
+5. On `call.conversation.ended` → pull transcript → auto-disposition pipeline (see §4a)
+
+**Callback (secondary, legally safe — returning a contact initiated by the seller):**
+1. Missed inbound detected OR voicemail received
+2. Resolve recipient's state from phone area code → look up quiet-hours rule
+3. If current time is inside recipient's permitted window → schedule callback per callback-policy (instant / 5min / 15min)
+4. If outside window → queue for next permitted time at the start of the next day in their state
+5. Execute callback same as a normal outbound, but with `client_state.source="callback"` so we can audit that it was inbound-derived
+
+### 4a. Auto-disposition pipeline (Haiku)
+
+After `call.conversation.ended`, run a single Haiku call to extract structured metadata. This replaces manual note-taking.
+
+```ts
+// app/api/ai/disposition/route.ts
+import Anthropic from "@anthropic-ai/sdk";
+
+const PROMPT = `You analyze recorded phone calls between a real-estate investor's AI
+and a property owner. Return JSON only:
+
+{
+  "disposition": "appt_set" | "interested" | "callback" | "not_interested" | "voicemail" | "no_answer" | "dnc_request" | "wrong_number",
+  "sentiment": "positive" | "neutral" | "negative",
+  "urgency": "hot" | "warm" | "cold",
+  "key_notes": string[],        // 3-5 bullets, each under 120 chars
+  "asking_price": number | null,
+  "timeline_days": number | null,
+  "motivation": string | null,  // one-line summary of why they're selling
+  "condition_notes": string | null
+}
+
+Transcript:
+{{transcript}}`;
+
+const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+const res = await client.messages.create({
+  model: "claude-haiku-4-5",
+  max_tokens: 400,
+  messages: [{ role: "user", content: PROMPT.replace("{{transcript}}", transcript) }],
+});
+const parsed = JSON.parse(res.content[0].text);
+```
+
+Cost: ~500 input tokens + 200 output = ~$0.0005 per call. Negligible.
+
+Write fields to `PhoneCall`:
+- `disposition`, `sentiment`, `urgency`, `keyNotes` (JSON array)
+- `askingPrice`, `timelineDays`, `motivation`, `conditionNotes`
+
+Then update the linked `Property`:
+- `outreachStatus` ← derived from disposition
+- `ownerResponse`, `sentiment` ← AI outputs
+- Append a `contactNotes` entry with the key notes bullets
+
+### 4b. Where users see call notes
+
+Three surfaces, all fed by the same `PhoneCall` + AI-extracted fields:
+
+1. **Oppenheimer → Recent calls card** — compact preview with first 2 key notes inline
+2. **History tab → row click → detail sheet** — full transcript, extracted fields, recording playback, editable disposition
+3. **Leads drawer → Calls tab** (future) — every call for this property, chronological
+
+### 4c. State-law quiet hours lookup
+
+Backend resolves recipient state from phone area code, applies stricter of federal + state:
+
+| State | Hours (local) | Source |
+|---|---|---|
+| FL (Florida FTSA) | 9am–8pm weekdays, 9am–8pm weekends (no Sunday pre-9am) | FL Stat. § 501.059 |
+| OK (Oklahoma) | 8am–8pm | 15 O.S. § 775A.3 |
+| WA (Washington) | 8am–8pm weekdays only | RCW 19.158 |
+| AL, AK, AR, LA (varied) | 8am–9pm + Sunday restrictions | state TCPA analogs |
+| All others (federal floor) | 8am–9pm | TCPA 47 U.S.C. § 227(b) |
+
+FlipOps default applied to the Oppenheimer UI: **9am–8pm recipient local time** (strictest common-denominator), widened per-recipient to the actual state-law window at call attempt time. Users cannot edit.
 
 ### Opt-out handling (non-negotiable)
 
