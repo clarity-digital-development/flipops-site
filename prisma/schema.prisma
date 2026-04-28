@@ -1455,11 +1455,20 @@ model CountyScraper {
   countyFips      String   @unique          // "12031" for Duval FL — the canonical join key
   state           String                    // "FL"
   county          String                    // "Duval"
-  status          String   @default("pending") // "active" | "broken" | "pending" | "disabled"
-  scraperType     String                    // "iasworld" | "patriot" | "vision" | "manatron" | "custom"
+  status          String   @default("pending") // "active" | "broken" | "pending" | "disabled" | "blocked_by_subscription" | "blocked_by_login"
+  scraperType     String                    // "iasworld" | "patriot" | "vision" | "manatron" | "custom" | "playwright" | "subscription"
   parserModule    String                    // "lib/scrapers/counties/fl-duval" — import path
   endpoints       Json                      // { assessor: url, treasurer: url, recorder: url, clerk: url }
   rateLimitMs     Int      @default(1500)   // ms between requests to this county
+
+  // Access tier — drives ops strategy. See docs/development/SCRAPER-COVERAGE.md for the full breakdown.
+  accessTier      Int      @default(1)      // 1=open, 2=js-rendered, 3=captcha, 4=login, 5=paid sub, 6=bulk-license-only
+  needsPlaywright Boolean  @default(false)  // true for Tier 2+ JS-rendered sites
+  needsCaptcha    Boolean  @default(false)  // true for Tier 3 sites; captcha solver enabled per-scraper
+  needsLogin      Boolean  @default(false)  // true for Tier 4; sessionCookie populated on first auth
+  monthlyCostUsd  Float?                    // for Tier 5/6: subscription cost we factor into per-county budget
+  sessionCookie   String?  @db.Text         // encrypted session token for Tier 4 logged-in scrapers
+
   lastRunAt       DateTime?
   lastSuccessAt   DateTime?
   errorCount      Int      @default(0)
@@ -1473,6 +1482,7 @@ model CountyScraper {
 
   @@index([state])
   @@index([status])
+  @@index([accessTier])
 }
 
 // Audit log of scrape runs. Each row = one attempt to refresh a specific
