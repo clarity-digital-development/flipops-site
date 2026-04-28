@@ -83,6 +83,7 @@
     "@vercel/og": "^0.8.5",
     "@vitest/ui": "^3.2.4",
     "bullmq": "^5.58.7",
+    "cheerio": "^1.2.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
