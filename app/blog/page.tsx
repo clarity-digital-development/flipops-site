@@ -35,6 +35,26 @@ const featuredPost: BlogPost = {
 
 const posts: BlogPost[] = [
   {
+    title: 'How to Build a Direct Mail Sequence That Gets Callbacks',
+    teaser:
+      'Sending one mailer and expecting results is the most expensive mistake in direct mail. Here\'s how to build a multi-touch sequence that turns cold lists into warm conversations.',
+    category: 'Guides',
+    date: 'March 2026',
+    slug: 'direct-mail-sequence-real-estate',
+    published: true,
+    tags: ['Direct Mail', 'Motivated Sellers', 'Lead Generation'],
+  },
+  {
+    title: 'What Is ARV? How to Calculate After Repair Value for Any Real Estate Deal',
+    teaser:
+      'After repair value is the single most important number in any flip or wholesale deal. Here\'s how to calculate ARV accurately and avoid the mistakes that sink beginners.',
+    category: 'Guides',
+    date: 'March 2026',
+    slug: 'what-is-arv-after-repair-value',
+    published: true,
+    tags: ['Deal Analysis', 'Beginners', 'Fix & Flip'],
+  },
+  {
     title: 'How FlipOps Sources Leads and Keeps You DNC Compliant at Every Step',
     teaser:
       'Every cold call to a DNC-registered number can cost up to $43,792. Here\'s how FlipOps scrubs against the registry at the skip trace level so you never dial a number you shouldn\'t.',

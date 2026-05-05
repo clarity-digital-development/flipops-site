@@ -3,6 +3,8 @@ import { MetadataRoute } from 'next';
 const BASE_URL = 'https://flipops.io';
 
 const blogSlugs = [
+  'direct-mail-sequence-real-estate',
+  'what-is-arv-after-repair-value',
   'dnc-compliance-skip-tracing-flipops',
   'true-cost-of-tool-sprawl-real-estate-investors',
   'mao-calculator-never-overpay-property',
