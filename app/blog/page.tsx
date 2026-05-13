@@ -35,6 +35,36 @@ const featuredPost: BlogPost = {
 
 const posts: BlogPost[] = [
   {
+    title: 'How to Disposition a Wholesale Deal Before Your Contract Expires',
+    teaser:
+      'Acquisition gets the glory, but disposition is where the check clears. Here\'s the tactical workflow for moving contracts to close in days, not weeks.',
+    category: 'Strategy',
+    date: 'March 2026',
+    slug: 'wholesale-disposition-strategies-close-faster',
+    published: true,
+    tags: ['Wholesaling', 'Disposition', 'Cash Buyers'],
+  },
+  {
+    title: 'The Real Estate Wholesaling KPIs That Separate Operators From Hobbyists',
+    teaser:
+      'Most wholesalers track revenue and nothing else. Here are the KPIs that actually tell you whether your business is growing or bleeding out.',
+    category: 'Data',
+    date: 'March 2026',
+    slug: 'real-estate-wholesaling-kpis',
+    published: true,
+    tags: ['KPIs', 'Operations', 'Wholesaling'],
+  },
+  {
+    title: "How to Find Motivated Sellers: A Beginner's Guide to Off-Market Real Estate Deals",
+    teaser:
+      'Motivated sellers are the foundation of every wholesale and fix-and-flip deal. Here\'s where to find them, how to build your first list, and what separates a real lead from a dead end.',
+    category: 'Guides',
+    date: 'March 2026',
+    slug: 'how-to-find-motivated-sellers-beginners',
+    published: true,
+    tags: ['Beginners', 'Motivated Sellers', 'Lead Generation'],
+  },
+  {
     title: 'How to Build a Direct Mail Sequence That Gets Callbacks',
     teaser:
       'Sending one mailer and expecting results is the most expensive mistake in direct mail. Here\'s how to build a multi-touch sequence that turns cold lists into warm conversations.',

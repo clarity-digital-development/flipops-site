@@ -3,6 +3,9 @@ import { MetadataRoute } from 'next';
 const BASE_URL = 'https://flipops.io';
 
 const blogSlugs = [
+  'wholesale-disposition-strategies-close-faster',
+  'real-estate-wholesaling-kpis',
+  'how-to-find-motivated-sellers-beginners',
   'direct-mail-sequence-real-estate',
   'what-is-arv-after-repair-value',
   'dnc-compliance-skip-tracing-flipops',
