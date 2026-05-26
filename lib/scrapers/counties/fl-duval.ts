@@ -1,38 +1,36 @@
-import { IasworldScraper } from "../vendors/iasworld";
+import { FirecrawlScraper } from "../vendors/firecrawl";
 
 // ---------------------------------------------------------------------------
 // Duval County, FL (Jacksonville). FIPS 12031.
 //
-// The assessor (Duval County Property Appraiser) runs Tyler Technologies'
-// iasWorld platform, so we extend IasworldScraper. Tax delinquency lists are
-// published by the Tax Collector — separate URL, same general iasWorld layout.
+// NOTE: Duval is NOT an iasWorld county — the Property Appraiser runs a custom
+// ASP.NET site with GET-addressable detail pages:
+//   https://paopropertysearch.coj.net/Basic/Detail.aspx?RE={parcelNumber}
+//   https://paopropertysearch.coj.net/Basic/Search.aspx  (address search form)
 //
-// To onboard another iasWorld county, copy this file, change the FIPS / state
-// / county / endpoint URLs, and (rarely) override parseParcelHtml or
-// parseDelinquencyRow if the county has unusual table layouts.
+// Real URLs verified 2026-04-28. Because every county's HTML is bespoke, we
+// run Duval through Firecrawl's AI extraction rather than a hand-written parser.
+// This is Tier 1 (open public access) — Firecrawl's basic proxy is sufficient.
+//
+// To migrate to a cheaper custom cheerio parser later (once Duval's query
+// volume justifies it), extend CountyScraper directly and parse Detail.aspx.
 // ---------------------------------------------------------------------------
 
-export class DuvalFlScraper extends IasworldScraper {
-  protected parserModule(): string {
-    return "lib/scrapers/counties/fl-duval";
-  }
-}
+export class DuvalFlScraper extends FirecrawlScraper {}
 
-/** Factory — used by the data-sources facade and cron jobs. */
 export function buildDuvalFlScraper(): DuvalFlScraper {
   return new DuvalFlScraper({
     countyFips: "12031",
     state: "FL",
     county: "Duval",
     endpoints: {
-      // Replace with real iasWorld URLs once verified against the live site.
-      // These are placeholders that match the typical iasWorld URL pattern.
-      search: "https://paopropertysearch.coj.net/Basic/Search.aspx",
-      parcel: "https://paopropertysearch.coj.net/Basic/Datalets.aspx",
-      delinquencyList: "https://taxcollector.coj.net/Delinquent/PropertyTax",
-      taxBill: "https://taxcollector.coj.net/TaxBill",
+      detailUrlTemplate:
+        "https://paopropertysearch.coj.net/Basic/Detail.aspx?RE={parcelId}",
+      searchUrl: "https://paopropertysearch.coj.net/Basic/Search.aspx",
+      // Duval Tax Collector publishes delinquent real-estate tax data separately.
+      delinquencyListUrl: "https://taxcollector.coj.net/RealEstate/Delinquent",
     },
-    rateLimitMs: 2000, // 2s between requests — extra polite to a single county
+    rateLimitMs: 2000,
     maxPages: 100,
   });
 }

@@ -1,8 +1,18 @@
 # Scraper Implementation Notes (Phase 2A)
 
-**Status:** Infrastructure scaffolded; one reference county wired (FL-Duval). Other counties follow the same pattern.
+**Status:** Infrastructure built; **Firecrawl is the day-1 universal engine**; FL-Duval wired as the reference county using real verified URLs. Custom cheerio parsers (iasWorld etc.) are a later cost optimization for high-volume counties.
 
 **Why this exists:** Per [COTALITY-SUBSTITUTION-STRATEGY.md](./COTALITY-SUBSTITUTION-STRATEGY.md), BatchData PAYG at $0.30/call doesn't survive a map-first UX where users see hundreds of properties per viewport. We own the data going forward and use BatchData/ATTOM only as fallback for unscraped markets.
+
+## Two scraper engines, one interface
+
+Every county scraper extends `CountyScraper` and is invisible to product code (which only talks to `lib/data-sources/`). Two engines back the scrapers:
+
+1. **FirecrawlScraper** (`lib/scrapers/vendors/firecrawl.ts`) — **the default/day-1 engine.** Hands Firecrawl a URL + a JSON schema describing `ScrapedProperty`; Firecrawl's LLM extracts structured data regardless of the county's HTML. Handles JS rendering, proxy rotation, and captcha internally (covers Tier 1-3 in one shot). Onboard a new county by supplying URLs only — zero parser code. Cost: ~1 Firecrawl credit/page.
+
+2. **Custom cheerio scrapers** (e.g. `IasworldScraper`) — **the cost-optimization engine** for high-volume counties. Once a county's query/refresh volume makes per-page Firecrawl cost meaningful, port it to a hand-written cheerio parser so marginal cost drops to proxy-only. The iasWorld parser already exists for the ~400 counties on that platform.
+
+**Key insight from building Duval:** every county's site is bespoke (Duval is custom ASP.NET, NOT iasWorld as first assumed). That's exactly why Firecrawl AI extraction is the right default — it doesn't care about HTML layout. We migrate the heavy markets to custom parsers; everything else stays on Firecrawl.
 
 ---
 
