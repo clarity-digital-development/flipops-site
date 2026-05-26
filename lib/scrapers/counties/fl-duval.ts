@@ -24,11 +24,18 @@ export function buildDuvalFlScraper(): DuvalFlScraper {
     state: "FL",
     county: "Duval",
     endpoints: {
+      // VERIFIED 2026-04: detail page returns full property record for AI extraction.
       detailUrlTemplate:
         "https://paopropertysearch.coj.net/Basic/Detail.aspx?RE={parcelId}",
       searchUrl: "https://paopropertysearch.coj.net/Basic/Search.aspx",
-      // Duval Tax Collector publishes delinquent real-estate tax data separately.
-      delinquencyListUrl: "https://taxcollector.coj.net/RealEstate/Delinquent",
+      // Delinquent real-estate tax notices are published publicly by the
+      // Jacksonville Daily Record (legal notices of delinquent real property tax).
+      // This is the scrapeable public list. The auth-gated certificate-sale
+      // platform (lienhub.com/duval — Tier 4) has the same data behind login.
+      delinquencyListUrl: "https://legals.jaxdailyrecord.com/re_tax/retax_search.php",
+      // Reference only — tax deed + certificate auction platforms:
+      taxDeedAuctionUrl: "https://duval.realtaxdeed.com",
+      certificateSaleUrl: "https://lienhub.com/duval",
     },
     rateLimitMs: 2000,
     maxPages: 100,

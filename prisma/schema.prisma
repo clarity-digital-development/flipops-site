@@ -405,6 +405,7 @@ model Property {
   contracts        Contract[]
   renovations      DealSpec[]     // Renovation projects for this property
   rentals          Rental[]       // Rental properties
+  dataPoints       PropertyDataPoint[] // Per-field scraped/API provenance
 
   @@unique([userId, address, city, state, zip])
   @@index([userId])
