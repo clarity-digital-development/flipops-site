@@ -1508,3 +1508,78 @@ model ScrapeJob {
   @@index([status])
   @@index([startedAt])
 }
+
+// =============================================================================
+// BULK DATA LAYER (Phase 1 — statewide bulk ingestion)
+// =============================================================================
+// Parcel is the NON-TENANT reference layer. Statewide bulk ingests (FL DOR /
+// FloridaGIO, and later NY/MA/MT) write millions of rows here WITHOUT minting
+// tenant-owned Property rows. A tenant Property links to a Parcel only when a
+// user actually works that lead. This is the fix for the system-user explosion.
+
+model Parcel {
+  id                  String   @id @default(cuid())
+  countyFips          String                 // "12031"
+  apn                 String                 // PARCEL_ID from the roll
+  state               String                 // "FL"
+
+  // Identity / ownership
+  ownerName           String?
+  ownerMailingAddress String?
+  situsAddress        String?
+  situsCity           String?
+  situsState          String?
+  situsZip            String?
+
+  // Values
+  marketValue         Float?                 // JV (just value)
+  assessedValue       Float?                 // AV_SD
+  landValue           Float?                 // LND_VAL
+
+  // Characteristics
+  propertyType        String?                // DOR_UC land-use code
+  yearBuilt           Int?                   // ACT_YR_BLT
+  squareFeet          Int?                   // TOT_LVG_AR
+  lotSize             Float?                 // LND_SQFOOT
+
+  // Last sale (from roll)
+  lastSalePrice       Float?                 // SALE_PRC1
+  lastSaleYear        Int?                   // SALE_YR1
+
+  // Geometry (optional — centroid for map pins; full polygon deferred)
+  latitude            Float?
+  longitude           Float?
+
+  // Provenance
+  source              String                 // "bulk:fl-fgio-2025"
+  dataVintage         String?                // "2025"
+  fetchedAt           DateTime @default(now())
+
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@unique([countyFips, apn])
+  @@index([countyFips])
+  @@index([situsZip])
+  @@index([state])
+  @@index([source])
+}
+
+// Audit log of bulk ingest runs (sibling of ScrapeJob, for the bulk modality).
+model BulkIngestJob {
+  id              String   @id @default(cuid())
+  sourceTag       String                     // "bulk:fl-fgio"
+  scope           String                     // county FIPS ("12031") or state ("FL")
+  status          String                     // "running" | "succeeded" | "failed"
+  recordsFetched  Int      @default(0)
+  recordsUpserted Int      @default(0)
+  startedAt       DateTime @default(now())
+  finishedAt      DateTime?
+  durationMs      Int?
+  errorMessage    String?  @db.Text
+  cursor          String?                    // resumption checkpoint (resultOffset)
+
+  @@index([sourceTag])
+  @@index([status])
+  @@index([startedAt])
+}
