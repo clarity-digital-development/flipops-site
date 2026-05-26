@@ -98,12 +98,41 @@ export default function LeadsPage() {
 
   const handleZipSearch = () => {
     if (!zip || zip.length !== 5) return;
-    // Phase 4: this will fire a BatchData property search and merge results.
-    // For now, filtering against existing records is enough for the demo.
-    toast({
-      title: "ZIP filter applied",
-      description: `Showing ${filtered.length} leads in ${zip}. Live BatchData pulls ship in Phase 4.`,
-    });
+    // Resolve ZIP → county scraper. If we can scrape it, pull from county
+    // records (cheap). Otherwise the route signals an API fallback.
+    void (async () => {
+      try {
+        const res = await fetch("/api/leads/pull-by-zip", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ zip, category: "tax_delinquency" }),
+        });
+        const data = await res.json();
+        if (data.strategy === "scraper" && data.ok) {
+          toast({
+            title: `Pulled ${data.recordsScraped ?? 0} leads`,
+            description: `${data.county?.county ?? zip} county records refreshed. Reloading...`,
+          });
+          fetchProperties();
+        } else if (data.strategy === "api_fallback") {
+          toast({
+            title: "Filtered to ZIP",
+            description: `${zip} isn't onboarded for direct county scraping yet — showing ${filtered.length} existing leads. (Scraper coverage expands per market.)`,
+          });
+        } else {
+          toast({
+            title: "Pull failed",
+            description: data.message ?? "Try again shortly.",
+            variant: "destructive",
+          });
+        }
+      } catch {
+        toast({
+          title: "Filtered to ZIP",
+          description: `Showing ${filtered.length} existing leads in ${zip}.`,
+        });
+      }
+    })();
   };
 
   const handleSkipTrace = async (id: string) => {
