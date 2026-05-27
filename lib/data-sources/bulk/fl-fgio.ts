@@ -4,6 +4,7 @@ import {
   type ParcelRecord,
 } from "@/lib/scrapers/base/bulk-ingester";
 import { flCountyByFips, FL_COUNTIES } from "./fl-counties";
+import { captureRaw } from "../raw-capture";
 
 // ---------------------------------------------------------------------------
 // FloridaGIO statewide cadastral ingester.
@@ -105,6 +106,16 @@ export class FloridaGioIngester extends BulkIngester {
 
       const features = data.features ?? [];
       if (features.length > 0) {
+        // BRONZE: preserve the raw FeatureServer attributes for this county batch.
+        void captureRaw({
+          entityType: "parcel",
+          source: "fl-fgio",
+          sourceTag: this.sourceTag,
+          category: "bulk_roll",
+          countyFips: county.fips,
+          requestParams: { url, coNo: county.coNo },
+          rawResponse: { features: features.map((f) => f.attributes) },
+        });
         yield features.map((f) => this.mapFeature(f, county.fips));
       }
     }

@@ -80,6 +80,9 @@ model User {
   vendorRelationships   UserVendorRelationship[]  // User's relationships with platform vendors
   vendorJobs            VendorJob[]               // User's job history with vendors
 
+  // ML behavioral signals
+  leadEvents            LeadEvent[]               // Behavioral training signal
+
   @@index([email])
   @@index([clerkId])
   @@index([tier])
@@ -1582,4 +1585,75 @@ model BulkIngestJob {
   @@index([sourceTag])
   @@index([status])
   @@index([startedAt])
+}
+
+// =============================================================================
+// ML DATA LAYER — raw preservation (bronze) + behavioral signals
+// =============================================================================
+// CRITICAL: never discard raw source data. The normalized Parcel/Property layer
+// is lossy (keeps only winning field values); ML training needs the FULL raw
+// responses + their change-over-time. These two tables are append-only.
+
+// Bronze layer: the complete, immutable raw response from every scrape / API /
+// enrichment call. One row per fetch — NEVER updated. Captures the full payload
+// (all fields, not just the ones we extract) so re-scrapes form a time series.
+// This is the training corpus for lead scoring + data-quality models.
+model RawSnapshot {
+  id            String   @id @default(cuid())
+
+  // What this snapshot is about
+  entityType    String   // "parcel" | "property" | "owner"
+  countyFips    String?
+  apn           String?
+  propertyId    String?
+
+  // Where it came from
+  source        String   // "firecrawl" | "fl-fgio" | "batchdata" | "versium" | etc.
+  sourceTag     String   // canonical provenance tag (e.g. "scraper:appraiser-12031")
+  category      String?  // "appraiser" | "clerk_records" | "tax_delinquency" | "skip_trace" | "bulk_roll"
+
+  // The raw payload — the WHOLE thing, immutable
+  requestParams Json?    // url, query, schema we sent
+  rawResponse   Json     // full response: Firecrawl json+markdown+metadata, FeatureServer attrs, API body
+  contentHash   String   // sha256(rawResponse) — dedup + change detection across re-scrapes
+
+  capturedAt    DateTime @default(now())
+
+  @@index([entityType, countyFips, apn])
+  @@index([propertyId])
+  @@index([source])
+  @@index([category])
+  @@index([capturedAt])
+  @@index([contentHash])
+}
+
+// Behavioral layer: every user interaction with a lead, with a snapshot of the
+// lead's attributes AT THE TIME of the action. This is what lets us train a
+// per-user model of "what makes a great lead for YOU" — the behavioral scoring
+// engine. Append-only.
+model LeadEvent {
+  id            String   @id @default(cuid())
+  userId        String
+  propertyId    String?
+  parcelId      String?
+
+  eventType     String   // "viewed" | "opened" | "pursued" | "skipped" | "called" |
+                         // "texted" | "emailed" | "offer_made" | "contract_signed" |
+                         // "closed" | "marked_dead" | "saved" | "enriched"
+
+  // Snapshot of the lead's scoring-relevant attributes at event time.
+  // The model learns from the DELTA between pursued vs skipped snapshots.
+  leadSnapshot  Json     // { score, marketValue, assessedValue, equity, distressSignals,
+                         //   propertyType, yearBuilt, sqft, county, daysOnMarket, ... }
+  metadata      Json?    // event-specific extras (call duration, offer amount, disposition, etc.)
+
+  occurredAt    DateTime @default(now())
+
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([propertyId])
+  @@index([eventType])
+  @@index([occurredAt])
+  @@index([userId, eventType])
 }

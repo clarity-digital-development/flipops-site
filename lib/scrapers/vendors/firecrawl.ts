@@ -1,4 +1,5 @@
 import { CountyScraper } from "../base/county-scraper";
+import { captureRaw } from "@/lib/data-sources/raw-capture";
 import type {
   AddressLookup,
   BulkScrapeParams,
@@ -119,6 +120,7 @@ export class FirecrawlScraper extends CountyScraper {
     schema: object,
     prompt: string,
     extraActions?: unknown[],
+    captureCtx?: { apn?: string; category?: string },
   ): Promise<Record<string, unknown> | null> {
     const body: Record<string, unknown> = {
       url,
@@ -147,6 +149,20 @@ export class FirecrawlScraper extends CountyScraper {
     if (!json.success) {
       throw new Error(`Firecrawl error: ${json.error ?? "unknown"}`);
     }
+
+    // BRONZE LAYER: preserve the FULL Firecrawl response (json + markdown +
+    // metadata), not just the extracted fields. Fire-and-forget.
+    void captureRaw({
+      entityType: "parcel",
+      source: "firecrawl",
+      sourceTag: `scraper:${captureCtx?.category ?? "appraiser"}-${this.config.countyFips}`,
+      category: captureCtx?.category ?? "appraiser",
+      countyFips: this.config.countyFips,
+      apn: captureCtx?.apn,
+      requestParams: { url, prompt },
+      rawResponse: json.data ?? json,
+    });
+
     return json.data?.json ?? null;
   }
 
@@ -202,6 +218,8 @@ export class FirecrawlScraper extends CountyScraper {
       `Extract the full property record from this county property detail page. ` +
         `Include owner name, parcel/APN, assessed and market values, bed/bath/sqft, ` +
         `year built, last sale date and price, and tax delinquency status.`,
+      undefined,
+      { apn: parcelId, category: "appraiser" },
     );
     return this.normalize(data);
   }

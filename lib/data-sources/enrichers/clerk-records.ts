@@ -1,5 +1,6 @@
 import type { Enricher, EnrichContext, EnrichResult } from "../enrichment";
 import { distressSourcesFor } from "./distress-sources";
+import { captureRaw } from "../raw-capture";
 
 // ---------------------------------------------------------------------------
 // Clerk Official Records enricher — the PREMIUM distress signal.
@@ -84,6 +85,19 @@ export const clerkRecordsEnricher: Enricher = {
       });
       if (!res.ok) return null;
       const data = await res.json();
+
+      // BRONZE: preserve the full clerk records response (immutable).
+      void captureRaw({
+        entityType: "parcel",
+        source: "firecrawl",
+        sourceTag: `scraper:clerk-${ctx.countyFips}`,
+        category: "clerk_records",
+        countyFips: ctx.countyFips,
+        apn: ctx.apn,
+        requestParams: { url: sources.clerkRecordsUrl, query },
+        rawResponse: data?.data ?? data,
+      });
+
       const records = (data?.data?.json?.records as Array<Record<string, unknown>>) ?? [];
 
       const distress: string[] = [];

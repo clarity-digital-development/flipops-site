@@ -1,5 +1,6 @@
 import type { Enricher, EnrichContext, EnrichResult } from "../enrichment";
 import { distressSourcesFor } from "./distress-sources";
+import { captureRaw } from "../raw-capture";
 
 // ---------------------------------------------------------------------------
 // Tax Collector enricher — current delinquency status (the earliest financial
@@ -58,6 +59,19 @@ export const taxCollectorEnricher: Enricher = {
       });
       if (!res.ok) return null;
       const data = await res.json();
+
+      // BRONZE: preserve the full delinquency response (immutable).
+      void captureRaw({
+        entityType: "parcel",
+        source: "firecrawl",
+        sourceTag: `scraper:taxcollector-${ctx.countyFips}`,
+        category: "tax_delinquency",
+        countyFips: ctx.countyFips,
+        apn: ctx.apn,
+        requestParams: { url: sources.taxDelinquencyUrl, query },
+        rawResponse: data?.data ?? data,
+      });
+
       const j = data?.data?.json ?? {};
 
       const distress: string[] = [];
