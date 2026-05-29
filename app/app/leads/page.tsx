@@ -11,6 +11,7 @@ import { LeadListPanel } from "@/components/leads/lead-list-panel";
 import { LeadsMap } from "@/components/leads/leads-map";
 import { LeadDetailSheet } from "@/components/leads/lead-detail-sheet";
 import { seedProperties, type Property } from "./seed-data";
+import { trackLeadEvent, trackLeadsViewed } from "@/lib/behavior/client";
 
 // ---------------------------------------------------------------------------
 // Leads page — map-first redesign.
@@ -48,7 +49,11 @@ export default function LeadsPage() {
       }
       const data = await res.json();
       const list: Property[] = data.properties ?? [];
-      setProperties(list.length > 0 ? list : seedProperties);
+      const finalList = list.length > 0 ? list : seedProperties;
+      setProperties(finalList);
+      // Behavioral: leads that appeared in the user's session are "viewed."
+      // (Deduped per session inside the helper.)
+      trackLeadsViewed(finalList);
     } catch {
       setProperties(seedProperties);
     } finally {
@@ -88,6 +93,9 @@ export default function LeadsPage() {
   const handleSelect = (id: string) => {
     setSelectedId(id);
     setSheetOpen(true);
+    // Behavioral: opening the detail drawer is a stronger signal than just viewing.
+    const lead = properties.find((p) => p.id === id);
+    if (lead) void trackLeadEvent("opened", lead);
   };
 
   const handleClearFilters = () => {
@@ -138,6 +146,7 @@ export default function LeadsPage() {
   const handleSkipTrace = async (id: string) => {
     // Phase 4 wires this to POST /api/batchdata/skip-trace.
     const target = properties.find((p) => p.id === id);
+    if (target) void trackLeadEvent("enriched", target, { kind: "skip_trace" });
     toast({
       title: "Skip trace queued",
       description: target
@@ -147,15 +156,23 @@ export default function LeadsPage() {
   };
 
   const handleSendToUnderwriting = (id: string) => {
+    // Behavioral: strongest positive signal — user is investing time analyzing.
+    const lead = properties.find((p) => p.id === id);
+    if (lead) void trackLeadEvent("pursued", lead, { destination: "underwriting" });
     router.push(`/app/underwriting?propertyId=${encodeURIComponent(id)}`);
   };
 
   const handleAddToCampaign = (id: string) => {
+    // Behavioral: saved/queued for outreach — positive signal.
+    const lead = properties.find((p) => p.id === id);
+    if (lead) void trackLeadEvent("saved", lead, { destination: "dialer" });
     // Route to Oppenheimer (the AI dialer) with the lead pre-queued.
     router.push(`/app/dialer?tab=oppenheimer&addLeadId=${encodeURIComponent(id)}`);
   };
 
   const handleLogContact = async (id: string) => {
+    const lead = properties.find((p) => p.id === id);
+    if (lead) void trackLeadEvent("called", lead);
     try {
       const res = await fetch(`/api/properties/${id}`, {
         method: "PATCH",
