@@ -59,7 +59,10 @@ export class FlDorSdfIngester {
     recordsUpserted: number;
     durationMs: number;
   }> {
-    const batchSize = this.config.batchSize ?? 2000;
+    // PG protocol caps prepared-statement bind variables at 32767 (Int16
+    // wire format). 17 columns × batchSize must stay under that.
+    // 1500 × 17 = 25,500 — safe with margin.
+    const batchSize = Math.min(this.config.batchSize ?? 1500, 1500);
     const wantFips = opts.countyFips ?? null;
     const scope = wantFips ?? "FL";
 
@@ -152,6 +155,16 @@ export class FlDorSdfIngester {
    */
   private async insertBatch(rows: SaleRow[]): Promise<number> {
     if (rows.length === 0) return 0;
+    // PG bind-var cap: 32767. 17 cols × 1500 rows = 25500. Chunk if oversized.
+    const COLS = 17;
+    const MAX = Math.floor(32000 / COLS);
+    if (rows.length > MAX) {
+      let total = 0;
+      for (let i = 0; i < rows.length; i += MAX) {
+        total += await this.insertBatch(rows.slice(i, i + MAX));
+      }
+      return total;
+    }
 
     const cols = [
       "id",

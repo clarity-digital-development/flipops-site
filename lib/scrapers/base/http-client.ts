@@ -29,12 +29,40 @@ const CHROME_UA_POOL = [
 
 const TRANSIENT_STATUSES = new Set([408, 429, 500, 502, 503, 504]);
 
-/** Lazily-built proxy dispatcher; reused across calls to avoid agent churn. */
+/** Lazily-built proxy dispatcher; reused across calls to avoid agent churn.
+ *
+ *  TLS posture is tight by default and ONLY relaxes the target-TLS branch
+ *  that BD's Web Unlocker actively MITMs by design:
+ *
+ *    • `proxyTls` (connection us → brd.superproxy.io)  → strict verification.
+ *      BD has a valid public cert for that domain; any cert mismatch here
+ *      indicates a real on-path attacker between Railway and BD's edge, and
+ *      MUST fail. This is where our credentials transit in the
+ *      Proxy-Authorization header.
+ *    • `requestTls` (connection BD → public site, that we see as the
+ *      tunnel's TLS to the target) → cert verification skipped. This is
+ *      the connection BD intercepts so it can inject JS rendering, captcha
+ *      solving, and fingerprint emulation. The cert we see in this branch
+ *      is BD's MITM cert, not the target's. The proper alternative would
+ *      be pinning BD's MITM CA in `requestTls.ca` — captured as TODO. For
+ *      now this matches the `-k` flag BD itself recommends in their docs
+ *      and confines the exposure to the MITM-as-a-service surface we
+ *      already chose to use.
+ *
+ *  Direct (green-zone) fetches never go through this agent and keep full
+ *  end-to-end strict TLS.
+ */
 let cachedProxyAgent: ProxyAgent | null = null;
 function getProxyAgent(): Dispatcher | null {
   const url = process.env.BRIGHT_DATA_PROXY_URL ?? process.env.HTTPS_PROXY ?? process.env.HTTP_PROXY;
   if (!url) return null;
-  if (!cachedProxyAgent) cachedProxyAgent = new ProxyAgent(url);
+  if (!cachedProxyAgent) {
+    cachedProxyAgent = new ProxyAgent({
+      uri: url,
+      requestTls: { rejectUnauthorized: false },
+      proxyTls: { rejectUnauthorized: true },
+    });
+  }
   return cachedProxyAgent;
 }
 

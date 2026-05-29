@@ -68,7 +68,7 @@ async function main() {
     if (!csvPath) { console.error(`  ✗ ${t.name}: no CSV in zip`); continue; }
 
     const start = Date.now();
-    const r = await new FlDorSdfIngester({ sdfCsvPath: csvPath, vintage: VINTAGE, batchSize: 2000 })
+    const r = await new FlDorSdfIngester({ sdfCsvPath: csvPath, vintage: VINTAGE, batchSize: 1500 })
       .ingest({ countyFips: county.fips });
     const elapsed = (Date.now() - start) / 1000;
     console.log(`  ${t.name.padEnd(12)} ${r.recordsUpserted.toLocaleString().padStart(8)} sale rows in ${elapsed.toFixed(1)}s (${Math.round(r.recordsUpserted / elapsed)} rows/sec)`);

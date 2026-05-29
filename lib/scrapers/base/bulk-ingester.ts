@@ -138,6 +138,19 @@ export abstract class BulkIngester {
     const filtered = records.filter((r) => r.apn && r.countyFips);
     if (filtered.length === 0) return 0;
 
+    // Postgres caps prepared-statement bind variables at 32767 (Int16 wire
+    // format). With 26 columns per row, max safe batch is ~1250. If a
+    // caller passed something larger we chunk transparently.
+    const COLS_PER_ROW = 26;
+    const MAX_ROWS_PER_QUERY = Math.floor(32000 / COLS_PER_ROW);
+    if (filtered.length > MAX_ROWS_PER_QUERY) {
+      let total = 0;
+      for (let i = 0; i < filtered.length; i += MAX_ROWS_PER_QUERY) {
+        total += await this.upsertBatch(filtered.slice(i, i + MAX_ROWS_PER_QUERY));
+      }
+      return total;
+    }
+
     const vintage = this.dataVintage;
     const source = this.sourceTag;
     const now = new Date();
