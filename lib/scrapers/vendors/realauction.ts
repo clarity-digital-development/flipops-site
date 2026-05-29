@@ -92,6 +92,21 @@ interface RawAuction {
   status?: string;            // e.g. "Scheduled", "Sold", "Cancelled", "Postponed"
 }
 
+// Hallucination patterns we've observed from Firecrawl extractions against
+// splash / disclaimer pages where the LLM had no real data to extract.
+// Shared with [clerk-recordings.ts] in spirit but broader patterns here.
+const HALLUC_NAME = /^(john|jane)\s+(doe|smith)|^(bob|jim|joe)\s+(johnson|smith)|^(abc|xyz|def|acme)\s*(corp|inc|llc|company)/i;
+const HALLUC_ADDRESS = /^(123|456|789|111|999)\s+(main|elm|oak|maple|pine)\s+st/i;
+const HALLUC_CASE = /^20\d\d-(00[1-9]|0[12]\d)$|^(123|456|789)-?(456|789|000)$/;
+
+function realauctionLooksHallucinated(a: RawAuction): boolean {
+  if (a.caseNumber && HALLUC_CASE.test(a.caseNumber)) return true;
+  if (a.address && HALLUC_ADDRESS.test(a.address)) return true;
+  if (a.plaintiff && HALLUC_NAME.test(a.plaintiff)) return true;
+  if (a.defendant && HALLUC_NAME.test(a.defendant)) return true;
+  return false;
+}
+
 const AUCTION_SCHEMA = {
   type: "object",
   properties: {
@@ -187,7 +202,16 @@ export async function scrapeRealAuctions(opts: {
     legalRisk: "yellow",
   });
 
-  const auctions = (data?.data?.json?.auctions as RawAuction[]) ?? [];
+  const rawAuctions = (data?.data?.json?.auctions as RawAuction[]) ?? [];
+
+  // Hallucination guard — splash/disclaimer pages produce fake "Jane Smith"
+  // and sequential 2023-001 case numbers. Drop them before persisting.
+  // Bronze retains the raw payload for forensics.
+  const auctions = rawAuctions.filter((a) => !realauctionLooksHallucinated(a));
+  const rejected = rawAuctions.length - auctions.length;
+  if (rejected > 0) {
+    console.warn(`[realauction] rejected ${rejected} hallucinated rows for ${opts.countyFips}/${opts.track}`);
+  }
 
   const result: RealAuctionResult = {
     countyFips: opts.countyFips,
