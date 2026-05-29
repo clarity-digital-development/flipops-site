@@ -1,0 +1,113 @@
+import { chromium, type Browser, type Page, type BrowserContext } from "playwright-chromium";
+
+// ---------------------------------------------------------------------------
+// PlaywrightSession — real-browser scraping with optional Bright Data proxy.
+//
+// Why this exists (when ClerkSession + direct HTTP isn't enough):
+//   ASP.NET MVC AsyncForm + Kendo grid clerks (Acclaim, Granicus, custom)
+//   load search results via JS-driven AJAX with multi-step request chains
+//   that are county-specific and brittle to reverse-engineer. Playwright
+//   just IS a browser — the JS executes naturally, AJAX results render
+//   into the DOM, we read the DOM.
+//
+// Trade-offs vs ClerkSession:
+//   + Handles arbitrary JS/AJAX flows out-of-the-box
+//   + Real fingerprint (Chromium itself)
+//   + Easy form-driving (fill, click, waitForResponse)
+//   - ~300-500ms per page (vs 50-100ms for direct fetch)
+//   - Per-page memory cost (~50-100MB browser process)
+//   - Heavier dependency
+//
+// Use Playwright for: complex clerk search forms, login-walled auction
+// sites where we need to drive a UI to capture cookies, anything that
+// breaks direct-HTTP because of JS execution dependencies.
+//
+// Use ClerkSession for: simple cookie-walled pages, direct POST flows
+// where the AJAX endpoint is known and the auth model is just a cookie.
+//
+// BD proxy integration: Chromium accepts proxy via the launch option.
+// The TLS posture differs from undici — chromium handles cert validation
+// via its own bundled CA + chrome's logic. For BD MITM we use the
+// --ignore-certificate-errors-spki-list or ignoreHTTPSErrors at the
+// context level, scoped to this single browser context.
+// ---------------------------------------------------------------------------
+
+export interface PlaywrightSessionOptions {
+  /** Route all browser traffic through BRIGHT_DATA_PROXY_URL. */
+  useProxy?: boolean;
+  /** Headless (true) or headful for debugging. Default true. */
+  headless?: boolean;
+  /** Per-page navigation timeout in ms. Default 30s. */
+  navTimeoutMs?: number;
+}
+
+export class PlaywrightSession {
+  private browser: Browser | null = null;
+  private context: BrowserContext | null = null;
+
+  constructor(private opts: PlaywrightSessionOptions = {}) {}
+
+  /** Lazily launch the browser; reused across pages within the session. */
+  private async ensureBrowser(): Promise<Browser> {
+    if (this.browser) return this.browser;
+    const launchOpts: Parameters<typeof chromium.launch>[0] = {
+      headless: this.opts.headless !== false,
+    };
+
+    if (this.opts.useProxy) {
+      const url = process.env.BRIGHT_DATA_PROXY_URL;
+      if (!url) throw new Error("PlaywrightSession: useProxy=true but BRIGHT_DATA_PROXY_URL is not set");
+      // Playwright accepts proxy server + auth as a single config.
+      // Parse user:pass@host:port from the URL.
+      const parsed = new URL(url);
+      launchOpts.proxy = {
+        server: `${parsed.protocol}//${parsed.host}`,
+        username: parsed.username ? decodeURIComponent(parsed.username) : undefined,
+        password: parsed.password ? decodeURIComponent(parsed.password) : undefined,
+      };
+    }
+
+    this.browser = await chromium.launch(launchOpts);
+    return this.browser;
+  }
+
+  private async ensureContext(): Promise<BrowserContext> {
+    if (this.context) return this.context;
+    const browser = await this.ensureBrowser();
+    this.context = await browser.newContext({
+      // BD's Web Unlocker MITMs HTTPS — same posture as our undici client.
+      ignoreHTTPSErrors: this.opts.useProxy === true,
+      viewport: { width: 1366, height: 768 },
+      userAgent:
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+    });
+    return this.context;
+  }
+
+  async newPage(): Promise<Page> {
+    const ctx = await this.ensureContext();
+    const page = await ctx.newPage();
+    if (this.opts.navTimeoutMs) page.setDefaultNavigationTimeout(this.opts.navTimeoutMs);
+    return page;
+  }
+
+  /** Dump current cookies as JSON for save/restore patterns. */
+  async cookies(): Promise<string> {
+    const ctx = await this.ensureContext();
+    return JSON.stringify(await ctx.cookies(), null, 2);
+  }
+
+  /** Restore cookies from a JSON dump (for "log in once, reuse session" workflows). */
+  async restoreCookies(json: string): Promise<void> {
+    const ctx = await this.ensureContext();
+    const cookies = JSON.parse(json);
+    await ctx.addCookies(cookies);
+  }
+
+  async close(): Promise<void> {
+    await this.context?.close();
+    await this.browser?.close();
+    this.context = null;
+    this.browser = null;
+  }
+}
