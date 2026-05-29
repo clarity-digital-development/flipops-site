@@ -1520,6 +1520,40 @@ model ScrapeJob {
 // tenant-owned Property rows. A tenant Property links to a Parcel only when a
 // user actually works that lead. This is the fix for the system-user explosion.
 
+// One ROW per parcel sale event. Time-series: a parcel has 1..N sale rows
+// (FL SDF goes back to 2009; future deed scrapes back to county availability).
+// Keyed on (countyFips, apn, saleDate, source) so re-ingests are idempotent
+// but multi-source captures coexist (DOR SDF + clerk scraper rows side by side).
+model ParcelSale {
+  id              String   @id @default(cuid())
+  countyFips      String                       // natural key part 1
+  apn             String                       // natural key part 2 (PARCEL_ID)
+  saleDate        DateTime?                    // YYYY-MM-01 approx (SDF lacks day) or full from clerk records
+  saleYear        Int?                         // SALE_YR
+  saleMonth       Int?                         // SALE_MO
+  salePrice       Float?                       // SALE_PRC
+  qualCode        String?                      // QUAL_CD — FL DOR sale qualification (01-99)
+  saleChangeCode  String?                      // SAL_CHNG_CD — type of transfer
+  vacancyCode     String?                      // VI_CD — vacant/improved at time of sale
+  orBook          String?                      // official record book
+  orPage          String?                      // official record page
+  clerkNumber     String?                      // clerk document number
+  multiParcel     Boolean  @default(false)     // MULTI_PAR_SAL flag
+  // Free-text classification for downstream feature derivation. Maps to
+  // Cotality DEED CATEGORY TYPE CODE / DOCTY family after lookup.
+  deedType        String?
+
+  // Provenance
+  source          String                       // "bulk:fl-dor-sdf-2025" | "scraper:civitek-12031" | ...
+  dataVintage     String?                      // "2025"
+  capturedAt      DateTime @default(now())
+
+  @@unique([countyFips, apn, saleDate, source])
+  @@index([countyFips, apn, saleDate])
+  @@index([countyFips, saleDate])
+  @@index([source])
+}
+
 model Parcel {
   id                  String   @id @default(cuid())
   countyFips          String                 // "12031"
