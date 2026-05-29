@@ -24,16 +24,18 @@ export type LeadEventType =
   | "saved"
   | "enriched";
 
-/** The minimum shape every UI surface can produce for a lead. */
+/** The minimum shape every UI surface can produce for a lead.
+ *  All non-id fields tolerate `null` because that's how Prisma returns
+ *  optional columns — keeps callers from having to coalesce. */
 export interface TrackableLead {
   id: string;
-  score?: number;
+  score?: number | null;
   estimatedValue?: number | null;
   assessedValue?: number | null;
-  city?: string;
-  state?: string;
-  zip?: string;
-  propertyType?: string;
+  city?: string | null;
+  state?: string | null;
+  zip?: string | null;
+  propertyType?: string | null;
   yearBuilt?: number | null;
   squareFeet?: number | null;
   bedrooms?: number | null;
@@ -42,9 +44,9 @@ export interface TrackableLead {
   preForeclosure?: boolean;
   taxDelinquent?: boolean;
   vacant?: boolean;
-  outreachStatus?: string;
-  ownerName?: string;
-  county?: string;
+  outreachStatus?: string | null;
+  ownerName?: string | null;
+  county?: string | null;
 }
 
 function buildSnapshot(lead: TrackableLead): Record<string, unknown> {

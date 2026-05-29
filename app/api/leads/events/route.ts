@@ -21,8 +21,8 @@ const BodySchema = z.object({
   eventType: z.enum(EVENT_TYPES),
   propertyId: z.string().optional(),
   parcelId: z.string().optional(),
-  leadSnapshot: z.record(z.any()).default({}),
-  metadata: z.record(z.any()).optional(),
+  leadSnapshot: z.record(z.string(), z.any()).default({}),
+  metadata: z.record(z.string(), z.any()).optional(),
 });
 
 export async function POST(request: NextRequest) {

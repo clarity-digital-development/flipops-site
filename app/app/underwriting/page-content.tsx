@@ -63,6 +63,7 @@ import { useUser } from "@clerk/nextjs";
 import { type RepairItem } from "./seed-data";
 import { seedProperties as leadsSeedProperties } from "../leads/seed-data";
 import { MAOWaterfallPanel } from "@/components/deals/mao-waterfall";
+import { trackLeadEvent } from "@/lib/behavior/client";
 
 // ============================================================================
 // TYPES
@@ -1706,6 +1707,27 @@ export default function UnderwritingPage() {
       });
 
       if (response.ok) {
+        // Behavioral signal: offer_made is the strongest mid-funnel label
+        // before contract_signed. Capture the full deal math at action time
+        // so the model can learn "what ARV/repair/margin shape made this
+        // user pull the trigger." DO NOT recompute from current state later
+        // — sliders move, snapshots are immutable.
+        if (selectedProperty) {
+          void trackLeadEvent("offer_made", selectedProperty, {
+            offerAmount,
+            arv: adjustedARV,
+            repairs: adjustedRepairs,
+            mao,
+            suggestedOffer,
+            offerVsMao: mao > 0 ? offerAmount / mao : null,
+            offerVsArv: adjustedARV > 0 ? offerAmount / adjustedARV : null,
+            arvMethod,
+            arvSource,
+            terms: offerTerms,
+            contingencies: offerContingencies,
+            earnestMoney: offerEarnestMoney,
+          });
+        }
         toast.success('Offer created successfully!');
         setOfferDialogOpen(false);
         setOfferNotes("");
@@ -1794,7 +1816,14 @@ export default function UnderwritingPage() {
                     key={property.id}
                     property={property}
                     isSelected={selectedPropertyId === property.id}
-                    onClick={() => setSelectedPropertyId(property.id)}
+                    onClick={() => {
+                      setSelectedPropertyId(property.id);
+                      // Behavioral: user explicitly chose to underwrite this
+                      // deal. Distinct from a Leads-drawer 'opened' — surface
+                      // metadata lets the model weight underwriting-stage
+                      // attention higher than scroll-past attention.
+                      void trackLeadEvent("opened", property, { surface: "underwriting" });
+                    }}
                   />
                 ))}
               </div>

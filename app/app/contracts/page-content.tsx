@@ -73,6 +73,7 @@ import { useToast } from "@/components/ui/use-toast";
 import Link from "next/link";
 import { exportToCSV, generateFilename, formatCurrencyForCSV, formatDateForCSV } from "@/lib/csv-export";
 import { cn } from "@/lib/utils";
+import { trackLeadEvent, type LeadEventType } from "@/lib/behavior/client";
 
 interface Contract {
   id: string;
@@ -859,6 +860,38 @@ export default function ContractsPage() {
       });
 
       if (!response.ok) throw new Error("Failed to update contract");
+
+      // Behavioral: contract status transitions are the OUTCOME labels for
+      // the lead-scoring model. signed/closed are the strongest positives
+      // (a 'closed' deal is exactly what users want more of); cancelled is
+      // a negative outcome AFTER pursuit (different signal than a list-stage
+      // 'skipped'). leadSnapshot is intentionally thin here — the rich
+      // snapshot was captured upstream at 'offer_made' time; this event
+      // labels the same propertyId with the final outcome.
+      const outcomeMap: Record<string, LeadEventType | undefined> = {
+        signed: "contract_signed",
+        closed: "closed",
+        cancelled: "marked_dead",
+      };
+      const outcomeEvent = outcomeMap[newStatus];
+      if (outcomeEvent && selectedContract.propertyId) {
+        void trackLeadEvent(
+          outcomeEvent,
+          {
+            id: selectedContract.propertyId,
+            city: selectedContract.property?.city,
+            state: selectedContract.property?.state,
+            zip: selectedContract.property?.zip,
+          },
+          {
+            contractId: selectedContract.id,
+            purchasePrice: selectedContract.purchasePrice,
+            offerAmount: selectedContract.offer?.amount,
+            closingDate: closingDate || null,
+            previousStatus: selectedContract.status,
+          },
+        );
+      }
 
       toast({
         title: "Contract Updated",
