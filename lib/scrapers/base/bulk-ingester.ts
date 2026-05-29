@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { prisma } from "@/lib/prisma";
 
 // ---------------------------------------------------------------------------
@@ -127,48 +128,72 @@ export abstract class BulkIngester {
   }
 
   /**
-   * Batched upsert into Parcel. Uses one upsert per row inside a single
-   * transaction per batch — acceptable at batch sizes of a few thousand.
-   * (A future optimization is raw INSERT ... ON CONFLICT for COPY-speed.)
+   * Batched upsert into Parcel via raw multi-row INSERT ... ON CONFLICT.
+   * Per-row prisma.parcel.upsert was untenable at NAL scale (one network
+   * round-trip per row → ~50ms × 600k rows for big counties = hours per
+   * county). This sends one SQL statement per batch — Postgres handles
+   * 1000-row inserts in tens of ms.
    */
   protected async upsertBatch(records: ParcelRecord[]): Promise<number> {
+    const filtered = records.filter((r) => r.apn && r.countyFips);
+    if (filtered.length === 0) return 0;
+
     const vintage = this.dataVintage;
     const source = this.sourceTag;
-    const ops = records
-      .filter((r) => r.apn && r.countyFips)
-      .map((r) =>
-        prisma.parcel.upsert({
-          where: { countyFips_apn: { countyFips: r.countyFips, apn: r.apn } },
-          create: { ...this.toRow(r), source, dataVintage: vintage },
-          update: { ...this.toRow(r), source, dataVintage: vintage, fetchedAt: new Date() },
-        }),
-      );
-    const res = await prisma.$transaction(ops);
-    return res.length;
-  }
+    const now = new Date();
 
-  private toRow(r: ParcelRecord) {
-    return {
-      countyFips: r.countyFips,
-      apn: r.apn,
-      state: r.state,
-      ownerName: r.ownerName ?? null,
-      ownerMailingAddress: r.ownerMailingAddress ?? null,
-      situsAddress: r.situsAddress ?? null,
-      situsCity: r.situsCity ?? null,
-      situsState: r.situsState ?? null,
-      situsZip: r.situsZip ?? null,
-      marketValue: r.marketValue ?? null,
-      assessedValue: r.assessedValue ?? null,
-      landValue: r.landValue ?? null,
-      propertyType: r.propertyType ?? null,
-      yearBuilt: r.yearBuilt ?? null,
-      squareFeet: r.squareFeet ?? null,
-      lotSize: r.lotSize ?? null,
-      lastSalePrice: r.lastSalePrice ?? null,
-      lastSaleYear: r.lastSaleYear ?? null,
-      latitude: r.latitude ?? null,
-      longitude: r.longitude ?? null,
-    };
+    // Column list (matches insertion order below + Parcel schema). `id` and
+    // `updatedAt` are Prisma-managed in normal CRUD; raw SQL must populate
+    // them explicitly. ON CONFLICT UPDATE excludes `id`+`createdAt` so we
+    // never overwrite the original ID or creation timestamp on re-ingest.
+    const cols = [
+      "id",
+      "countyFips", "apn", "state",
+      "ownerName", "ownerMailingAddress",
+      "situsAddress", "situsCity", "situsState", "situsZip",
+      "marketValue", "assessedValue", "landValue",
+      "propertyType", "yearBuilt", "squareFeet", "lotSize",
+      "lastSalePrice", "lastSaleYear",
+      "latitude", "longitude",
+      "source", "dataVintage", "fetchedAt",
+      "createdAt", "updatedAt",
+    ];
+    const NEVER_UPDATE = new Set(["id", "countyFips", "apn", "createdAt"]);
+    const updateCols = cols.filter((c) => !NEVER_UPDATE.has(c));
+
+    // Build $1..$N placeholders + flat values array.
+    const values: unknown[] = [];
+    const placeholderRows: string[] = [];
+    for (const r of filtered) {
+      const row = [
+        randomUUID(), // id — never overwritten on conflict, so this is safe to generate fresh per row
+        r.countyFips, r.apn, r.state,
+        r.ownerName ?? null, r.ownerMailingAddress ?? null,
+        r.situsAddress ?? null, r.situsCity ?? null, r.situsState ?? null, r.situsZip ?? null,
+        r.marketValue ?? null, r.assessedValue ?? null, r.landValue ?? null,
+        r.propertyType ?? null, r.yearBuilt ?? null, r.squareFeet ?? null, r.lotSize ?? null,
+        r.lastSalePrice ?? null, r.lastSaleYear ?? null,
+        r.latitude ?? null, r.longitude ?? null,
+        source, vintage, now,
+        now, now, // createdAt, updatedAt
+      ];
+      const start = values.length;
+      values.push(...row);
+      placeholderRows.push(
+        "(" + row.map((_, i) => `$${start + i + 1}`).join(", ") + ")",
+      );
+    }
+
+    const colSql = cols.map((c) => `"${c}"`).join(", ");
+    const updateSql = updateCols
+      .map((c) => `"${c}" = EXCLUDED."${c}"`)
+      .join(", ");
+
+    const sql =
+      `INSERT INTO "Parcel" (${colSql}) VALUES ${placeholderRows.join(", ")} ` +
+      `ON CONFLICT ("countyFips", "apn") DO UPDATE SET ${updateSql}`;
+
+    await prisma.$executeRawUnsafe(sql, ...values);
+    return filtered.length;
   }
 }

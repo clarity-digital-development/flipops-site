@@ -1617,6 +1617,13 @@ model RawSnapshot {
   rawResponse   Json     // full response: Firecrawl json+markdown+metadata, FeatureServer attrs, API body
   contentHash   String   // sha256(rawResponse) — dedup + change detection across re-scrapes
 
+  // Per §5.1 of [FL-COVERAGE-PLAN.md]: every scrape carries the legal-risk
+  // zone it was sourced from so we can purge yellow-zone data with one SQL
+  // if a cease-and-desist arrives. Default "green" for backwards-compat.
+  legalRisk     String?  @default("green") // "green" | "yellow"
+  egressIp      String?  // residential proxy session IP, when applicable
+  proxySession  String?  // Bright Data session ID for replay/audit
+
   capturedAt    DateTime @default(now())
 
   @@index([entityType, countyFips, apn])
@@ -1625,6 +1632,7 @@ model RawSnapshot {
   @@index([category])
   @@index([capturedAt])
   @@index([contentHash])
+  @@index([legalRisk])
 }
 
 // Behavioral layer: every user interaction with a lead, with a snapshot of the

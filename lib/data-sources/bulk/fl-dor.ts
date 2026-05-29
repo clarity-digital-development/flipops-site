@@ -1,4 +1,5 @@
-import { createReadStream } from "node:fs";
+import { createHash } from "node:crypto";
+import { createReadStream, statSync } from "node:fs";
 import { parse } from "csv-parse";
 import {
   BulkIngester,
@@ -62,10 +63,31 @@ export class FlDorIngester extends BulkIngester {
     opts: IngestOptions,
   ): AsyncGenerator<ParcelRecord[], void, unknown> {
     const batchSize = this.config.batchSize ?? 1000;
-
-    // Smoke-test mode: stream the same statewide file but skip rows whose
-    // CO_NO doesn't crosswalk to the requested FIPS (e.g. Duval = 12031).
     const wantFips = opts.countyFips ?? null;
+
+    // Bronze for a bulk file ingest: ONE snapshot describing the file +
+    // checksum + mapper version. The full per-row Cotality shape is
+    // re-derivable any time by re-running this code against the same file.
+    // This avoids 13k+ RawSnapshot inserts per county which would dominate
+    // the wall-clock vs the typed Parcel upserts.
+    void captureRaw({
+      entityType: "parcel",
+      source: "fl-dor",
+      sourceTag: this.sourceTag,
+      category: "bulk_roll_file",
+      countyFips: wantFips ?? undefined,
+      requestParams: {
+        csvPath: this.config.nalCsvPath,
+        vintage: this.config.vintage,
+        wantFips,
+      },
+      rawResponse: {
+        fileSize: statSync(this.config.nalCsvPath).size,
+        fileSha256Head: fileHashHead(this.config.nalCsvPath),
+        mapperFields: Object.keys(NAL_TO_COTALITY).length,
+        mapperFingerprint: createHash("sha256").update(JSON.stringify(NAL_TO_COTALITY)).digest("hex").slice(0, 16),
+      },
+    });
 
     const stream = createReadStream(this.config.nalCsvPath).pipe(
       parse({
@@ -81,24 +103,11 @@ export class FlDorIngester extends BulkIngester {
       const coNo = Number.parseInt(row["CO_NO"] ?? "", 10);
       if (Number.isNaN(coNo)) continue;
       const county = flCountyByCoNo(coNo);
-      if (!county) continue; // unknown CO_NO — skip with no error
+      if (!county) continue;
       if (wantFips && county.fips !== wantFips) continue;
 
       const parcelRecord = nalRowToParcelRecord(row, county.fips);
       if (!parcelRecord) continue;
-
-      // Bronze: capture the full Cotality-named row before any normalization.
-      // Fire-and-forget so it never blocks the upsert pipeline.
-      void captureRaw({
-        entityType: "parcel",
-        source: "fl-dor",
-        sourceTag: this.sourceTag,
-        category: "bulk_roll",
-        countyFips: county.fips,
-        apn: parcelRecord.apn,
-        requestParams: { csvPath: this.config.nalCsvPath, coNo, vintage: this.config.vintage },
-        rawResponse: nalRowToCotalityShape(row, county.fips),
-      });
 
       batch.push(parcelRecord);
       if (batch.length >= batchSize) {
@@ -107,6 +116,19 @@ export class FlDorIngester extends BulkIngester {
       }
     }
     if (batch.length > 0) yield batch;
+  }
+}
+
+/** Hash only the first 1MB of a potentially-large file — enough for
+ *  content-change detection without a full-file scan. */
+function fileHashHead(path: string): string {
+  const fd = require("node:fs").openSync(path, "r");
+  try {
+    const buf = Buffer.alloc(1024 * 1024);
+    const bytes = require("node:fs").readSync(fd, buf, 0, buf.length, 0);
+    return createHash("sha256").update(buf.subarray(0, bytes)).digest("hex");
+  } finally {
+    require("node:fs").closeSync(fd);
   }
 }
 

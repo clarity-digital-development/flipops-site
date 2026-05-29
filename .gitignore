@@ -38,6 +38,11 @@ yarn-error.log*
 
 # Google OAuth and service account credentials
 google-service-account.json
+
+# Bulk scrape raw files (FL DOR NAL/SDF .zip files, FloridaGIO files, etc.)
+# These can be ~1GB statewide. Keep them out of git; re-download from the
+# DOR portal anytime via scripts/fl-dor-portal-discover.ts.
+/data/raw/
 google-oauth2-web-credentials.json
 google-sheet-config.json
 oauth-token.json

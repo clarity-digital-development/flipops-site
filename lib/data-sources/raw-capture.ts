@@ -26,6 +26,12 @@ export interface CaptureRawInput {
   propertyId?: string;
   requestParams?: unknown; // url / query / schema we sent
   rawResponse: unknown;    // the WHOLE response
+  /** Legal-risk zone per §5.1 of FL-COVERAGE-PLAN.md. Default "green". */
+  legalRisk?: "green" | "yellow";
+  /** Residential proxy egress IP for this fetch (if useProxy was set). */
+  egressIp?: string;
+  /** Bright Data session ID for replay/audit (if useProxy was set). */
+  proxySession?: string;
 }
 
 export async function captureRaw(input: CaptureRawInput): Promise<void> {
@@ -35,6 +41,10 @@ export async function captureRaw(input: CaptureRawInput): Promise<void> {
       .update(JSON.stringify(rawJson))
       .digest("hex");
 
+    // Use a typed cast — the legalRisk/egressIp/proxySession columns were
+    // added via db push; the regenerated Prisma client picks them up when
+    // the engine binary is unlocked. Until then, the create accepts them at
+    // runtime and the DB defaults make legalRisk="green" when absent.
     await prisma.rawSnapshot.create({
       data: {
         entityType: input.entityType,
@@ -47,7 +57,12 @@ export async function captureRaw(input: CaptureRawInput): Promise<void> {
         requestParams: (input.requestParams ?? undefined) as object | undefined,
         rawResponse: rawJson as object,
         contentHash,
-      },
+        ...({
+          legalRisk: input.legalRisk ?? "green",
+          egressIp: input.egressIp ?? null,
+          proxySession: input.proxySession ?? null,
+        } as Record<string, unknown>),
+      } as Parameters<typeof prisma.rawSnapshot.create>[0]["data"],
     });
   } catch (err) {
     // Never let raw-capture failures break the data pipeline — but log loudly,
