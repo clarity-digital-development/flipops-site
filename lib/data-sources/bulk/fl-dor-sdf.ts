@@ -200,11 +200,14 @@ export class FlDorSdfIngester {
       `ON CONFLICT ("countyFips", "apn", "saleDate", "source") DO NOTHING`;
 
     // WAL-pressure safeguard: synchronous_commit = OFF for bulk-load. See
-    // BulkIngester for the rationale + Dade-PANIC incident.
-    await prisma.$transaction(async (tx) => {
-      await tx.$executeRawUnsafe("SET LOCAL synchronous_commit = OFF");
-      await tx.$executeRawUnsafe(sql, ...values);
-    });
+    // BulkIngester for the rationale + Dade-PANIC + Lee-tx-expired incidents.
+    await prisma.$transaction(
+      async (tx) => {
+        await tx.$executeRawUnsafe("SET LOCAL synchronous_commit = OFF");
+        await tx.$executeRawUnsafe(sql, ...values);
+      },
+      { timeout: 60_000, maxWait: 10_000 },
+    );
     return rows.length;
   }
 }

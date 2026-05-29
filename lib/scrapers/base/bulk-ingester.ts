@@ -235,10 +235,19 @@ export abstract class BulkIngester {
     // don't need fsync-per-batch (we can re-run from the source CSV anytime).
     // This dramatically reduces WAL flush pressure on Railway PG; without it
     // the Dade NAL ingest tripped a pg_wal disk-full PANIC at the server.
-    await prisma.$transaction(async (tx) => {
-      await tx.$executeRawUnsafe("SET LOCAL synchronous_commit = OFF");
-      await tx.$executeRawUnsafe(sql, ...values);
-    });
+    //
+    // Transaction timeout bumped to 60s: Prisma's default is 5s, which the
+    // Lee ingest blew past when a connection drop mid-batch triggered a
+    // retry. The retry wait + reconnect time exceeded the tx window and we
+    // got "Transaction already closed" instead of recovery. 60s is well
+    // above any realistic single-batch + one retry cycle.
+    await prisma.$transaction(
+      async (tx) => {
+        await tx.$executeRawUnsafe("SET LOCAL synchronous_commit = OFF");
+        await tx.$executeRawUnsafe(sql, ...values);
+      },
+      { timeout: 60_000, maxWait: 10_000 },
+    );
     return filtered.length;
   }
 }
@@ -259,6 +268,11 @@ const CONNECTION_DROP_PATTERNS = [
   "kind: Closed",
   "P1001", // Prisma: Can't reach database server
   "P1017", // Prisma: Server closed connection
+  // Lee-incident: when a connection drops mid-transaction, Prisma marks the
+  // transaction expired; the retry on the same call site should be allowed
+  // because it'll spin up a fresh transaction on a fresh connection.
+  "Transaction already closed",
+  "Transaction API error",
 ];
 
 function isConnectionDrop(err: unknown): boolean {
