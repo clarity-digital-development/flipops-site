@@ -1520,6 +1520,96 @@ model ScrapeJob {
 // tenant-owned Property rows. A tenant Property links to a Parcel only when a
 // user actually works that lead. This is the fix for the system-user explosion.
 
+// One ROW per recorded mortgage. Time-series: a parcel can have 1..N
+// mortgages over time (originals + refis + 2nd/3rd positions). Maps the
+// Cotality mortgage domain (~252 fields collapsed into the key ones we
+// extract from clerk-of-court ORI scrapes). Multi-source: Civitek ORI
+// today, county-clerk fallbacks later, all coexist via `source` discriminator.
+model Mortgage {
+  id              String   @id @default(cuid())
+  countyFips      String
+  apn             String?                          // not always present on ORI; back-resolve via parcel join when possible
+  position        Int?                             // 1=1st mortgage, 2=2nd, 3=3rd, null=unknown
+  recordingDate   DateTime
+  loanAmount      Float?
+  interestRate    Float?
+  lenderName      String?
+  borrowerName    String?
+  mortgageType    String?                          // Cotality MTGTP code (FIXED, ARM, PURCHASE, REFI, HELOC, etc.)
+  documentNumber  String?                          // clerk OR doc number
+  orBook          String?
+  orPage          String?
+  releasedAt      DateTime?                        // null = active; set when satisfaction is recorded
+  releaseDocNum   String?
+
+  source          String                           // "scraper:civitek-12031" | "scraper:clerk-12086" | ...
+  capturedAt      DateTime @default(now())
+
+  @@unique([countyFips, documentNumber, source])
+  @@index([countyFips, apn, recordingDate])
+  @@index([apn])
+  @@index([recordingDate])
+}
+
+// One ROW per recorded lien event (mechanics, HOA, tax, judgment, lis pendens).
+// Maps the Cotality HOA + Mechanics Liens v1 dictionary (55 fields → these
+// extracted attrs). Mechanics + HOA liens are highest-value distress signals
+// for our wholesale/flip product (motivated-seller indicators).
+model Lien {
+  id              String   @id @default(cuid())
+  countyFips      String
+  apn             String?
+  lienCategory    String                           // "mechanics" | "hoa" | "tax" | "judgment" | "lis_pendens" | "other"
+  recordingDate   DateTime
+  filingDate      DateTime?
+  amount          Float?
+  interestRate    Float?
+  plaintiffName   String?                          // claimant / lienholder
+  plaintiffAddress String?
+  defendantName   String?                          // property owner being lienned
+  lienTypeCode    String?                          // Cotality DOCTY family
+  documentNumber  String?
+  orBook          String?
+  orPage          String?
+  releasedAt      DateTime?
+  releaseDocNum   String?
+
+  source          String
+  capturedAt      DateTime @default(now())
+
+  @@unique([countyFips, documentNumber, source])
+  @@index([countyFips, apn, lienCategory, recordingDate])
+  @@index([apn])
+  @@index([lienCategory, recordingDate])
+}
+
+// One ROW per foreclosure stage transition. The Cotality FORECLOSURE STAGE
+// CODE is a single field, but our scrape data is time-series (lis pendens →
+// notice of sale → scheduled auction → sold/REO/dismissed). Each transition
+// is its own row so the model learns the sequence.
+model Foreclosure {
+  id              String   @id @default(cuid())
+  countyFips      String
+  apn             String?
+  stageCode       String                           // "NOD" | "LP" | "NTS" | "SCHEDULED" | "SOLD" | "REO" | "DISMISSED"
+  filingDate      DateTime?
+  auctionDate     DateTime?
+  judgmentAmount  Float?
+  openingBid      Float?
+  surplusBid      Float?
+  plaintiffName   String?
+  caseNumber      String?
+  trusteeId       String?                          // realauction case ID, when scraped from there
+
+  source          String                           // "scraper:civitek-12031" | "scraper:realauction-duval" | ...
+  capturedAt      DateTime @default(now())
+
+  @@unique([countyFips, caseNumber, stageCode, source])
+  @@index([countyFips, apn, stageCode, capturedAt])
+  @@index([apn])
+  @@index([auctionDate])
+}
+
 // One ROW per parcel sale event. Time-series: a parcel has 1..N sale rows
 // (FL SDF goes back to 2009; future deed scrapes back to county availability).
 // Keyed on (countyFips, apn, saleDate, source) so re-ingests are idempotent

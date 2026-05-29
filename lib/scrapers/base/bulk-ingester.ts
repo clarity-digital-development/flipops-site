@@ -71,6 +71,17 @@ export abstract class BulkIngester {
   /**
    * Entry point. Streams batches, upserts each into Parcel, writes a
    * BulkIngestJob audit row with running/succeeded/failed status.
+   *
+   * Safeguards for Railway PG (after the Dade-WAL-PANIC incident):
+   *   • Each upsertBatch runs in its own transaction with
+   *     synchronous_commit = OFF — cuts WAL flush pressure massively for
+   *     bulk-load workloads where we can re-run a failed batch from
+   *     the source CSV anytime.
+   *   • Connection-drop errors retry the batch (up to 3x with backoff)
+   *     instead of cascading through the whole ingest.
+   *   • Audit-row updates are best-effort; if they fail, ingest keeps going.
+   *   • Periodic micro-pause (every 50 batches) gives Railway's checkpoint
+   *     a chance to flush WAL between bursts.
    */
   async ingest(opts: IngestOptions = {}): Promise<BulkIngestResult> {
     const scope = opts.countyFips ?? this.defaultScope();
@@ -81,44 +92,58 @@ export abstract class BulkIngester {
     const startedAt = Date.now();
     let fetched = 0;
     let upserted = 0;
+    let batchIndex = 0;
 
     try {
       for await (const batch of this.fetchBatches(opts)) {
         if (batch.length === 0) continue;
         fetched += batch.length;
-        upserted += await this.upsertBatch(batch);
-        // Checkpoint progress so a long run is observable / resumable.
-        await prisma.bulkIngestJob.update({
-          where: { id: job.id },
-          data: { recordsFetched: fetched, recordsUpserted: upserted },
-        });
+        upserted += await retryOnConnectionDrop(() => this.upsertBatch(batch));
+        batchIndex++;
+
+        // Audit update is best-effort — a failed update doesn't kill ingest.
+        try {
+          await prisma.bulkIngestJob.update({
+            where: { id: job.id },
+            data: { recordsFetched: fetched, recordsUpserted: upserted },
+          });
+        } catch { /* ignore audit failure */ }
+
+        // Every 50 batches, give WAL checkpoint a moment to catch up.
+        if (batchIndex % 50 === 0) {
+          await new Promise((r) => setTimeout(r, 250));
+        }
         if (opts.maxRecords && fetched >= opts.maxRecords) break;
       }
 
       const durationMs = Date.now() - startedAt;
-      await prisma.bulkIngestJob.update({
-        where: { id: job.id },
-        data: {
-          status: "succeeded",
-          recordsFetched: fetched,
-          recordsUpserted: upserted,
-          finishedAt: new Date(),
-          durationMs,
-        },
-      });
+      try {
+        await prisma.bulkIngestJob.update({
+          where: { id: job.id },
+          data: {
+            status: "succeeded",
+            recordsFetched: fetched,
+            recordsUpserted: upserted,
+            finishedAt: new Date(),
+            durationMs,
+          },
+        });
+      } catch { /* audit failure on success path — don't mask the real result */ }
       return { sourceTag: this.sourceTag, scope, recordsFetched: fetched, recordsUpserted: upserted, durationMs };
     } catch (err) {
-      await prisma.bulkIngestJob.update({
-        where: { id: job.id },
-        data: {
-          status: "failed",
-          recordsFetched: fetched,
-          recordsUpserted: upserted,
-          finishedAt: new Date(),
-          durationMs: Date.now() - startedAt,
-          errorMessage: err instanceof Error ? err.message : String(err),
-        },
-      });
+      try {
+        await prisma.bulkIngestJob.update({
+          where: { id: job.id },
+          data: {
+            status: "failed",
+            recordsFetched: fetched,
+            recordsUpserted: upserted,
+            finishedAt: new Date(),
+            durationMs: Date.now() - startedAt,
+            errorMessage: err instanceof Error ? err.message : String(err),
+          },
+        });
+      } catch { /* ignore audit failure on error path too */ }
       throw err;
     }
   }
@@ -206,7 +231,60 @@ export abstract class BulkIngester {
       `INSERT INTO "Parcel" (${colSql}) VALUES ${placeholderRows.join(", ")} ` +
       `ON CONFLICT ("countyFips", "apn") DO UPDATE SET ${updateSql}`;
 
-    await prisma.$executeRawUnsafe(sql, ...values);
+    // Wrap in a transaction with synchronous_commit OFF — bulk-load workloads
+    // don't need fsync-per-batch (we can re-run from the source CSV anytime).
+    // This dramatically reduces WAL flush pressure on Railway PG; without it
+    // the Dade NAL ingest tripped a pg_wal disk-full PANIC at the server.
+    await prisma.$transaction(async (tx) => {
+      await tx.$executeRawUnsafe("SET LOCAL synchronous_commit = OFF");
+      await tx.$executeRawUnsafe(sql, ...values);
+    });
     return filtered.length;
   }
+}
+
+// ---------------------------------------------------------------------------
+// Connection-drop retry. Bulk ingests can take hours; Railway PG / Prisma /
+// pgbouncer connections can hiccup mid-run. Without retry, a single
+// ECONNRESET kills the entire ingest. We retry idempotent batch upserts on
+// connection-level failures only; logical errors (constraint violations etc)
+// pass through immediately.
+// ---------------------------------------------------------------------------
+
+const CONNECTION_DROP_PATTERNS = [
+  "ECONNRESET",
+  "Server has closed the connection",
+  "Can't reach database server",
+  "Connection terminated",
+  "kind: Closed",
+  "P1001", // Prisma: Can't reach database server
+  "P1017", // Prisma: Server closed connection
+];
+
+function isConnectionDrop(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message : String(err ?? "");
+  return CONNECTION_DROP_PATTERNS.some((p) => msg.includes(p));
+}
+
+async function retryOnConnectionDrop<T>(
+  fn: () => Promise<T>,
+  maxRetries = 3,
+): Promise<T> {
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      if (attempt < maxRetries && isConnectionDrop(err)) {
+        const backoff = Math.min(2 ** attempt * 1000, 8000);
+        console.warn(
+          `[bulk-ingester] connection drop on batch (attempt ${attempt + 1}/${maxRetries + 1}); retrying in ${backoff}ms:`,
+          err instanceof Error ? err.message.split("\n")[0] : String(err),
+        );
+        await new Promise((r) => setTimeout(r, backoff));
+        continue;
+      }
+      throw err;
+    }
+  }
+  throw new Error("retryOnConnectionDrop: exhausted retries");
 }

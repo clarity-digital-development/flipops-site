@@ -199,7 +199,12 @@ export class FlDorSdfIngester {
       `INSERT INTO "ParcelSale" (${colSql}) VALUES ${placeholders.join(", ")} ` +
       `ON CONFLICT ("countyFips", "apn", "saleDate", "source") DO NOTHING`;
 
-    await prisma.$executeRawUnsafe(sql, ...values);
+    // WAL-pressure safeguard: synchronous_commit = OFF for bulk-load. See
+    // BulkIngester for the rationale + Dade-PANIC incident.
+    await prisma.$transaction(async (tx) => {
+      await tx.$executeRawUnsafe("SET LOCAL synchronous_commit = OFF");
+      await tx.$executeRawUnsafe(sql, ...values);
+    });
     return rows.length;
   }
 }
