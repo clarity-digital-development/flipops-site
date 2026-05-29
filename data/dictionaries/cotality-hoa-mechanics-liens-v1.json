@@ -1,0 +1,604 @@
+{
+  "mainFields": [
+    {
+      "num": "FIELD #",
+      "name": "FIELD NAME",
+      "type": "TYPE",
+      "table": "TABLE",
+      "maxLength": "MAX LENGTH",
+      "decimal": "DECIMAL",
+      "definition": "FIELD DEFINITION"
+    },
+    {
+      "num": 1,
+      "name": "CLIP",
+      "type": "AlphaNumeric",
+      "table": null,
+      "maxLength": 10,
+      "decimal": "",
+      "definition": "Unique identification number assigned to each property."
+    },
+    {
+      "num": 2,
+      "name": "PREVIOUS CLIP",
+      "type": "AlphaNumeric",
+      "table": null,
+      "maxLength": 10,
+      "decimal": "",
+      "definition": "Previous CLIP (identification number for properties) which has had a change in CLIP."
+    },
+    {
+      "num": 3,
+      "name": "FIPS CODE",
+      "type": "AlphaNumeric",
+      "table": null,
+      "maxLength": 5,
+      "decimal": "",
+      "definition": "Federal Information Processing Standards codes used nationally to numerically identify a specific county or political jurisdiction."
+    },
+    {
+      "num": 4,
+      "name": "APN (PARCEL NUMBER UNFORMATTED)",
+      "type": "AlphaNumeric",
+      "table": null,
+      "maxLength": 45,
+      "decimal": "",
+      "definition": "Assessor's Parcel Number in an unformatted form. This is most often used by the county and others as a unique key."
+    },
+    {
+      "num": 5,
+      "name": "APN SEQUENCE NUMBER",
+      "type": "Numeric",
+      "table": null,
+      "maxLength": 3,
+      "decimal": "",
+      "definition": "This internal sequence number is used to ensure uniqueness of the Assessor's Parcel Number."
+    },
+    {
+      "num": 6,
+      "name": "COMPOSITE PROPERTY LINKAGE KEY",
+      "type": "AlphaNumeric",
+      "table": null,
+      "maxLength": 53,
+      "decimal": "",
+      "definition": "Unique property key, which can be used to link to other files associated with property (used in Legacy Product).   This is a fixed-width field, with the APN component padded with blanks out to 45 characters within the composite key."
+    },
+    {
+      "num": 7,
+      "name": "ORIGINAL APN",
+      "type": "AlphaNumeric",
+      "table": null,
+      "maxLength": 45,
+      "decimal": "",
+      "definition": "Original Assessors Parcel Number (APN) in raw format provided on the assessor tax roll. Used if a county renumbers or changes their parcel IDs."
+    },
+    {
+      "num": 8,
+      "name": "TAX ACCOUNT NUMBER",
+      "type": "AlphaNumeric",
+      "table": null,
+      "maxLength": 60,
+      "decimal": "",
+      "definition": "The county or source number used primarily for billing. Note: this number is typically not unique to a parcel, but rather to a tax bill (multiple parcels can be combined on 1 bill)."
+    },
+    {
+      "num": 9,
+      "name": "ONLINE FORMATTED PARCEL ID",
+      "type": "AlphaNumeric",
+      "table": null,
+      "maxLength": 60,
+      "decimal": "",
+      "definition": "APN that would link to CoreLogic online products."
+    },
+    {
+      "num": 10,
+      "name": "TRANSACTION FIPS CODE",
+      "type": "AlphaNumeric",
+      "table": null,
+      "maxLength": 5,
+      "decimal": "",
+      "definition": "Federal Information Processing Standards codes used nationally to numerically identify a specific county or political jurisdiction."
+    },
+    {
+      "num": 11,
+      "name": "COMPOSITE TRANSACTION ID",
+      "type": "AlphaNumeric",
+      "table": null,
+      "maxLength": 21,
+      "decimal": "",
+      "definition": "Unique transaction key comprised of FIPS Code, Transaction Batch Date, Transaction Sequence Number, and either Mortgage Sequence Number if record reflects mortgage data content or '000' if record does not reflect mortgage data content."
+    },
+    {
+      "num": 12,
+      "name": "TRANSACTION BATCH DATE",
+      "type": "Numeric",
+      "table": null,
+      "maxLength": 8,
+      "decimal": "",
+      "definition": "CoreLogic internal date number - can be used in the creation of unique keys (format is YYYYMMDD)."
+    },
+    {
+      "num": 13,
+      "name": "TRANSACTION BATCH SEQUENCE NUMBER",
+      "type": "Numeric",
+      "table": null,
+      "maxLength": 5,
+      "decimal": "",
+      "definition": "CoreLogic internal sequence number - can be used in the creation of unique keys."
+    },
+    {
+      "num": 14,
+      "name": "PENDING RECORD INDICATOR",
+      "type": "AlphaNumeric",
+      "table": null,
+      "maxLength": 1,
+      "decimal": "",
+      "definition": "Indicator which identifies transactions which could not be matched to the county's tax roll file. Shows \"Y\" when true."
+    },
+    {
+      "num": 15,
+      "name": "OWNER 1 FULL NAME - STATIC",
+      "type": "AlphaNumeric",
+      "table": null,
+      "maxLength": 60,
+      "decimal": "",
+      "definition": "Full name of property owner - 1st occurrence."
+    },
+    {
+      "num": 16,
+      "name": "OWNER 1 LAST NAME - STATIC",
+      "type": "AlphaNumeric",
+      "table": null,
+      "maxLength": 30,
+      "decimal": "",
+      "definition": "Last name of property owner - 1st occurrence."
+    },
+    {
+      "num": 17,
+      "name": "OWNER 1 FIRST NAME & MIDDLE INITIAL - STATIC",
+      "type": "AlphaNumeric",
+      "table": null,
+      "maxLength": 45,
+      "decimal": "",
+      "definition": "First name and middle initial of property owner - 1st occurrence."
+    },
+    {
+      "num": 18,
+      "name": "OWNER 2 FULL NAME - STATIC",
+      "type": "AlphaNumeric",
+      "table": null,
+      "maxLength": 60,
+      "decimal": "",
+      "definition": "Additional owner name if more than one entity owns the property."
+    },
+    {
+      "num": 19,
+      "name": "OWNER 2 LAST NAME - STATIC",
+      "type": "AlphaNumeric",
+      "table": null,
+      "maxLength": 30,
+      "decimal": "",
+      "definition": "Additional owner name data if more than one entity owns the property."
+    },
+    {
+      "num": 20,
+      "name": "OWNER 2 FIRST NAME & MIDDLE INITIAL - STATIC",
+      "type": "AlphaNumeric",
+      "table": null,
+      "maxLength": 45,
+      "decimal": "",
+      "definition": "Additional owner name data if more than one entity owns the property."
+    },
+    {
+      "num": 21,
+      "name": "DEED SITUS HOUSE NUMBER - STATIC",
+      "type": "AlphaNumeric",
+      "table": null,
+      "maxLength": 10,
+      "decimal": "",
+      "definition": "The digits found to the left of a street name."
+    },
+    {
+      "num": 22,
+      "name": "DEED SITUS HOUSE NUMBER SUFFIX - STATIC",
+      "type": "AlphaNumeric",
+      "table": null,
+      "maxLength": 10,
+      "decimal": "",
+      "definition": "The characters found to the immediate right of a house number (e.g., 202B Jones Rd)."
+    },
+    {
+      "num": 23,
+      "name": "DEED SITUS HOUSE NUMBER 2 - STATIC",
+      "type": "AlphaNumeric",
+      "table": null,
+      "maxLength": 10,
+      "decimal": "",
+      "definition": "The second set of numbers in an address range."
+    },
+    {
+      "num": 24,
+      "name": "DEED SITUS DIRECTION - STATIC",
+      "type": "AlphaNumeric",
+      "table": null,
+      "maxLength": 2,
+      "decimal": "",
+      "definition": "This field represents the direction found to the left of the street name (e.g., 9340 N Dunhill Dr). AKA Directional Abbreviations, Pre-Directional."
+    },
+    {
+      "num": 25,
+      "name": "DEED SITUS STREET NAME - STATIC",
+      "type": "AlphaNumeric",
+      "table": null,
+      "maxLength": 30,
+      "decimal": "",
+      "definition": "The name or number of the street where a parcel is located."
+    },
+    {
+      "num": 26,
+      "name": "DEED SITUS MODE - STATIC",
+      "type": "AlphaNumeric",
+      "table": null,
+      "maxLength": 5,
+      "decimal": "",
+      "definition": "The Mode or Type of street found to the right of the street name (e.g., 9340 N Dunhill Dr). AKA Street Designators / Street Suffixes."
+    },
+    {
+      "num": 27,
+      "name": "DEED SITUS QUADRANT - STATIC",
+      "type": "AlphaNumeric",
+      "table": null,
+      "maxLength": 2,
+      "decimal": "",
+      "definition": "The quadrant is found to the right of Situs Mode (e.g., 2040 NW 100 ST SW). AKA Post-Directional."
+    },
+    {
+      "num": 28,
+      "name": "DEED SITUS UNIT NUMBER - STATIC",
+      "type": "AlphaNumeric",
+      "table": null,
+      "maxLength": 10,
+      "decimal": "",
+      "definition": "The unit or suite number of the property address (e.g., 649 Lake Shore Dr #1400)."
+    },
+    {
+      "num": 29,
+      "name": "DEED SITUS CITY - STATIC",
+      "type": "AlphaNumeric",
+      "table": null,
+      "maxLength": 40,
+      "decimal": "",
+      "definition": "The city associated with the property address."
+    },
+    {
+      "num": 30,
+      "name": "DEED SITUS STATE - STATIC",
+      "type": "AlphaNumeric",
+      "table": null,
+      "maxLength": 2,
+      "decimal": "",
+      "definition": "The two-letter USPS postal abbreviation associated with the state / protectorates / commonwealth (e.g., CA, VI)."
+    },
+    {
+      "num": 31,
+      "name": "DEED SITUS ZIP CODE - STATIC",
+      "type": "Numeric",
+      "table": null,
+      "maxLength": 9,
+      "decimal": "",
+      "definition": "Code assigned by the USPS. This is populated by various source files and other proprietary and non-proprietary processes. Data may be the 5-digit zip or 9-digit Zip+4 (e.g., 00501 or 954630042)."
+    },
+    {
+      "num": 32,
+      "name": "DEED SITUS COUNTY - STATIC",
+      "type": "AlphaNumeric",
+      "table": null,
+      "maxLength": 30,
+      "decimal": "",
+      "definition": "Situs county name."
+    },
+    {
+      "num": 33,
+      "name": "DEED SITUS CARRIER ROUTE - STATIC",
+      "type": "AlphaNumeric",
+      "table": null,
+      "maxLength": 4,
+      "decimal": "",
+      "definition": "This is the four digit code used by the local mail carrier to identify the delivery path."
+    },
+    {
+      "num": 34,
+      "name": "DEED SITUS STREET ADDRESS - STATIC",
+      "type": "AlphaNumeric",
+      "table": null,
+      "maxLength": 60,
+      "decimal": "",
+      "definition": "Full Situs address (not including City/St/Zip) (e.g. 123 N Main St)"
+    },
+    {
+      "num": 35,
+      "name": "STANDARDIZED ADDRESS CONFIDENCE CODE",
+      "type": "AlphaNumeric",
+      "table": null,
+      "maxLength": 4,
+      "decimal": "",
+      "definition": "Standardized code that describes the confidence of the situs (property site) address standardization match. A blank field or codes that begin with E indicate an unverified address due to an error or no address match."
+    },
+    {
+      "num": 36,
+      "name": "LIEN OR RELEASE RECORDING DATE",
+      "type": "Numeric",
+      "table": null,
+      "maxLength": 8,
+      "decimal": "",
+      "definition": "The date the LIEN or RELEASE transaction was recorded. YYYYMMDD"
+    },
+    {
+      "num": 37,
+      "name": "LIEN OR RELEASE FILING DATE",
+      "type": "Numeric",
+      "table": null,
+      "maxLength": 8,
+      "decimal": "",
+      "definition": "The date the LIEN or RELEASE document was filed with the court. YYYYMMDD"
+    },
+    {
+      "num": 38,
+      "name": "LIEN OR RELEASE RECORDED DOCUMENT NUMBER",
+      "type": "AlphaNumeric",
+      "table": null,
+      "maxLength": 12,
+      "decimal": "",
+      "definition": "LIEN or RELEASE Recorders document number, used by some counties to record transactions."
+    },
+    {
+      "num": 39,
+      "name": "LIEN OR RELEASE RECORDED DOCUMENT BOOK NUMBER",
+      "type": "AlphaNumeric",
+      "table": null,
+      "maxLength": 6,
+      "decimal": "",
+      "definition": "LIEN or RELEASE Book number used by some counties to record transactions."
+    },
+    {
+      "num": 40,
+      "name": "LIEN OR RELEASE RECORDED DOCUMENT PAGE NUMBER",
+      "type": "AlphaNumeric",
+      "table": null,
+      "maxLength": 6,
+      "decimal": "",
+      "definition": "LIEN or RELEASE Page number used by some counties to record transactions."
+    },
+    {
+      "num": 41,
+      "name": "DEED CATEGORY TYPE CODE",
+      "type": "AlphaNumeric",
+      "table": "DEEDC",
+      "maxLength": 1,
+      "decimal": "",
+      "definition": "CoreLogic proprietary deed category type code that identifies the class of recorded legal document."
+    },
+    {
+      "num": 42,
+      "name": "LIEN OR RELEASE DOCUMENT TYPE CODE",
+      "type": "AlphaNumeric",
+      "table": "DOCTY",
+      "maxLength": 3,
+      "decimal": "",
+      "definition": "Type of LIEN or RELEASE lien document recorded."
+    },
+    {
+      "num": 43,
+      "name": "LIEN OR RELEASE AMOUNT",
+      "type": "Numeric",
+      "table": null,
+      "maxLength": 14,
+      "decimal": 2,
+      "definition": "LIEN or RELEASE amount lien for this transaction on the property. Amount is populated on Mechanics and HOA lien records with a DeedCatTyp = ''J'."
+    },
+    {
+      "num": 44,
+      "name": "LIEN OR RELEASE INTEREST RATE",
+      "type": "Numeric",
+      "table": null,
+      "maxLength": 7,
+      "decimal": 5,
+      "definition": "LIEN or RELEASE Interest rate for this transaction on the property."
+    },
+    {
+      "num": 45,
+      "name": "PLAINTIFF 1 FULL NAME",
+      "type": "AlphaNumeric",
+      "table": null,
+      "maxLength": 60,
+      "decimal": "",
+      "definition": "Name of the claimant or representative either taking lien action or releasing a prior lien against the owner."
+    },
+    {
+      "num": 46,
+      "name": "PLAINTIFF ADDRESS",
+      "type": "AlphaNumeric",
+      "table": null,
+      "maxLength": 60,
+      "decimal": "",
+      "definition": "Address of the Plaintiff as recorded on the document."
+    },
+    {
+      "num": 47,
+      "name": "PLAINTIFF CITY",
+      "type": "AlphaNumeric",
+      "table": null,
+      "maxLength": 40,
+      "decimal": "",
+      "definition": "Plaintiff City as recorded on the document."
+    },
+    {
+      "num": 48,
+      "name": "PLAINTIFF STATE",
+      "type": "AlphaNumeric",
+      "table": null,
+      "maxLength": 2,
+      "decimal": "",
+      "definition": "Plaintiff State as recorded on the document."
+    },
+    {
+      "num": 49,
+      "name": "PLAINTIFF ZIP CODE",
+      "type": "AlphaNumeric",
+      "table": null,
+      "maxLength": 9,
+      "decimal": "",
+      "definition": "Plaintiff ZIP code as recorded on the document."
+    },
+    {
+      "num": 50,
+      "name": "SUBJECT TRANSACTION RECORDING DATE",
+      "type": "Numeric",
+      "table": null,
+      "maxLength": 8,
+      "decimal": "",
+      "definition": "Recording Date of the subject transaction associated with this event. Format = YYYYMMDD.  Document sourced, refers to prior associated transaction.  Typically refers back to the Recording Date of the Deed of Trust/Mortgage.  To link to the prior transaction, use FIPS + Subject Transaction Recording Date + Subject Transaction Document Number (or use FIPS + Subject Transaction Recording Date + Subject Transaction Document Book Number + Subject Transaction Document Page Number if Book/Page is the documenter numbering method used by the county)."
+    },
+    {
+      "num": 51,
+      "name": "SUBJECT TRANSACTION DOCUMENT NUMBER",
+      "type": "AlphaNumeric",
+      "table": null,
+      "maxLength": 12,
+      "decimal": "",
+      "definition": "Document Number of the subject transaction associated with this event.  Document sourced, refers to prior associated transaction.  Typically refers back to the Document Number of the Deed of Trust/Mortgage.  To link to the prior transaction, use FIPS + Subject Transaction Recording Date + Subject Transaction Document Number (or use FIPS + Subject Transaction Recording Date + Subject Transaction Document Book Number + Subject Transaction Document Page Number if Book/Page is the documenter numbering method used by the county)."
+    },
+    {
+      "num": 52,
+      "name": "SUBJECT TRANSACTION DOCUMENT BOOK NUMBER",
+      "type": "AlphaNumeric",
+      "table": null,
+      "maxLength": 6,
+      "decimal": "",
+      "definition": "Document Book Number of the subject transaction associated with this event.  Document sourced, refers to prior associated transaction.  Typically refers back to the Document Book Number of the Deed of Trust/Mortgage.  To link to the prior transaction, use FIPS + Subject Transaction Recording Date + Subject Transaction Document Number (or use FIPS + Subject Transaction Recording Date + Subject Transaction Document Book Number + Subject Transaction Document Page Number if Book/Page is the documenter numbering method used by the county)."
+    },
+    {
+      "num": 53,
+      "name": "SUBJECT TRANSACTION DOCUMENT PAGE NUMBER",
+      "type": "AlphaNumeric",
+      "table": null,
+      "maxLength": 6,
+      "decimal": "",
+      "definition": "Document Page Number of the subject transaction associated with this event.  Document sourced, refers to prior associated transaction.  Typically refers back to the Document Page Number of the Deed of Trust/Mortgage.  To link to the prior transaction, use FIPS + Subject Transaction Recording Date + Subject Transaction Document Number (or use FIPS + Subject Transaction Recording Date + Subject Transaction Document Book Number + Subject Transaction Document Page Number if Book/Page is the documenter numbering method used by the county)."
+    },
+    {
+      "num": 54,
+      "name": "RECORD ACTION INDICATOR",
+      "type": "AlphaNumeric",
+      "table": null,
+      "maxLength": 1,
+      "decimal": "",
+      "definition": "A CoreLogic system generated indicator used to advise customers how to process records contained in delta files.  Values are: A = ADD, Customer will do an UPSERT, U = UPDATE, Customer will do an UPSERT, D = DELETE, Customer will do a DELETE, BLANK = No Action Required.  BLANK is used for Initial Delivery Files or Refresh Files."
+    }
+  ],
+  "lookups": {
+    "DEEDC": [
+      [
+        "CdTbl",
+        "Deed Category Code",
+        "Deed Category Description"
+      ],
+      [
+        "DEEDC",
+        "J",
+        "HOA/MECHANICS LEINS"
+      ],
+      [
+        "DEEDC",
+        "R",
+        "RELEASE/RECISION"
+      ]
+    ],
+    "DOCTY": [
+      [
+        "Deed Category Code",
+        "Deed Category Description",
+        "Document Type Code",
+        "Document Code Description"
+      ],
+      [
+        "J",
+        "HOA/MECHANICS LEINS",
+        "AM",
+        "Amended Mechanic's Lien"
+      ],
+      [
+        "J",
+        "HOA/MECHANICS LEINS",
+        "HX",
+        "Notice of Assessment and Claim of Lien (HOA)"
+      ],
+      [
+        "J",
+        "HOA/MECHANICS LEINS",
+        "HX",
+        "Statement of Lien (HOA)"
+      ],
+      [
+        "J",
+        "HOA/MECHANICS LEINS",
+        "HX",
+        "Notice of Lien (HOA)"
+      ],
+      [
+        "J",
+        "HOA/MECHANICS LEINS",
+        "HX",
+        "Certificate of Lien (HOA)"
+      ],
+      [
+        "J",
+        "HOA/MECHANICS LEINS",
+        "HX",
+        "Homeowners Lien Statement (HOA)"
+      ],
+      [
+        "J",
+        "HOA/MECHANICS LEINS",
+        "HX",
+        "Lien Claim Affidavit (HOA)"
+      ],
+      [
+        "J",
+        "HOA/MECHANICS LEINS",
+        "MX",
+        "Mechanics Lien"
+      ],
+      [
+        "J",
+        "HOA/MECHANICS LEINS",
+        "MX",
+        "Mechanics Lien Contract (stand alone doc)"
+      ],
+      [
+        "R",
+        "RELEASE/RECISION",
+        "HR",
+        "Release of Homeowners Association Lien (HOA)"
+      ],
+      [
+        "R",
+        "RELEASE/RECISION",
+        "HR",
+        "Satisfaction and Release of Lien (HOA)"
+      ],
+      [
+        "R",
+        "RELEASE/RECISION",
+        "MR",
+        "Mechanics Lien Release"
+      ],
+      [
+        "R",
+        "RELEASE/RECISION",
+        "XX",
+        "Partial Release of Mechanics Lien"
+      ]
+    ]
+  }
+}
