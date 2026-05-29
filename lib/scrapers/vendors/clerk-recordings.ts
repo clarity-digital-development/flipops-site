@@ -146,11 +146,18 @@ export async function scrapeRecentRecordings(opts: {
           prompt:
             `Search the county Clerk of Court Official Records for ALL document types ` +
             `recorded between ${fromStr} and ${toStr}. Extract EVERY recording found, ` +
-            `paginating through results. For each: documentType (be specific: Mortgage, ` +
-            `Lis Pendens, Mechanics Lien, HOA Lien, Tax Lien, Judgment, Deed, ` +
-            `Satisfaction of Mortgage, etc.), recordingDate, documentNumber, parties, ` +
-            `and amount when shown. If the page requires submitting a search form with ` +
-            `date range, fill it first.`,
+            `paginating through results.\n\n` +
+            `**CRITICAL RULES — DO NOT FABRICATE DATA:**\n` +
+            `1. ONLY extract recordings that are EXPLICITLY visible on the actual page.\n` +
+            `2. If the page is empty / a search form / a login wall / an error page, ` +
+            `return an EMPTY recordings array. DO NOT invent placeholder rows.\n` +
+            `3. NEVER use sample names like "John Doe", "XYZ Bank", "ABC Corp", or ` +
+            `sequential document numbers like 123456789 / 987654321. If you cannot ` +
+            `find real specific values, return an empty array.\n` +
+            `4. Every documentNumber MUST match what's actually shown on the page.\n\n` +
+            `For each REAL recording, return: documentType (specific: Mortgage, Lis ` +
+            `Pendens, Mechanics Lien, HOA Lien, Tax Lien, Judgment, Deed, Satisfaction), ` +
+            `recordingDate, documentNumber, parties, amount when shown.`,
         },
       ],
       actions: source.searchActions,
@@ -174,7 +181,17 @@ export async function scrapeRecentRecordings(opts: {
     legalRisk: "yellow",
   });
 
-  const recordings = (data?.data?.json?.recordings as RawClerkRecording[]) ?? [];
+  const rawRecordings = (data?.data?.json?.recordings as RawClerkRecording[]) ?? [];
+
+  // Hallucination guard — Firecrawl/LLM can fabricate plausible-looking rows
+  // when the page is empty/login/search-form. Drop rows that match known
+  // placeholder patterns BEFORE persisting. Bronze RawSnapshot retains the
+  // raw payload regardless so we can audit any rejections.
+  const recordings = rawRecordings.filter((r) => !looksHallucinated(r));
+  const rejected = rawRecordings.length - recordings.length;
+  if (rejected > 0) {
+    console.warn(`[clerk-recordings] rejected ${rejected} hallucinated rows for ${opts.countyFips}`);
+  }
 
   // Classify + persist
   const result: ClerkRecordingsResult = {
@@ -207,6 +224,25 @@ export async function scrapeRecentRecordings(opts: {
 // ---------------------------------------------------------------------------
 // Classification + persistence helpers
 // ---------------------------------------------------------------------------
+
+// Hallucination patterns we've actually observed from Firecrawl extractions
+// against empty-page targets. Heuristic, not exhaustive — bias toward false
+// negatives (let some real data through) rather than false positives
+// (don't drop real recordings).
+const HALLUCINATED_NAME_PATTERNS = /^(john|jane)\s+(doe|smith)|^(abc|xyz|def|123)\s*(corp|inc|llc|bank|company)|^test\s|^sample\s/i;
+const HALLUCINATED_DOC_PATTERNS = /^(12345|98765|11111|22222|99999)/;
+const HALLUCINATED_PARTY_PATTERNS = /xyz\s*bank|abc\s*corp|def\s*corp/i;
+
+function looksHallucinated(r: RawClerkRecording): boolean {
+  const docNum = (r.documentNumber ?? "").trim();
+  if (HALLUCINATED_DOC_PATTERNS.test(docNum)) return true;
+  if (r.grantee && HALLUCINATED_NAME_PATTERNS.test(r.grantee)) return true;
+  if (r.grantor && HALLUCINATED_NAME_PATTERNS.test(r.grantor)) return true;
+  if (r.plaintiff && HALLUCINATED_NAME_PATTERNS.test(r.plaintiff)) return true;
+  if (r.defendant && HALLUCINATED_NAME_PATTERNS.test(r.defendant)) return true;
+  if (r.parties && HALLUCINATED_PARTY_PATTERNS.test(r.parties)) return true;
+  return false;
+}
 
 function classifyDocument(type: string | undefined): "mortgage" | "lien" | "foreclosure" | "deed" | "satisfaction" | "other" {
   if (!type) return "other";
