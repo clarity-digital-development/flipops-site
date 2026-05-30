@@ -1,4 +1,15 @@
-import { chromium, type Browser, type Page, type BrowserContext } from "playwright-chromium";
+import { chromium as vanillaChromium, type Browser, type Page, type BrowserContext } from "playwright-chromium";
+import { chromium as stealthChromium, firefox as stealthFirefox } from "playwright-extra";
+import StealthPlugin from "puppeteer-extra-plugin-stealth";
+
+// Register stealth on both engines lazily (idempotent).
+let stealthRegistered = false;
+function ensureStealthRegistered() {
+  if (stealthRegistered) return;
+  stealthChromium.use(StealthPlugin());
+  stealthFirefox.use(StealthPlugin());
+  stealthRegistered = true;
+}
 
 // ---------------------------------------------------------------------------
 // PlaywrightSession — real-browser scraping with optional Bright Data proxy.
@@ -39,6 +50,14 @@ export interface PlaywrightSessionOptions {
   headless?: boolean;
   /** Per-page navigation timeout in ms. Default 30s. */
   navTimeoutMs?: number;
+  /**
+   * Engine selection. "chromium" (default) is fastest. "stealth-chromium"
+   * patches automation tells (navigator.webdriver, plugin spoofing, WebGL
+   * fingerprint, etc.) and DEFEATS clerk bot detection — required for sites
+   * like or.duvalclerk.com that return empty results to vanilla Playwright.
+   * "stealth-firefox" is a fallback when stealth Chromium gets blocked.
+   */
+  engine?: "chromium" | "stealth-chromium" | "stealth-firefox";
 }
 
 export class PlaywrightSession {
@@ -50,15 +69,13 @@ export class PlaywrightSession {
   /** Lazily launch the browser; reused across pages within the session. */
   private async ensureBrowser(): Promise<Browser> {
     if (this.browser) return this.browser;
-    const launchOpts: Parameters<typeof chromium.launch>[0] = {
+    const launchOpts: Parameters<typeof vanillaChromium.launch>[0] = {
       headless: this.opts.headless !== false,
     };
 
     if (this.opts.useProxy) {
       const url = process.env.BRIGHT_DATA_PROXY_URL;
       if (!url) throw new Error("PlaywrightSession: useProxy=true but BRIGHT_DATA_PROXY_URL is not set");
-      // Playwright accepts proxy server + auth as a single config.
-      // Parse user:pass@host:port from the URL.
       const parsed = new URL(url);
       launchOpts.proxy = {
         server: `${parsed.protocol}//${parsed.host}`,
@@ -67,7 +84,16 @@ export class PlaywrightSession {
       };
     }
 
-    this.browser = await chromium.launch(launchOpts);
+    const engine = this.opts.engine ?? "chromium";
+    if (engine === "stealth-chromium") {
+      ensureStealthRegistered();
+      this.browser = await stealthChromium.launch(launchOpts) as unknown as Browser;
+    } else if (engine === "stealth-firefox") {
+      ensureStealthRegistered();
+      this.browser = await stealthFirefox.launch(launchOpts) as unknown as Browser;
+    } else {
+      this.browser = await vanillaChromium.launch(launchOpts);
+    }
     return this.browser;
   }
 

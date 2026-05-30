@@ -63,40 +63,43 @@ export async function scrapeDuvalRecordings(opts: {
     useProxy: opts.useProxy ?? false,
     headless: true,
     navTimeoutMs: 90_000,
+    engine: "stealth-chromium", // Required — vanilla Playwright is silently filtered to 0 rows
   });
 
   try {
     const page = await sess.newPage();
+
+    // Step 0: Session warming — visit landing + Support to look like a
+    // human's natural flow, not a direct-to-search hit. This pattern
+    // verified working in probe-duval-stealth.ts.
+    await page.goto("https://or.duvalclerk.com/", { waitUntil: "domcontentloaded", timeout: 60_000 });
+    await page.waitForTimeout(1500 + Math.random() * 1500);
+    await page.goto("https://or.duvalclerk.com/Support", { waitUntil: "domcontentloaded", timeout: 60_000 });
+    await page.waitForTimeout(1500 + Math.random() * 1500);
+
     await page.goto(SEARCH_URL, { waitUntil: "domcontentloaded" });
 
     // Step 1: Accept disclaimer
-    await page.click("#btnButton", { timeout: 10_000 }).catch(() => {
-      // Disclaimer may already be accepted if session is restored
-    });
+    await page.click("#btnButton", { timeout: 10_000 }).catch(() => {});
 
     // Step 2: Wait for the search form
     await page.waitForSelector("#RecordDate", { timeout: 30_000 });
+    await page.waitForTimeout(1500); // human pause
 
-    // Step 3: Fill date and submit. Use type-clear-and-fill since the input
-    // has a default value.
+    // Step 3: Fill date and submit.
     await page.fill("#RecordDate", "");
     await page.fill("#RecordDate", dateStr);
+    await page.waitForTimeout(500 + Math.random() * 500);
 
-    // Step 4: Click search and wait for the SPECIFIC AJAX response that
-    // loads the Kendo grid (`/Search/PartialGrid`). networkidle was unreliable
-    // because the page has long-poll requests that keep the network busy.
-    // Race the two possible signal patterns from AcclaimSearchPages.js:
-    //   - GET /Search/PartialGrid (loads the results table)
-    //   - GET /Search/HasResults (the JS calls this first to decide)
+    // Step 4: Click search and wait for grid AJAX.
     const searchResponseP = page.waitForResponse(
       (resp) => /\/Search\/(PartialGrid|HasResults)/i.test(resp.url()),
       { timeout: 60_000 },
     ).catch(() => null);
     await page.click("#btnSearch");
     await searchResponseP;
-    // After AJAX response, give Kendo's render lifecycle one more pass
-    await page.waitForTimeout(2500);
-    // If the grid is supposed to have rows, wait briefly for the first one
+    // Longer wait — verified working in probe. Kendo populates ~3-4s after AJAX
+    await page.waitForTimeout(4000);
     await page.waitForSelector("#RsltsGrid tbody tr, .k-grid-content tbody tr, .gridDiv tr", { timeout: 10_000 }).catch(() => {});
 
     // Step 5: Read the rendered HTML
@@ -104,22 +107,35 @@ export async function scrapeDuvalRecordings(opts: {
     const $ = cheerio.load(html);
 
     // The Kendo grid renders <tr> inside #RsltsGrid. Headers + data rows.
-    // We grab the data rows from inside tbody.
+    // VERIFIED column order (probe-stealth + inspect-duval-grid-html.ts):
+    //   td[0]: blank / expander
+    //   td[1]: Row #
+    //   td[2]: First Direct Name (grantor / debtor / plaintiff)
+    //   td[3]: First Indirect Name (grantee / creditor / defendant)
+    //   td[4]: Instrument # (doc number — used for dedup)
+    //   td[5]: Record Date
+    //   td[6]: Doc Type (e.g. "ORDER", "MORTGAGE", "LIS PENDENS", "LIEN")
+    //   td[7]: Book Type (e.g. "OR")
+    //   td[8]: Book/Page (e.g. "21916/753")
+    //   td[9]: Legal description
+    //   td[10]: DeletedAfterVerify flag
     const rows: DuvalRecording[] = [];
     $("#RsltsGrid tbody tr, .k-grid-content tbody tr").each((_, tr) => {
       const cells = $(tr).find("td").map((_, td) => $(td).text().trim()).get();
-      if (cells.length < 3) return;
-      // Header order (per Duval UI): Name | Instrument # | Doc Type | Record Date | Consideration | Book/Page | Case #
-      // Some columns may be hidden but the data row preserves column order.
-      const [, instrument, docType, recordDate, consideration, bookPage] = cells;
-      if (!docType) return;
+      if (cells.length < 7) return;
+      const grantor = cells[2];
+      const grantee = cells[3];
+      const instrumentNumber = cells[4];
+      const recordDate = cells[5];
+      const docType = cells[6];
+      const bookPage = cells[8];
+      if (!docType || !instrumentNumber) return;
       rows.push({
         documentType: docType,
-        documentNumber: instrument || undefined,
+        documentNumber: instrumentNumber,
         recordingDate: recordDate || undefined,
-        consideration: parseConsideration(consideration),
         bookPage: bookPage || undefined,
-        parties: cells[0] || undefined,
+        parties: [grantor, grantee].filter(Boolean).join(" → ") || undefined,
       });
     });
 
