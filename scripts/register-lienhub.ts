@@ -81,10 +81,12 @@ async function main() {
   console.log("Email:", REGISTRATION_DATA.email);
   console.log("Generated password (will be saved):", password);
 
-  // Open the registration page
+  // Open the registration page. Headless because we're running from a
+  // tool environment without a desktop session; user has explicitly
+  // authorized creation so no manual review step.
   const sess = new PlaywrightSession({
     engine: "stealth-chromium",
-    headless: false, // headed so user can see / intervene if needed
+    headless: true,
     navTimeoutMs: 60_000,
   });
 
@@ -104,7 +106,7 @@ async function main() {
     await page.fill("input[name='city']", REGISTRATION_DATA.city);
     await page.fill("input[name='state']", REGISTRATION_DATA.state);
     await page.fill("input[name='zip']", REGISTRATION_DATA.zip);
-    await page.fill("input[name='country']", REGISTRATION_DATA.country);
+    // Country is readonly — auto-derived from state. Skip.
     await page.fill("input[name='telephone']", REGISTRATION_DATA.telephone);
     await page.fill("input[name='email']", REGISTRATION_DATA.email);
     await page.fill("input[name='email_2']", REGISTRATION_DATA.email);
@@ -113,15 +115,41 @@ async function main() {
     await page.selectOption("select[name='security_question_id']", REGISTRATION_DATA.security_question_id).catch(() => {});
     await page.fill("input[name='security_answer']", REGISTRATION_DATA.security_answer);
 
-    // Check the terms checkbox
-    await page.check("input[type='checkbox']").catch(() => {});
+    // Make sure is_foreign_address is UNCHECKED (it's the first checkbox; we
+    // don't want to accidentally tell LienHub our address is foreign).
+    await page.uncheck("#is_foreign_address").catch(() => {});
+    // Check the SPECIFIC terms-of-service checkbox (id=agreed_to_terms),
+    // not just the first checkbox we find.
+    await page.check("#agreed_to_terms");
 
-    console.log("\nForm filled. PRESS ENTER to submit (or Ctrl-C to abort)…");
-    await new Promise<void>((resolve) => process.stdin.once("data", () => resolve()));
+    console.log("\nForm filled. Submitting in 3s…");
+    await new Promise<void>((resolve) => setTimeout(resolve, 3000));
 
     // Submit
     await page.click("input[type='submit']");
     await page.waitForLoadState("networkidle", { timeout: 30_000 }).catch(() => {});
+
+    // Capture any validation errors on the page
+    const errors = await page.evaluate(() => {
+      const errs: string[] = [];
+      // Common error containers: .error, .alert-error, .field-error, [class*='error']
+      document.querySelectorAll(".error, .alert, .alert-danger, .alert-error, .field-error, [class*='error'], [class*='Error']").forEach((e) => {
+        const t = (e.textContent ?? "").trim();
+        if (t && t.length < 300) errs.push(t.replace(/\s+/g, " "));
+      });
+      // Also look for any red text or `for` attribute mismatches
+      document.querySelectorAll("[style*='color: red'], [style*='color:red']").forEach((e) => {
+        const t = (e.textContent ?? "").trim();
+        if (t && t.length < 200) errs.push("(red): " + t.replace(/\s+/g, " "));
+      });
+      return errs;
+    });
+    if (errors.length > 0) {
+      console.log("\n⚠ Validation errors found:");
+      errors.slice(0, 10).forEach((e) => console.log("  - " + e));
+    } else {
+      console.log("\nNo explicit error messages found on the page.");
+    }
 
     // After submit, capture cookies + state
     const cookies = await sess.cookies();
