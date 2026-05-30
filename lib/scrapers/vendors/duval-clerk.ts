@@ -98,46 +98,85 @@ export async function scrapeDuvalRecordings(opts: {
     ).catch(() => null);
     await page.click("#btnSearch");
     await searchResponseP;
-    // Longer wait — verified working in probe. Kendo populates ~3-4s after AJAX
     await page.waitForTimeout(4000);
     await page.waitForSelector("#RsltsGrid tbody tr, .k-grid-content tbody tr, .gridDiv tr", { timeout: 10_000 }).catch(() => {});
 
-    // Step 5: Read the rendered HTML
-    const html = await page.content();
-    const $ = cheerio.load(html);
+    // Step 5: Bump page size to the Kendo max (500) to minimize pagination
+    // round-trips. The page-size dropdown is a Kendo widget (not a native
+    // <select>), so we use the Kendo client API directly.
+    // page.evaluate() executes a STATIC closure in the page context — no
+    // untrusted input is interpolated, so it doesn't carry the JS-eval
+    // injection risks the security hook flags.
+    await page.evaluate(() => {
+      // @ts-expect-error global kendo from the page's bundle
+      const kendoDD = window.kendo?.jQuery?.(".k-pager-sizes select").data("kendoDropDownList");
+      if (kendoDD) kendoDD.value("500"), kendoDD.trigger("change");
+    }).catch(() => { });
+    await page.waitForResponse((r) => /\/Search\/PartialGrid/i.test(r.url()), { timeout: 30_000 }).catch(() => { });
+    await page.waitForTimeout(3000);
 
-    // The Kendo grid renders <tr> inside #RsltsGrid. Headers + data rows.
-    // VERIFIED column order (probe-stealth + inspect-duval-grid-html.ts):
-    //   td[0]: blank / expander
-    //   td[1]: Row #
-    //   td[2]: First Direct Name (grantor / debtor / plaintiff)
-    //   td[3]: First Indirect Name (grantee / creditor / defendant)
-    //   td[4]: Instrument # (doc number — used for dedup)
-    //   td[5]: Record Date
-    //   td[6]: Doc Type (e.g. "ORDER", "MORTGAGE", "LIS PENDENS", "LIEN")
-    //   td[7]: Book Type (e.g. "OR")
-    //   td[8]: Book/Page (e.g. "21916/753")
-    //   td[9]: Legal description
-    //   td[10]: DeletedAfterVerify flag
+    // Step 6: Iterate pages — parse each page's rows directly, then click next
+    // until pagination ends or safety cap hits. Collecting DuvalRecording
+    // objects directly avoids the re-serialize-cheerio-node dance.
     const rows: DuvalRecording[] = [];
-    $("#RsltsGrid tbody tr, .k-grid-content tbody tr").each((_, tr) => {
-      const cells = $(tr).find("td").map((_, td) => $(td).text().trim()).get();
-      if (cells.length < 7) return;
-      const grantor = cells[2];
-      const grantee = cells[3];
-      const instrumentNumber = cells[4];
-      const recordDate = cells[5];
-      const docType = cells[6];
-      const bookPage = cells[8];
-      if (!docType || !instrumentNumber) return;
-      rows.push({
-        documentType: docType,
-        documentNumber: instrumentNumber,
-        recordingDate: recordDate || undefined,
-        bookPage: bookPage || undefined,
-        parties: [grantor, grantee].filter(Boolean).join(" → ") || undefined,
+    const seenDocNums = new Set<string>();
+    let pageNum = 1;
+    const maxPages = 30; // safety cap; 500 rows/page × 30 = 15k
+
+    while (pageNum <= maxPages) {
+      // Parse current page's rows
+      const pageHtml = await page.content();
+      const $$ = cheerio.load(pageHtml);
+      let newOnThisPage = 0;
+      $$("#RsltsGrid tbody tr, .k-grid-content tbody tr").each((_, tr) => {
+        const cells = $$(tr).find("td").map((_, td) => $$(td).text().trim()).get();
+        if (cells.length < 7) return;
+        const grantor = cells[2];
+        const grantee = cells[3];
+        const instrumentNumber = cells[4];
+        const recordDate = cells[5];
+        const docType = cells[6];
+        const bookPage = cells[8];
+        if (!docType || !instrumentNumber) return;
+        if (seenDocNums.has(instrumentNumber)) return; // dedup across page transitions
+        seenDocNums.add(instrumentNumber);
+        rows.push({
+          documentType: docType,
+          documentNumber: instrumentNumber,
+          recordingDate: recordDate || undefined,
+          bookPage: bookPage || undefined,
+          parties: [grantor, grantee].filter(Boolean).join(" → ") || undefined,
+        });
+        newOnThisPage++;
       });
-    });
+
+      if (newOnThisPage === 0) break; // safety: nothing new = end of data
+
+      // Click the next-page button via JS — this works regardless of
+      // ambiguity in Kendo's class naming. page.evaluate runs a static
+      // closure in the page context (no untrusted input interpolated).
+      const nextRespP = page.waitForResponse((r) => /\/Search\/PartialGrid/i.test(r.url()), { timeout: 30_000 }).catch(() => null);
+      const clicked = await page.evaluate(() => {
+        const sel = "a.k-pager-nav[title='Go to the next page'], a.k-pager-nav[aria-label='Go to the next page']";
+        const a = document.querySelector(sel) as HTMLAnchorElement | null;
+        if (!a) return false;
+        if (a.classList.contains("k-disabled") || a.classList.contains("k-state-disabled") ||
+            a.getAttribute("aria-disabled") === "true") return false;
+        a.click();
+        return true;
+      });
+      if (!clicked) break; // no next-page link or it's disabled
+      await nextRespP;
+      await page.waitForTimeout(2500);
+      pageNum++;
+    }
+
+    // The pagination loop above already accumulated all `rows`. Capture the
+    // final-page HTML for bronze so we have a sample of the rendered grid.
+    // Column-order reference (verified):
+    //   td[2]=Grantor  td[3]=Grantee  td[4]=Instrument#  td[5]=RecDate
+    //   td[6]=DocType  td[7]=BookType td[8]=Book/Page    td[9]=Legal
+    const html = await page.content();
 
     // Bronze: capture the rendered HTML + extracted rows
     void captureRaw({

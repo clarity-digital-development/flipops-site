@@ -79,3 +79,6 @@ next-env.d.ts
 .env
 .env.production
 .env.production.local
+
+# LienHub credentials (saved after registration, contains password)
+.lienhub-credentials.json
