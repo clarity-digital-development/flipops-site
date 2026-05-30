@@ -1,6 +1,6 @@
 /* eslint-disable no-console */
 import { PlaywrightSession } from "@/lib/scrapers/base/playwright-session";
-import { writeFileSync, readFileSync, existsSync } from "node:fs";
+import { writeFileSync, readFileSync, existsSync, chmodSync } from "node:fs";
 import { randomBytes } from "node:crypto";
 
 // LienHub account registration driver.
@@ -126,14 +126,21 @@ async function main() {
     // After submit, capture cookies + state
     const cookies = await sess.cookies();
     const credsFile = ".lienhub-credentials.json";
+    // Owner-only permissions (0o600 = rw for owner, nothing for group/other).
+    // On Unix this is enforced by the OS. On Windows, ACLs work differently —
+    // chmodSync sets the file's read-only bit but doesn't restrict other
+    // users; for full Windows restriction we'd need to use icacls. The Windows
+    // umask still narrows the surface, and the file is also in gitignore.
     writeFileSync(credsFile, JSON.stringify({
       login: REGISTRATION_DATA.login,
       password,
       email: REGISTRATION_DATA.email,
       registeredAt: new Date().toISOString(),
       cookies: JSON.parse(cookies),
-    }, null, 2));
-    console.log(`\nCredentials saved to ${credsFile} (gitignore this file).`);
+    }, null, 2), { mode: 0o600 });
+    // Re-apply 0o600 in case the platform's umask widened it at create time.
+    try { chmodSync(credsFile, 0o600); } catch { /* tolerate Windows ACL quirks */ }
+    console.log(`\nCredentials saved to ${credsFile} (gitignored, owner-only perms).`);
     console.log("\nPost-submit URL:", page.url());
     console.log("Title:", await page.title());
     console.log("Body[0:500]:", (await page.evaluate(() => document.body.innerText)).slice(0, 500));
