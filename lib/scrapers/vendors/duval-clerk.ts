@@ -77,14 +77,27 @@ export async function scrapeDuvalRecordings(opts: {
     // Step 2: Wait for the search form
     await page.waitForSelector("#RecordDate", { timeout: 30_000 });
 
-    // Step 3: Fill date and submit
+    // Step 3: Fill date and submit. Use type-clear-and-fill since the input
+    // has a default value.
+    await page.fill("#RecordDate", "");
     await page.fill("#RecordDate", dateStr);
-    await page.click("#btnSearch");
 
-    // Step 4: Wait for the Kendo grid to populate. The grid loads via AJAX;
-    // we watch for either rows appearing or a "no results" indicator.
-    await page.waitForLoadState("networkidle", { timeout: 60_000 }).catch(() => {});
-    await page.waitForTimeout(2000); // extra settle time for Kendo
+    // Step 4: Click search and wait for the SPECIFIC AJAX response that
+    // loads the Kendo grid (`/Search/PartialGrid`). networkidle was unreliable
+    // because the page has long-poll requests that keep the network busy.
+    // Race the two possible signal patterns from AcclaimSearchPages.js:
+    //   - GET /Search/PartialGrid (loads the results table)
+    //   - GET /Search/HasResults (the JS calls this first to decide)
+    const searchResponseP = page.waitForResponse(
+      (resp) => /\/Search\/(PartialGrid|HasResults)/i.test(resp.url()),
+      { timeout: 60_000 },
+    ).catch(() => null);
+    await page.click("#btnSearch");
+    await searchResponseP;
+    // After AJAX response, give Kendo's render lifecycle one more pass
+    await page.waitForTimeout(2500);
+    // If the grid is supposed to have rows, wait briefly for the first one
+    await page.waitForSelector("#RsltsGrid tbody tr, .k-grid-content tbody tr, .gridDiv tr", { timeout: 10_000 }).catch(() => {});
 
     // Step 5: Read the rendered HTML
     const html = await page.content();
@@ -118,7 +131,7 @@ export async function scrapeDuvalRecordings(opts: {
       category: "clerk_recordings_bulk",
       countyFips: COUNTY_FIPS,
       requestParams: { url: SEARCH_URL, date: dateStr },
-      rawResponse: { extracted: rows, htmlBytes: html.length, htmlSample: html.slice(0, 4000) },
+      rawResponse: { extracted: rows, htmlBytes: html.length, htmlSample: html.slice(0, 30_000) },
       legalRisk: "yellow",
     });
 
