@@ -101,18 +101,21 @@ export async function scrapeDuvalRecordings(opts: {
     await page.waitForTimeout(4000);
     await page.waitForSelector("#RsltsGrid tbody tr, .k-grid-content tbody tr, .gridDiv tr", { timeout: 10_000 }).catch(() => {});
 
-    // Step 5: Bump page size to the Kendo max (500) to minimize pagination
-    // round-trips. The page-size dropdown is a Kendo widget (not a native
-    // <select>), so we use the Kendo client API directly.
-    // page.evaluate() executes a STATIC closure in the page context — no
-    // untrusted input is interpolated, so it doesn't carry the JS-eval
-    // injection risks the security hook flags.
+    // Step 5: Bump page size to 500 via the Kendo grid's own dataSource
+    // pageSize() — calling it on the dropdown wasn't enough (the dropdown
+    // value updated but the grid didn't repaint). Going directly to the
+    // grid's data source IS what the dropdown's "change" handler does
+    // internally, so we just do it ourselves.
+    // page.evaluate runs a STATIC closure in the page context — no untrusted
+    // input interpolated, so JS-eval injection risks don't apply.
+    const pagedRespP = page.waitForResponse((r) => /\/Search\/PartialGrid/i.test(r.url()), { timeout: 30_000 }).catch(() => null);
     await page.evaluate(() => {
-      // @ts-expect-error global kendo from the page's bundle
-      const kendoDD = window.kendo?.jQuery?.(".k-pager-sizes select").data("kendoDropDownList");
-      if (kendoDD) kendoDD.value("500"), kendoDD.trigger("change");
+      const w = window as { kendo?: { jQuery?: (sel: string) => { data: (k: string) => unknown } } };
+      const grid = w.kendo?.jQuery?.("#RsltsGrid")?.data?.("kendoGrid") as
+        | { dataSource: { pageSize: (n: number) => void } } | undefined;
+      if (grid) grid.dataSource.pageSize(500);
     }).catch(() => { });
-    await page.waitForResponse((r) => /\/Search\/PartialGrid/i.test(r.url()), { timeout: 30_000 }).catch(() => { });
+    await pagedRespP;
     await page.waitForTimeout(3000);
 
     // Step 6: Iterate pages — parse each page's rows directly, then click next
