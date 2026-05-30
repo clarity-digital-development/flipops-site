@@ -173,7 +173,10 @@ function parseRecords(html: string): DelinquentRecord[] {
 
       const apnMatch = acctText.match(/R\.E\.#\s*([\d-]+)/i);
       if (!apnMatch) continue;
-      const apn = apnMatch[1];
+      // Transform RE# (181780-1056) → Parcel.apn format (1817801056R) so
+      // JOINs to Parcel work directly. Duval DOR uses "R" suffix to mark
+      // Real Estate parcels (vs Personal Property which uses "P").
+      const apn = apnMatch[1].replace("-", "") + "R";
 
       // Description HTML format: "2024<br/><b>OWNER NAME</b><br/>LEGAL DESC<br/>..."
       const descParts = descHtml
@@ -200,7 +203,7 @@ function parseRecords(html: string): DelinquentRecord[] {
 // Hallucination guard — even though this is direct HTML parsing (no LLM),
 // we still reject obviously-bogus records as a defense layer.
 function looksHallucinated(r: DelinquentRecord): boolean {
-  if (!r.apn || !/^\d{6}-\d{4}$/.test(r.apn)) return true; // malformed RE#
+  if (!r.apn || !/^\d{10}R$/.test(r.apn)) return true; // malformed (expect 10 digits + R)
   if (!r.taxYear || r.taxYear < 1990 || r.taxYear > 2030) return true; // unreasonable year
   if (/^(john|jane)\s+(doe|smith)|test|sample/i.test(r.ownerName)) return true;
   if (r.amount < 0 || r.amount > 1e8) return true; // impossible amounts
