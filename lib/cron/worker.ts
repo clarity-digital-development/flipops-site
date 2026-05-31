@@ -9,11 +9,11 @@
  * stay here because execSync's process isolation prevents a single bad
  * run from taking the entire worker down.
  *
- * Schedules (all UTC):
- *   - G1 Deal Approval        */15 * * * *
- *   - G2 Bid Spread           */15 * * * *
- *   - G3 Invoice & Budget     */15 * * * *
- *   - G4 Change Order         */15 * * * *
+ * Schedules (all UTC, every 15 minutes):
+ *   - G1 Deal Approval
+ *   - G2 Bid Spread
+ *   - G3 Invoice and Budget
+ *   - G4 Change Order
  *
  * Migrated to worker-bullmq (lib/cron/worker-bullmq-monitoring.ts):
  *   - data-refresh, pipeline-monitoring, contractor-performance,
