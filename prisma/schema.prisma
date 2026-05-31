@@ -395,6 +395,19 @@ model Property {
   sourceId         String?
   enriched         Boolean  @default(false)
 
+  // ---------------------------------------------------------------------------
+  // Option A (leads-UI integration of freshness-layer Lien data) — Phase A1
+  // additions. All nullable / non-default; no migration risk on existing rows.
+  // See docs/development/OPTION-A-LEADS-INTEGRATION-DESIGN.json.
+  // ---------------------------------------------------------------------------
+  countyFips                 String?   // "12031" etc. Enables fast Lien join when promoted from virtual
+  taxDelinquentAmount        Float?    // SUM(Lien.amount) WHERE lienCategory='tax'
+  taxDelinquentYearsCount    Int?      // distinct delinquent tax years on this APN
+  taxDelinquentEarliestYear  Int?      // MIN(year extracted from lienTypeCode)
+  taxDelinquentLatestYear    Int?      // MAX(year) — "current" delinquency
+  latitude                   Float?    // from Parcel join (for map pin)
+  longitude                  Float?    // from Parcel join
+
   // Metadata
   metadata         String?  // Additional flexible data (JSON string for SQLite)
   createdAt        DateTime @default(now())
@@ -416,6 +429,7 @@ model Property {
   @@index([city, state])
   @@index([createdAt])
   @@index([dataSource])
+  @@index([countyFips, apn])    // promote-from-virtual fast lookup
 }
 
 // Task management for investor workflow
@@ -1690,6 +1704,46 @@ model Parcel {
   @@index([situsZip])
   @@index([state])
   @@index([source])
+}
+
+// ---------------------------------------------------------------------------
+// TaxDelinquencySummary — Option A Phase A2 materialized aggregate.
+//
+// Pre-computes one row per (countyFips, apn) combining all Lien rows with
+// lienCategory='tax' for that parcel. Refreshed via single SQL upsert
+// (scripts/rescore-tax-delinquent.ts) after each tax-delinquent scraper run,
+// plus a daily safety-net cron at lib/cron/discovery/tax-delinquent-summary.ts.
+//
+// Per the verifier of OPTION-A-LEADS-INTEGRATION-DESIGN.json, the score /
+// grade / motivation columns are MATERIALIZED here (not computed on-the-fly
+// post-fetch) so the /api/properties UNION can ORDER BY score in SQL and
+// support scoreMin filtering without an over-fetch-and-rescore loop. This is
+// the linchpin that makes API pagination tractable across virtual leads.
+// See docs/development/OPTION-A-LEADS-INTEGRATION-DESIGN.json verdict.fix #1.
+// ---------------------------------------------------------------------------
+model TaxDelinquencySummary {
+  countyFips        String
+  apn               String
+  totalAmount       Float     // SUM of unpaid certificate amounts across all years
+  yearsCount        Int       // distinct delinquent tax years for this APN
+  earliestYear      Int
+  latestYear        Int
+  certificateCount  Int       // distinct (apn, taxYear) rows in Lien
+
+  // Materialized score (verifier's linchpin fix).
+  // Computed in the same SQL aggregate via CASE expressions that mirror
+  // quickDistressScore's tax-delinquent path. Enables SQL-side ORDER BY.
+  score             Int?      // 0-100, null if amount/years insufficient
+  grade             String?   // "A" | "B" | "C" | "D" | "F"
+  motivation        String?   // short human-readable motivation summary
+
+  computedAt        DateTime  @default(now())
+
+  @@id([countyFips, apn])
+  @@index([countyFips])
+  @@index([totalAmount])
+  @@index([score(sort: Desc)])
+  @@index([countyFips, score(sort: Desc)])
 }
 
 // Audit log of bulk ingest runs (sibling of ScrapeJob, for the bulk modality).
