@@ -1,18 +1,22 @@
-import { scrapeHillsboroughTaxDelinquent } from "@/lib/scrapers/vendors/hillsborough-tax-delinquent";
+import { scrapeHillsboroughTaxDelinquentCsv } from "@/lib/scrapers/vendors/hillsborough-tax-delinquent-csv";
 import type { RunContext, RunResult, ScraperAdapter } from "./types";
 
 // ---------------------------------------------------------------------------
 // Adapter: hillsborough-tax-delinquent
-// Wraps lib/scrapers/vendors/hillsborough-tax-delinquent.ts.
 //
-// Phase 2: HTML-walk strategy (29 paginated pages, ~26 min). Phase 4 swaps
-// this for the TaxSys CSV-export flow discovered in the Phase 0 probe
-// (3-step XHR → 28.7k rows in ~30s, full Public-Delinquent Report).
+// Phase 4: switched to CSV download flow (`hillsborough-tax-delinquent-csv.ts`)
+// — drops scrape time from ~26 min (29-page HTML walk) to ~1 min (single
+// 3.5MB CSV download). Probe-verified in Phase 0.
 //
-// scrapeHillsboroughTaxDelinquent() result fields:
+// Result fields:
 //   - persisted          → rowCount
 //   - skippedHallucinated → rejectCount
-//   - apnResolved        → noted as info; doesn't change rowCount (already counted)
+//   - apnResolved        → reported via durationMs side-channel; doesn't
+//     change rowCount (already counted via persisted).
+//
+// Fallback: if the CSV flow ever breaks, swap import back to
+// `scrapeHillsboroughTaxDelinquent` from `../vendors/hillsborough-tax-delinquent`
+// (the HTML pagination path is preserved).
 // ---------------------------------------------------------------------------
 
 export const runHillsboroughTaxDelinquent: ScraperAdapter = async (
@@ -20,11 +24,11 @@ export const runHillsboroughTaxDelinquent: ScraperAdapter = async (
 ): Promise<RunResult> => {
   const start = Date.now();
   try {
-    const result = await scrapeHillsboroughTaxDelinquent();
+    const result = await scrapeHillsboroughTaxDelinquentCsv();
     return {
       rowCount: result.persisted,
       rejectCount: result.skippedHallucinated,
-      newHighWaterMark: null, // snapshot-diff in Phase 4 will surface delta tokens
+      newHighWaterMark: null, // full-snapshot strategy (no delta cursor)
       stats: ctx.stats.snapshot(),
       durationMs: Date.now() - start,
     };
