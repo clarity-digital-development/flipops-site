@@ -73,15 +73,26 @@ export interface PalmBeachTaxDelinquentResult {
 }
 
 /**
- * Scrape the full Palm Beach delinquent real-estate tax universe.
+ * Scrape the Palm Beach delinquent real-estate tax universe.
+ *
+ * Optional `dateFrom`/`dateTo` (ISO YYYY-MM-DD) narrow the FPN search to a
+ * window — the FPN API key names are `date-range--start-date` / `date-range--end-date`
+ * (kebab w/ double hyphen). Probe confirmed inclusive bounds. Used by the
+ * Phase 2 incremental-date adapter at lib/scrapers/dispatch/palm-beach-tax-delinquent.ts.
+ *
  * Returns counts; data persists to Lien table with lienCategory='tax'.
  */
 export async function scrapePalmBeachTaxDelinquent(
-  opts: { maxPages?: number } = {},
+  opts: { maxPages?: number; dateFrom?: string; dateTo?: string } = {},
 ): Promise<PalmBeachTaxDelinquentResult> {
   const sourceTag = `scraper:palm-beach-tax-${new Date().toISOString().slice(0, 10)}`;
   const today = new Date();
   const maxPages = opts.maxPages ?? MAX_PAGES;
+
+  // Date-window params (Phase 0 probe verified these key names + ISO format)
+  const dateParams: Record<string, string> = {};
+  if (opts.dateFrom) dateParams["date-range--start-date"] = opts.dateFrom;
+  if (opts.dateTo) dateParams["date-range--end-date"] = opts.dateTo;
 
   // 1) First page to discover total count
   const firstPayload = {
@@ -89,10 +100,11 @@ export async function scrapePalmBeachTaxDelinquent(
     keywords: "PCN",
     offset: 0,
     limit: PAGE_SIZE,
+    ...dateParams,
   };
   const firstResp = await postJson(SEARCH_URL, firstPayload);
   const totalReported = firstResp.totalCount ?? 0;
-  console.log(`[palm-beach-tax-delinquent] total PCN-bearing notices reported: ${totalReported.toLocaleString()}`);
+  console.log(`[palm-beach-tax-delinquent] total PCN-bearing notices reported: ${totalReported.toLocaleString()}${opts.dateFrom ? ` (window ${opts.dateFrom}…${opts.dateTo ?? "now"})` : ""}`);
 
   // 2) One bronze snapshot per scrape (the rendered first page sample)
   void captureRaw({
@@ -132,6 +144,7 @@ export async function scrapePalmBeachTaxDelinquent(
         keywords: "PCN",
         offset,
         limit: PAGE_SIZE,
+        ...dateParams,
       });
       acceptPage(resp);
       pageIdx++;
