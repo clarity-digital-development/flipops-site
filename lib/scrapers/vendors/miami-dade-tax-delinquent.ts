@@ -2,8 +2,8 @@ import { writeFileSync, readFileSync, existsSync, mkdtempSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
 import { execFileSync } from "child_process";
-import { prisma } from "@/lib/prisma";
 import { captureRaw } from "@/lib/data-sources/raw-capture";
+import { bulkUpsertLiens, type LienUpsertInput } from "../base/bulk-upsert-lien";
 
 // ---------------------------------------------------------------------------
 // Miami-Dade County delinquent real-estate tax scraper.
@@ -143,48 +143,35 @@ export async function scrapeMiamiDadeTaxDelinquent(): Promise<MiamiDadeTaxDelinq
     legalRisk: "yellow",
   });
 
-  // 5) Persist to Lien table.
+  // 5) Persist via bulk-upsert
   const today = new Date();
-  let persisted = 0;
   let skippedHallucinated = 0;
-
+  const upsertRows: LienUpsertInput[] = [];
   for (const r of records) {
     if (looksHallucinated(r)) { skippedHallucinated++; continue; }
-    try {
-      await prisma.lien.upsert({
-        where: {
-          countyFips_documentNumber_source: {
-            countyFips: COUNTY_FIPS,
-            documentNumber: `${r.apn}-${r.taxYear}`,
-            source: sourceTag,
-          },
-        },
-        create: {
-          countyFips: COUNTY_FIPS,
-          apn: r.apn,
-          lienCategory: "tax",
-          recordingDate: today,
-          amount: r.amount,
-          defendantName: r.ownerName,
-          lienTypeCode: `DELINQUENT_TAX_${r.taxYear}`,
-          documentNumber: `${r.apn}-${r.taxYear}`,
-          source: sourceTag,
-        },
-        update: { amount: r.amount },
-      });
-      persisted++;
-      if (persisted % 2500 === 0) {
-        console.log(`[miami-dade-tax-delinquent] persisted ${persisted.toLocaleString()}/${records.length.toLocaleString()}`);
-      }
-    } catch (err) {
-      console.warn("[miami-dade-tax-delinquent] persist failed:", (err as Error).message);
-    }
+    upsertRows.push({
+      countyFips:       COUNTY_FIPS,
+      apn:              r.apn,
+      documentNumber:   `${r.apn}-${r.taxYear}`,
+      source:           sourceTag,
+      lienCategory:     "tax",
+      lienTypeCode:     `DELINQUENT_TAX_${r.taxYear}`,
+      recordingDate:    today,
+      amount:           r.amount,
+      defendantName:    r.ownerName,
+      plaintiffAddress: null,
+    });
   }
+  console.log(`[miami-dade-tax-delinquent] bulk-upserting ${upsertRows.length.toLocaleString()} rows…`);
+  const bulkResult = await bulkUpsertLiens(upsertRows);
+  console.log(
+    `[miami-dade-tax-delinquent] bulk-upsert done: persisted=${bulkResult.persisted.toLocaleString()} batches=${bulkResult.batches} in ${(bulkResult.durationMs / 1000).toFixed(1)}s`,
+  );
 
   return {
     found: records.length,
     totalReported,
-    persisted,
+    persisted: bulkResult.persisted,
     skippedHallucinated,
   };
 }

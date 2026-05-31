@@ -1,8 +1,9 @@
 import { parse as parseCsv } from "csv-parse/sync";
 import { PlaywrightSession } from "../base/playwright-session";
-import type { Page, Download } from "playwright-chromium";
+import type { Download } from "playwright-chromium";
 import { prisma } from "@/lib/prisma";
 import { captureRaw } from "@/lib/data-sources/raw-capture";
+import { bulkUpsertLiens, type LienUpsertInput } from "../base/bulk-upsert-lien";
 
 // ---------------------------------------------------------------------------
 // Hillsborough delinquent-tax scraper — CSV download path (Phase 4).
@@ -201,9 +202,10 @@ export async function scrapeHillsboroughTaxDelinquentCsv(): Promise<Hillsborough
     `[hillsborough-csv] indexed ${parcels.length.toLocaleString()} parcels (addr ${parcelByAddrCity.size.toLocaleString()}, owner ${parcelByOwnerCity.size.toLocaleString()}) in ${((Date.now() - t0) / 1000).toFixed(1)}s`,
   );
 
-  let persisted = 0;
+  // Build the bulk-upsert payload in memory (no per-row Prisma round-trip).
   let apnResolved = 0;
   let skippedHallucinated = 0;
+  const upsertRows: LienUpsertInput[] = [];
 
   for (const r of records) {
     if (looksHallucinated(r)) { skippedHallucinated++; continue; }
@@ -220,42 +222,30 @@ export async function scrapeHillsboroughTaxDelinquentCsv(): Promise<Hillsborough
     }
     if (apn) apnResolved++;
 
-    try {
-      await prisma.lien.upsert({
-        where: {
-          countyFips_documentNumber_source: {
-            countyFips: COUNTY_FIPS,
-            documentNumber: `${r.account}-${r.taxYear}`,
-            source: sourceTag,
-          },
-        },
-        create: {
-          countyFips: COUNTY_FIPS,
-          apn,
-          lienCategory: "tax",
-          recordingDate: today,
-          amount: null,
-          defendantName: r.ownerName,
-          lienTypeCode: `DELINQUENT_TAX_${r.taxYear}`,
-          documentNumber: `${r.account}-${r.taxYear}`,
-          plaintiffAddress: `${r.situsStreet}|${r.situsCity}|${r.situsZip}`,
-          source: sourceTag,
-        },
-        update: { apn, defendantName: r.ownerName },
-      });
-      persisted++;
-      if (persisted % 2500 === 0) {
-        console.log(`[hillsborough-csv] persisted ${persisted}/${records.length} (apn resolved: ${apnResolved})`);
-      }
-    } catch (err) {
-      console.warn("[hillsborough-csv] persist failed:", (err as Error).message);
-    }
+    upsertRows.push({
+      countyFips:       COUNTY_FIPS,
+      apn,
+      documentNumber:   `${r.account}-${r.taxYear}`,
+      source:           sourceTag,
+      lienCategory:     "tax",
+      lienTypeCode:     `DELINQUENT_TAX_${r.taxYear}`,
+      recordingDate:    today,
+      amount:           null, // public report doesn't expose amount due
+      defendantName:    r.ownerName,
+      plaintiffAddress: `${r.situsStreet}|${r.situsCity}|${r.situsZip}`,
+    });
   }
+
+  console.log(`[hillsborough-csv] bulk-upserting ${upsertRows.length} rows…`);
+  const bulkResult = await bulkUpsertLiens(upsertRows);
+  console.log(
+    `[hillsborough-csv] bulk-upsert done: persisted=${bulkResult.persisted} batches=${bulkResult.batches} in ${(bulkResult.durationMs / 1000).toFixed(1)}s`,
+  );
 
   return {
     found: records.length,
     csvBytes,
-    persisted,
+    persisted: bulkResult.persisted,
     apnResolved,
     skippedHallucinated,
   };

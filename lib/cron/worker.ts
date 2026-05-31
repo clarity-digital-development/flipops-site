@@ -1,21 +1,23 @@
 #!/usr/bin/env tsx
 /**
- * FlipOps Cron Worker Service
+ * FlipOps Legacy Cron Worker Service
  *
- * A single long-running process that executes all 9 TypeScript cron workflows
- * using node-cron for scheduling. This runs 24/7 and handles all automated tasks.
+ * Long-running process that runs the 4 safety-critical guardrails (G1-G4)
+ * via execSync subprocess isolation. Per Phase 6 of the freshness-layer
+ * plan (Strategy C Hybrid, docs/development/FRESHNESS-LAYER-PLAN.md), the
+ * 5 monitoring + discovery jobs migrated to worker-bullmq; only G1-G4
+ * stay here because execSync's process isolation prevents a single bad
+ * run from taking the entire worker down.
  *
- * Usage:
- *   Development: npm run worker
- *   Production: Deployed as separate Railway service
+ * Schedules (all UTC):
+ *   - G1 Deal Approval        */15 * * * *
+ *   - G2 Bid Spread           */15 * * * *
+ *   - G3 Invoice & Budget     */15 * * * *
+ *   - G4 Change Order         */15 * * * *
  *
- * Schedules:
- * - Guardrails (G1-G4): Every 15 minutes
- * - Data Refresh: Daily at 8:00 AM UTC
- * - Pipeline Monitoring: Daily at 9:00 AM UTC
- * - Contractor Performance: Daily at 10:00 AM UTC
- * - ATTOM Property Discovery: Daily at 6:00 AM UTC
- * - Skip Tracing: Weekly Sunday at 7:00 AM UTC
+ * Migrated to worker-bullmq (lib/cron/worker-bullmq-monitoring.ts):
+ *   - data-refresh, pipeline-monitoring, contractor-performance,
+ *     attom-discovery, skip-tracing
  */
 
 import cron from 'node-cron';
@@ -218,11 +220,7 @@ function startWorker(): void {
   log('Worker is now running. Press Ctrl+C to stop.\n');
   log('Next scheduled executions:');
   log('  • Guardrails: Every 15 minutes (next in ~15 min)');
-  log('  • ATTOM Discovery: Daily at 6:00 AM UTC');
-  log('  • Skip Tracing: Sundays at 7:00 AM UTC');
-  log('  • Data Refresh: Daily at 8:00 AM UTC');
-  log('  • Pipeline Monitoring: Daily at 9:00 AM UTC');
-  log('  • Contractor Performance: Daily at 10:00 AM UTC\n');
+  log('  • Monitoring + Discovery jobs now run on worker-bullmq service\n');
 
   // Status update every hour
   cron.schedule('0 * * * *', () => {

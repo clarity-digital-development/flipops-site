@@ -1,6 +1,6 @@
 import { PlaywrightSession } from "../base/playwright-session";
-import { prisma } from "@/lib/prisma";
 import { captureRaw } from "@/lib/data-sources/raw-capture";
+import { bulkUpsertLiens, type LienUpsertInput } from "../base/bulk-upsert-lien";
 
 // ---------------------------------------------------------------------------
 // Broward County delinquent real-estate tax scraper.
@@ -163,48 +163,37 @@ export async function scrapeBrowardTaxDelinquent(): Promise<BrowardTaxDelinquent
     await sess.close();
   }
 
-  // 3) Persist
+  // 3) Persist via bulk-upsert
   const today = new Date();
-  let persisted = 0;
   let skippedHallucinated = 0;
+  const upsertRows: LienUpsertInput[] = [];
   for (const r of allRecords) {
     if (looksHallucinated(r)) { skippedHallucinated++; continue; }
-    try {
-      await prisma.lien.upsert({
-        where: {
-          countyFips_documentNumber_source: {
-            countyFips: COUNTY_FIPS,
-            documentNumber: `${r.apn}-${r.taxYear}`,
-            source: sourceTag,
-          },
-        },
-        create: {
-          countyFips: COUNTY_FIPS,
-          apn: r.apn,
-          lienCategory: "tax",
-          recordingDate: today,
-          // Use face amount (the actual lien amount) as the primary amount;
-          // purchase_amt is the redemption cost which includes interest + fees.
-          amount: r.faceAmount > 0 ? r.faceAmount : r.certPurchaseAmount,
-          defendantName: r.ownerName,
-          lienTypeCode: `DELINQUENT_TAX_${r.taxYear}`,
-          documentNumber: `${r.apn}-${r.taxYear}`,
-          source: sourceTag,
-        },
-        update: {
-          amount: r.faceAmount > 0 ? r.faceAmount : r.certPurchaseAmount,
-        },
-      });
-      persisted++;
-    } catch (err) {
-      console.warn("[broward-tax-delinquent] persist failed:", (err as Error).message);
-    }
+    // Use face amount (the actual lien amount) as the primary amount;
+    // purchase_amt is the redemption cost which includes interest + fees.
+    const amt = r.faceAmount > 0 ? r.faceAmount : r.certPurchaseAmount;
+    upsertRows.push({
+      countyFips:       COUNTY_FIPS,
+      apn:              r.apn,
+      documentNumber:   `${r.apn}-${r.taxYear}`,
+      source:           sourceTag,
+      lienCategory:     "tax",
+      lienTypeCode:     `DELINQUENT_TAX_${r.taxYear}`,
+      recordingDate:    today,
+      amount:           amt,
+      defendantName:    r.ownerName,
+      plaintiffAddress: null,
+    });
   }
+  const bulkResult = await bulkUpsertLiens(upsertRows);
+  console.log(
+    `[broward-tax-delinquent] bulk-upsert done: persisted=${bulkResult.persisted} batches=${bulkResult.batches} in ${(bulkResult.durationMs / 1000).toFixed(1)}s`,
+  );
 
   return {
     found: allRecords.length,
     totalReported,
-    persisted,
+    persisted: bulkResult.persisted,
     skippedHallucinated,
   };
 }

@@ -1,8 +1,8 @@
 import * as cheerio from "cheerio";
 import { PlaywrightSession } from "../base/playwright-session";
 import type { Page } from "playwright-chromium";
-import { prisma } from "@/lib/prisma";
 import { captureRaw } from "@/lib/data-sources/raw-capture";
+import { bulkUpsertLiens, type LienUpsertInput } from "../base/bulk-upsert-lien";
 
 // ---------------------------------------------------------------------------
 // Orange County (FL, FIPS 12095) delinquent real-estate tax scraper.
@@ -183,39 +183,30 @@ export async function scrapeOrangeTaxDelinquent(): Promise<OrangeTaxDelinquentRe
     await sess.close();
   }
 
-  // 5) Persist to Lien table
-  let persisted = 0;
+  // 5) Persist via bulk-upsert
   let skippedHallucinated = 0;
-
+  const upsertRows: LienUpsertInput[] = [];
   for (const r of allRecords) {
     if (looksHallucinated(r)) { skippedHallucinated++; continue; }
-    try {
-      await prisma.lien.upsert({
-        where: {
-          countyFips_documentNumber_source: {
-            countyFips: COUNTY_FIPS,
-            documentNumber: `${r.apn}-${r.taxYear}`,
-            source: sourceTag,
-          },
-        },
-        create: {
-          countyFips: COUNTY_FIPS,
-          apn: r.apn,
-          lienCategory: "tax",
-          recordingDate: today,
-          amount: r.amount,
-          defendantName: r.ownerName,
-          lienTypeCode: `DELINQUENT_TAX_${r.taxYear}`,
-          documentNumber: `${r.apn}-${r.taxYear}`,
-          source: sourceTag,
-        },
-        update: { amount: r.amount, defendantName: r.ownerName },
-      });
-      persisted++;
-    } catch (err) {
-      console.warn("[orange-tax-delinquent] persist failed:", (err as Error).message);
-    }
+    upsertRows.push({
+      countyFips:       COUNTY_FIPS,
+      apn:              r.apn,
+      documentNumber:   `${r.apn}-${r.taxYear}`,
+      source:           sourceTag,
+      lienCategory:     "tax",
+      lienTypeCode:     `DELINQUENT_TAX_${r.taxYear}`,
+      recordingDate:    today,
+      amount:           r.amount,
+      defendantName:    r.ownerName,
+      plaintiffAddress: null,
+    });
   }
+  console.log(`[orange-tax-delinquent] bulk-upserting ${upsertRows.length} rows…`);
+  const bulkResult = await bulkUpsertLiens(upsertRows);
+  console.log(
+    `[orange-tax-delinquent] bulk-upsert done: persisted=${bulkResult.persisted} batches=${bulkResult.batches} in ${(bulkResult.durationMs / 1000).toFixed(1)}s`,
+  );
+  const persisted = bulkResult.persisted;
 
   return {
     found: allRecords.length,
