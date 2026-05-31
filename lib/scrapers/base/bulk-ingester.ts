@@ -85,8 +85,13 @@ export abstract class BulkIngester {
    */
   async ingest(opts: IngestOptions = {}): Promise<BulkIngestResult> {
     const scope = opts.countyFips ?? this.defaultScope();
+    // All known callers of this base class are CLI scripts (FlDorIngester
+    // subclass via scripts/fl-dor-ingest-*.ts, test-fl-bulk.ts). Tag as
+    // "manual-script" so analytics distinguishing scheduler-fired vs
+    // operator-triggered runs work correctly without relying on the schema
+    // default.
     const job = await prisma.bulkIngestJob.create({
-      data: { sourceTag: this.sourceTag, scope, status: "running" },
+      data: { sourceTag: this.sourceTag, scope, status: "running", triggerType: "manual-script" },
     });
 
     const startedAt = Date.now();

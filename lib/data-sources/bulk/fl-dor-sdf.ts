@@ -66,8 +66,12 @@ export class FlDorSdfIngester {
     const wantFips = opts.countyFips ?? null;
     const scope = wantFips ?? "FL";
 
+    // Same rationale as bulk-ingester.ts — exclusively invoked from CLI
+    // scripts (fl-dor-ingest-statewide.ts, fl-dor-sdf-top-metros.ts,
+    // test-fl-dor-ingester.ts). Tag as "manual-script" so operator runs
+    // are not mislabeled scheduler-fired after the schema default flips.
     const job = await prisma.bulkIngestJob.create({
-      data: { sourceTag: this.sourceTag, scope, status: "running" },
+      data: { sourceTag: this.sourceTag, scope, status: "running", triggerType: "manual-script" },
     });
 
     // One per-file bronze snapshot (NOT per row). The CSV file IS the bronze.

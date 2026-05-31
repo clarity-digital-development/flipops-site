@@ -58,7 +58,10 @@ async function main() {
   const queue = new Queue(queueName, { connection });
   const job = await queue.add(
     sourceKey,
-    { sourceKey, trigger: "manual" },
+    // "manual-script" mirrors the admin route's "manual-admin" — analytics
+    // queries can match `triggerType LIKE 'manual-%'` for all human-initiated
+    // runs regardless of channel.
+    { sourceKey, trigger: "manual-script" },
     {
       attempts: 1, // single shot — don't retry-storm during smoke testing
       removeOnComplete: false,

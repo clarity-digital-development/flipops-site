@@ -1719,7 +1719,7 @@ model BulkIngestJob {
   selectorMissRate  Float?                              // % of CSS selectors returning 0 results
   runStatsJson      Json?                               // extensibility
   tier              String?                             // "P1" | "P2" | "OK" (set by scraper-health)
-  triggerType       String   @default("cron")           // "cron" | "manual" | "backfill"
+  triggerType       String   @default("scheduler")      // "scheduler" | "manual-script" | "manual-admin" | "backfill"
 
   @@index([sourceTag])
   @@index([status])

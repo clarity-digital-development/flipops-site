@@ -181,7 +181,11 @@ async function syncRegistry(): Promise<void> {
       { pattern: row.cronExpr, tz: row.timezone ?? "America/New_York" },
       {
         name: row.sourceKey,
-        data: { sourceKey: row.sourceKey },
+        // `trigger: "scheduler"` makes the cron-fired origin visible in
+        // Bull Board / Redis dumps without relying on processJob's default.
+        // Existing schedulers re-upsert on the first sync pass after worker
+        // restart because the in-memory `scheduled` Map is empty on boot.
+        data: { sourceKey: row.sourceKey, trigger: "scheduler" },
       },
     );
     scheduled.set(row.sourceKey, { cronExpr: row.cronExpr, queueName: qcfg.queueName });
@@ -250,6 +254,14 @@ async function processJob(job: Job): Promise<void> {
     return;
   }
 
+  // Thread the BullMQ job's trigger marker through to the audit row so
+  // analytics can distinguish scheduler-fired runs from operator-triggered
+  // ones (manual-script, manual-admin, backfill, etc.). Default to
+  // "scheduler" for any legacy enqueue that pre-dates the trigger field or
+  // omits it. `||` (not `??`) defends against accidental empty strings too.
+  const triggerType: string =
+    (typeof job.data?.trigger === "string" && job.data.trigger) || "scheduler";
+
   // Create audit row.
   const audit = await prisma.bulkIngestJob.create({
     data: {
@@ -257,7 +269,7 @@ async function processJob(job: Job): Promise<void> {
       sourceKey,
       scope: row.countyFips ?? row.state ?? "unknown",
       status: "running",
-      triggerType: "cron",
+      triggerType,
     },
   });
 

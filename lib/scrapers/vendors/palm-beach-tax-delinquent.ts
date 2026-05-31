@@ -194,20 +194,30 @@ async function postJson(url: string, body: unknown): Promise<{
   totalCount?: number;
   _embedded?: { notices?: unknown[] };
 }> {
-  const res = await fetch(url, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "User-Agent":
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-      Accept: "application/json, text/plain, */*",
-      Origin: "https://floridapublicnotices.com",
-      Referer: "https://floridapublicnotices.com/search/archived-notices",
-    },
-    body: JSON.stringify(body),
-  });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return (await res.json()) as { totalCount?: number; _embedded?: { notices?: unknown[] } };
+  // 30s per-request timeout so a hung FPN response can't pin the BullMQ worker
+  // for 5+ min (lockDuration) before stalled-job reclaim kicks in. Phase 4
+  // defensive hardening per the debug-palm-beach-stall workflow recommendation.
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 30_000);
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "User-Agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        Accept: "application/json, text/plain, */*",
+        Origin: "https://floridapublicnotices.com",
+        Referer: "https://floridapublicnotices.com/search/archived-notices",
+      },
+      body: JSON.stringify(body),
+      signal: ctrl.signal,
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return (await res.json()) as { totalCount?: number; _embedded?: { notices?: unknown[] } };
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 /** Parse one tax-deed application notice into a structured record. */
