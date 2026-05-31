@@ -1,6 +1,6 @@
 "use client";
 
-import { Search, Flame, Home, Ban, X, SlidersHorizontal } from "lucide-react";
+import { Search, Flame, Home, Ban, X, SlidersHorizontal, Receipt } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -63,9 +63,19 @@ interface LeadFilterBarProps {
   onDistressChange: (next: Set<DistressFilter>) => void;
   scoreMin: number;
   onScoreMinChange: (min: number) => void;
+  taxOwedMin: number;
+  onTaxOwedMinChange: (min: number) => void;
   resultCount: number;
   onSearch?: () => void;
   onClear?: () => void;
+}
+
+const TAX_OWED_STEPS = [0, 1_000, 5_000, 10_000, 25_000, 50_000, 100_000, 250_000];
+
+function formatTaxOwedCompact(n: number): string {
+  if (n === 0) return "$0";
+  if (n >= 1000) return `$${(n / 1000).toFixed(0)}k`;
+  return `$${n}`;
 }
 
 export function LeadFilterBar({
@@ -75,6 +85,8 @@ export function LeadFilterBar({
   onDistressChange,
   scoreMin,
   onScoreMinChange,
+  taxOwedMin,
+  onTaxOwedMinChange,
   resultCount,
   onSearch,
   onClear,
@@ -87,7 +99,7 @@ export function LeadFilterBar({
   };
 
   const hasActiveFilters =
-    distress.size > 0 || scoreMin > 0 || zip.length > 0;
+    distress.size > 0 || scoreMin > 0 || taxOwedMin > 0 || zip.length > 0;
 
   return (
     <div className="flex flex-wrap items-center gap-2 border-b border-border bg-card px-4 py-3">
@@ -176,6 +188,49 @@ export function LeadFilterBar({
             />
             <p className="text-xs text-muted-foreground">
               Only show leads scoring at or above this threshold.
+            </p>
+          </div>
+        </PopoverContent>
+      </Popover>
+
+      {/* Tax Owed threshold popover (Option A) */}
+      <Popover>
+        <PopoverTrigger asChild>
+          <Button
+            variant="outline"
+            size="sm"
+            className={cn(
+              "h-8 gap-1.5",
+              taxOwedMin > 0 && "border-amber-500 text-amber-600 dark:text-amber-400",
+            )}
+          >
+            <Receipt className="h-3.5 w-3.5" />
+            Tax Owed {taxOwedMin > 0 ? `≥ ${formatTaxOwedCompact(taxOwedMin)}` : ""}
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-72" align="start">
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <Label className="text-sm font-medium">Minimum tax owed</Label>
+              <span className="text-sm font-semibold tabular-nums">
+                {formatTaxOwedCompact(taxOwedMin)}
+              </span>
+            </div>
+            <Slider
+              value={[TAX_OWED_STEPS.indexOf(taxOwedMin) === -1 ? 0 : TAX_OWED_STEPS.indexOf(taxOwedMin)]}
+              min={0}
+              max={TAX_OWED_STEPS.length - 1}
+              step={1}
+              onValueChange={(v) => onTaxOwedMinChange(TAX_OWED_STEPS[v[0]])}
+            />
+            <div className="flex justify-between text-[10px] text-muted-foreground tabular-nums">
+              {TAX_OWED_STEPS.map((step) => (
+                <span key={step}>{formatTaxOwedCompact(step)}</span>
+              ))}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Only show leads with tax delinquency at or above this amount.
+              Surfaces high-motivation owners faster.
             </p>
           </div>
         </PopoverContent>

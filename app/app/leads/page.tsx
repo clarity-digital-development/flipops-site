@@ -30,11 +30,15 @@ export default function LeadsPage() {
   const [zip, setZip] = useState("");
   const [distress, setDistress] = useState<Set<DistressFilter>>(new Set());
   const [scoreMin, setScoreMin] = useState(0);
+  const [taxOwedMin, setTaxOwedMin] = useState(0);
 
   // Selection state — `selectedId` keeps the map pin highlighted even after
   // the detail sheet is closed. `sheetOpen` toggles the drawer only.
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
+
+  // Option A — total exposure stat (sum of taxDelinquentAmount across filtered).
+  // Surfaces the "real money this view represents" headline for demos.
 
   // ------------------------------------------------------------------------
   // Fetch properties — falls back to seed data so the demo always has content.
@@ -72,6 +76,7 @@ export default function LeadsPage() {
     return properties.filter((p) => {
       if (zip && zip.length === 5 && p.zip !== zip) return false;
       if (scoreMin > 0 && (p.score ?? 0) < scoreMin) return false;
+      if (taxOwedMin > 0 && (p.taxDelinquentAmount ?? 0) < taxOwedMin) return false;
       if (distress.size > 0) {
         const matchesAny =
           (distress.has("foreclosure") && p.foreclosure) ||
@@ -82,7 +87,18 @@ export default function LeadsPage() {
       }
       return true;
     });
-  }, [properties, zip, scoreMin, distress]);
+  }, [properties, zip, scoreMin, taxOwedMin, distress]);
+
+  // Total tax-owed exposure across the filtered view — the demo-friendly
+  // "this user is looking at $X in motivated owners" headline.
+  const totalTaxExposure = useMemo(
+    () => filtered.reduce((sum, p) => sum + (p.taxDelinquentAmount ?? 0), 0),
+    [filtered],
+  );
+  const virtualCount = useMemo(
+    () => filtered.filter((p) => p.virtual).length,
+    [filtered],
+  );
 
   const selected = filtered.find((p) => p.id === selectedId) ?? null;
 
@@ -102,7 +118,75 @@ export default function LeadsPage() {
     setZip("");
     setDistress(new Set());
     setScoreMin(0);
+    setTaxOwedMin(0);
   };
+
+  // ------------------------------------------------------------------------
+  // Promote-on-engagement (Option A Phase A5)
+  //
+  // Wraps a leadId-taking action handler. If the lead is virtual, POST to
+  // /api/properties/promote first, swap the virtual id for the real Property
+  // id in local state and selection, then forward the call with the real id.
+  //
+  // Idempotent — a second click on an already-promoted lead is a no-op
+  // server-side. Failures fall back to running the action with the virtual
+  // id so the user isn't blocked (the action may degrade gracefully or
+  // surface its own error).
+  // ------------------------------------------------------------------------
+  const promoteIfVirtual = useCallback(
+    async (id: string): Promise<string> => {
+      const lead = properties.find((p) => p.id === id);
+      if (!lead || !lead.virtual) return id;
+      if (!lead.countyFips || !lead.apn) return id; // Can't promote without the bridge keys
+
+      try {
+        const res = await fetch("/api/properties/promote", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ countyFips: lead.countyFips, apn: lead.apn }),
+        });
+        if (!res.ok) return id;
+        const data = await res.json();
+        const real = data.property as Property | undefined;
+        if (!real?.id) return id;
+
+        // Swap the virtual row for the real one in local state.
+        setProperties((prev) =>
+          prev.map((p) =>
+            p.id === id
+              ? { ...real, virtual: false, partial: false }
+              : p,
+          ),
+        );
+        // Update selection if we just promoted the selected lead.
+        if (selectedId === id) setSelectedId(real.id);
+        // Behavioral: promotion is a meaningful conversion signal — the user
+        // is converting a surfaced freshness-layer lead into a real workspace
+        // lead. Track it so the personalization engine learns what kinds of
+        // surfaced leads convert.
+        void trackLeadEvent("saved", real, {
+          source: "virtual_promote",
+          countyFips: lead.countyFips ?? undefined,
+        });
+        return real.id;
+      } catch {
+        return id;
+      }
+    },
+    [properties, selectedId],
+  );
+
+  const withPromote = useCallback(
+    (
+      handler: (id: string) => unknown | Promise<unknown>,
+    ): ((id: string) => Promise<void>) => {
+      return async (id: string) => {
+        const realId = await promoteIfVirtual(id);
+        await handler(realId);
+      };
+    },
+    [promoteIfVirtual],
+  );
 
   const handleZipSearch = () => {
     if (!zip || zip.length !== 5) return;
@@ -222,10 +306,37 @@ export default function LeadsPage() {
         onDistressChange={setDistress}
         scoreMin={scoreMin}
         onScoreMinChange={setScoreMin}
+        taxOwedMin={taxOwedMin}
+        onTaxOwedMinChange={setTaxOwedMin}
         resultCount={filtered.length}
         onSearch={handleZipSearch}
         onClear={handleClearFilters}
       />
+
+      {/* Option A — exposure / virtual headline */}
+      {(totalTaxExposure > 0 || virtualCount > 0) && (
+        <div className="flex-shrink-0 flex flex-wrap items-center gap-3 border-b border-border bg-card px-4 py-2 text-xs">
+          {totalTaxExposure > 0 && (
+            <div className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-1 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300">
+              <span className="font-semibold tabular-nums">
+                {new Intl.NumberFormat("en-US", {
+                  style: "currency",
+                  currency: "USD",
+                  maximumFractionDigits: 0,
+                  notation: "compact",
+                }).format(totalTaxExposure)}
+              </span>
+              <span>in tax exposure</span>
+            </div>
+          )}
+          {virtualCount > 0 && (
+            <div className="inline-flex items-center gap-1.5 rounded-full bg-violet-50 px-2.5 py-1 text-violet-700 dark:bg-violet-950/60 dark:text-violet-300">
+              <span className="font-semibold tabular-nums">{virtualCount}</span>
+              <span>fresh leads surfaced</span>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Two-pane main: list (40%) | map (60%) */}
       <div className="flex-1 flex min-h-0 overflow-hidden">
@@ -250,10 +361,10 @@ export default function LeadsPage() {
         lead={selected}
         open={sheetOpen}
         onOpenChange={setSheetOpen}
-        onSkipTrace={handleSkipTrace}
-        onSendToUnderwriting={handleSendToUnderwriting}
-        onAddToCampaign={handleAddToCampaign}
-        onLogContact={handleLogContact}
+        onSkipTrace={withPromote(handleSkipTrace)}
+        onSendToUnderwriting={withPromote(handleSendToUnderwriting)}
+        onAddToCampaign={withPromote(handleAddToCampaign)}
+        onLogContact={withPromote(handleLogContact)}
       />
     </div>
   );

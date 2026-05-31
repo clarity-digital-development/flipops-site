@@ -29,6 +29,16 @@ export async function POST(
     }
 
     const { id } = params;
+    if (id.startsWith('virt-')) {
+      return NextResponse.json(
+        {
+          error: 'Virtual lead — promote it first',
+          hint: 'POST /api/properties/promote with { countyFips, apn } to materialize a Property row, then retry against the returned id.',
+          code: 'VIRTUAL_LEAD_NOT_PROMOTED',
+        },
+        { status: 409 },
+      );
+    }
 
     // Parse and validate request body
     const body = await req.json();

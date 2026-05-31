@@ -1,9 +1,19 @@
 "use client";
 
-import { MapPin, Phone, Mail, Flame, Users } from "lucide-react";
+import { MapPin, Phone, Mail, Flame, Users, Receipt, Sparkles } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
+
+function formatTaxAmountCompact(n?: number | null): string | null {
+  if (n == null || n <= 0) return null;
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: 0,
+    notation: "compact",
+  }).format(n);
+}
 
 // ---------------------------------------------------------------------------
 // LeadListPanel — the left pane of the new Leads page.
@@ -25,6 +35,10 @@ export interface ListLead {
   preForeclosure?: boolean;
   taxDelinquent?: boolean;
   vacant?: boolean;
+  // Option A — tax-delinquent display
+  taxDelinquentAmount?: number | null;
+  taxDelinquentYearsCount?: number | null;
+  virtual?: boolean;
 }
 
 interface LeadListPanelProps {
@@ -216,7 +230,16 @@ export function LeadListPanel({
                       {chip.label}
                     </span>
                   ))}
-                  {chips.length === 0 && (
+                  {lead.virtual && (
+                    <span
+                      className="inline-flex items-center gap-0.5 rounded-full bg-violet-100 px-1.5 py-0.5 text-[10px] font-semibold text-violet-700 dark:bg-violet-950 dark:text-violet-300"
+                      title="Surfaced from FlipOps freshness data. Click any action to add it to your leads."
+                    >
+                      <Sparkles className="h-2.5 w-2.5" />
+                      New
+                    </span>
+                  )}
+                  {chips.length === 0 && !lead.virtual && (
                     <span className="text-[10px] text-muted-foreground">
                       No distress flags
                     </span>
@@ -227,6 +250,19 @@ export function LeadListPanel({
                   {lead.emails && <Mail className="h-3 w-3" />}
                 </div>
               </div>
+
+              {/* Option A — owes-amount secondary line for tax-delinquent leads */}
+              {lead.taxDelinquent && formatTaxAmountCompact(lead.taxDelinquentAmount) && (
+                <div className="mt-0.5 flex items-center gap-1 text-[10px] text-amber-600 dark:text-amber-400 tabular-nums">
+                  <Receipt className="h-3 w-3" />
+                  <span>Owes {formatTaxAmountCompact(lead.taxDelinquentAmount)}</span>
+                  {lead.taxDelinquentYearsCount != null && lead.taxDelinquentYearsCount > 1 && (
+                    <span className="text-muted-foreground">
+                      · {lead.taxDelinquentYearsCount}yr
+                    </span>
+                  )}
+                </div>
+              )}
             </button>
           );
         })}

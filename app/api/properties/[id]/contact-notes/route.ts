@@ -22,6 +22,17 @@ export async function POST(
     const userId = "mock-user-id"; // Temporary for CSS debugging
 
     const { id } = await params;
+    if (id.startsWith('virt-')) {
+      return NextResponse.json(
+        {
+          error: 'Virtual lead — promote it first',
+          hint: 'POST /api/properties/promote with { countyFips, apn } to materialize a Property row, then retry against the returned id.',
+          code: 'VIRTUAL_LEAD_NOT_PROMOTED',
+        },
+        { status: 409 },
+      );
+    }
+
     const body = await request.json();
 
     // Verify the property belongs to the user

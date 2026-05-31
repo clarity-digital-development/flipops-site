@@ -13,6 +13,10 @@ import {
   Building,
   DollarSign,
   ExternalLink,
+  Receipt,
+  Calendar,
+  Layers,
+  Sparkles,
 } from "lucide-react";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { VisuallyHidden } from "@radix-ui/react-visually-hidden";
@@ -50,6 +54,76 @@ export interface DetailLead {
   preForeclosure?: boolean;
   taxDelinquent?: boolean;
   vacant?: boolean;
+  // Option A — tax-delinquent detail + virtual/promote
+  taxDelinquentAmount?: number | null;
+  taxDelinquentYearsCount?: number | null;
+  taxDelinquentEarliestYear?: number | null;
+  taxDelinquentLatestYear?: number | null;
+  virtual?: boolean;
+  partial?: boolean;
+  apn?: string | null;
+  countyFips?: string | null;
+  grade?: string | null;
+  motivation?: string | null;
+  scoreBreakdown?: string | null;
+}
+
+interface ScoreSignal {
+  type?: string;
+  description?: string;
+  weight?: number;
+  points?: number;
+}
+
+interface ParsedScoreBreakdown {
+  signals: ScoreSignal[];
+  grade?: string;
+  motivation?: string;
+}
+
+function parseScoreBreakdown(
+  lead: DetailLead,
+): ParsedScoreBreakdown {
+  // 1) Try parsing the stored JSON (real Property rows).
+  if (lead.scoreBreakdown) {
+    try {
+      const parsed = JSON.parse(lead.scoreBreakdown);
+      if (parsed && Array.isArray(parsed.signals)) {
+        return {
+          signals: parsed.signals as ScoreSignal[],
+          grade: parsed.grade ?? lead.grade ?? undefined,
+          motivation: parsed.motivation ?? lead.motivation ?? undefined,
+        };
+      }
+    } catch {
+      // fall through to flag-based fallback
+    }
+  }
+
+  // 2) Fallback: synthesize signals from the boolean flags. This is what
+  //    virtual leads will use (the materialized aggregate doesn't carry the
+  //    full signals JSON — only score/grade/motivation).
+  const signals: ScoreSignal[] = [];
+  if (lead.foreclosure) signals.push({ type: "FORECLOSURE", description: "Foreclosure", points: 25 });
+  if (lead.preForeclosure) signals.push({ type: "PRE_FORECLOSURE", description: "Pre-foreclosure", points: 25 });
+  if (lead.taxDelinquent) {
+    const yrs = lead.taxDelinquentYearsCount ?? 1;
+    const amt = lead.taxDelinquentAmount ?? 0;
+    let points = 20;
+    if (amt >= 25_000) points += 5;
+    if (yrs >= 2) points += 5;
+    signals.push({
+      type: "TAX_DELINQUENT",
+      description: `Tax delinquent · $${amt.toLocaleString()} over ${yrs}yr`,
+      points,
+    });
+  }
+  if (lead.vacant) signals.push({ type: "VACANT", description: "Vacant property", points: 15 });
+  return {
+    signals,
+    grade: lead.grade ?? undefined,
+    motivation: lead.motivation ?? undefined,
+  };
 }
 
 interface LeadDetailSheetProps {
@@ -123,6 +197,8 @@ export function LeadDetailSheet({
       color: "bg-violet-100 text-violet-700 dark:bg-violet-950/60 dark:text-violet-300",
     });
 
+  const scoreBreakdown = parseScoreBreakdown(lead);
+
   const scoreColor =
     (lead.score ?? 0) >= 85
       ? "text-emerald-600 dark:text-emerald-400"
@@ -170,13 +246,45 @@ export function LeadDetailSheet({
 
             <div className="flex items-center gap-4 mb-3">
               {lead.score != null && (
-                <div>
-                  <div className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                <div
+                  className="group relative cursor-help"
+                  title="Hover for distress score breakdown"
+                >
+                  <div className="text-[10px] uppercase tracking-wide text-muted-foreground flex items-center gap-1">
                     Score
+                    {scoreBreakdown.grade && (
+                      <span className="rounded bg-muted px-1 text-[9px] font-semibold tabular-nums">
+                        {scoreBreakdown.grade}
+                      </span>
+                    )}
                   </div>
                   <div className={cn("text-2xl font-bold tabular-nums", scoreColor)}>
                     {lead.score}
                   </div>
+
+                  {/* Hover-card tooltip — pure CSS, no Radix popover needed */}
+                  {scoreBreakdown.signals.length > 0 && (
+                    <div className="invisible absolute left-0 top-full z-50 mt-1 w-64 rounded-md border border-border bg-popover p-3 text-xs text-popover-foreground opacity-0 shadow-lg transition-opacity group-hover:visible group-hover:opacity-100">
+                      <div className="mb-2 font-semibold">Distress signals</div>
+                      <div className="space-y-1 font-mono text-[11px]">
+                        {scoreBreakdown.signals.map((sig, i) => (
+                          <div key={i} className="flex items-start justify-between gap-2">
+                            <span className="text-foreground/80">
+                              {sig.description ?? sig.type ?? "Signal"}
+                            </span>
+                            <span className="font-semibold tabular-nums text-foreground">
+                              +{sig.points ?? sig.weight ?? "?"}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                      {scoreBreakdown.motivation && (
+                        <div className="mt-2 border-t border-border pt-2 text-[10px] uppercase tracking-wide text-muted-foreground">
+                          Motivation: {scoreBreakdown.motivation}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
               {lead.ownerName && (
@@ -252,7 +360,44 @@ export function LeadDetailSheet({
                     label="Year Built"
                     value={lead.yearBuilt ? String(lead.yearBuilt) : "—"}
                   />
+
+                  {/* Option A — tax-delinquent detail rows */}
+                  {lead.taxDelinquent && lead.taxDelinquentAmount != null && lead.taxDelinquentAmount > 0 && (
+                    <DetailCell
+                      icon={Receipt}
+                      label="Tax Owed"
+                      value={formatCurrency(lead.taxDelinquentAmount)}
+                    />
+                  )}
+                  {lead.taxDelinquent && lead.taxDelinquentEarliestYear && (
+                    <DetailCell
+                      icon={Calendar}
+                      label="Delinquent Since"
+                      value={String(lead.taxDelinquentEarliestYear)}
+                    />
+                  )}
+                  {lead.taxDelinquent && (lead.taxDelinquentYearsCount ?? 0) > 1 && (
+                    <DetailCell
+                      icon={Layers}
+                      label="Years Owed"
+                      value={`${lead.taxDelinquentYearsCount} certificates`}
+                    />
+                  )}
                 </div>
+
+                {/* Virtual-lead badge — disclosure that this lead came from
+                    freshness-layer data and will be added to the user's
+                    leads on first action */}
+                {lead.virtual && (
+                  <div className="mt-3 flex items-start gap-2 rounded-md border border-violet-200 bg-violet-50 px-3 py-2 text-xs text-violet-900 dark:border-violet-900 dark:bg-violet-950 dark:text-violet-200">
+                    <Sparkles className="mt-0.5 h-3.5 w-3.5 flex-shrink-0" />
+                    <span>
+                      <strong>Surfaced lead.</strong> This property hasn't been added to your leads yet.
+                      The first action (Skip Trace, Log Contact, Send to Dialer, Underwriting) will save it
+                      to your workspace.
+                    </span>
+                  </div>
+                )}
               </section>
 
               {/* Contact info */}

@@ -44,6 +44,27 @@ export interface Property {
   county?: string;
   equityPercent?: number;
   mortgageBalance?: number;
+
+  // === Option A — virtual + bridge fields (Phase A4-A5) ===
+  /** True when the lead came from the API's UNION virtual branch
+   * (Parcel+TaxDelinquencySummary join) rather than a tenant-owned Property
+   * row. The UI uses this to gate Edit/Delete actions and to trigger
+   * promote-on-engagement before any first-action mutation. */
+  virtual?: boolean;
+  /** True when virtual=true AND no Parcel match — orphan-Lien card. */
+  partial?: boolean;
+  apn?: string | null;
+  countyFips?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  grade?: string | null;
+  motivation?: string | null;
+  metadata?: string | null;
+  // Tax-delinquent detail (Option A)
+  taxDelinquentAmount?: number | null;
+  taxDelinquentYearsCount?: number | null;
+  taxDelinquentEarliestYear?: number | null;
+  taxDelinquentLatestYear?: number | null;
 }
 
 export const seedProperties: Property[] = [

@@ -68,6 +68,44 @@ export function calculateDistressScore(property: REAPIPropertyData): DistressSco
   });
   if (hasLienOrJudgment) totalScore += 20;
 
+  // === NEW: County tax-delinquent (FL scraper data, Option A) ===
+  // Separate from LIEN_JUDGMENT because REAPI's taxLien field never fires
+  // for our scraped FL data. Base +20 (matches LIEN_JUDGMENT weight per
+  // FlipOps_Distress_Scoring_Logic v2.0). Boosts for high amount, multi-year,
+  // and FL Ch. 197 tax-deed eligibility. Capped at +30 total contribution.
+  // NO time-decay — older FL tax certificates are MORE motivating (closer to
+  // forced sale), not less.
+  const td = property.isTaxDelinquent || false;
+  const tdAmount = property.taxDelinquentAmount || 0;
+  const tdYears = property.taxDelinquentYearsCount || 0;
+  const tdEarliestYear = property.taxDelinquentEarliestYear;
+  const tdCurrentYear = new Date().getFullYear();
+  const tdDeedEligible = tdEarliestYear ? (tdCurrentYear - tdEarliestYear) >= 2 : false;
+  const tdEstValue = property.estimatedValue || 0;
+  const tdHighAmount = tdAmount > 50000 || (tdEstValue > 0 && tdAmount / tdEstValue > 0.1);
+
+  let tdPts = 0;
+  if (td) {
+    tdPts = 20;
+    if (tdHighAmount) tdPts += 5;
+    if (tdYears >= 2) tdPts += 5;
+    if (tdDeedEligible) tdPts += 5;
+    tdPts = Math.min(tdPts, 30);
+  }
+
+  signals.push({
+    signal: 'TAX_DELINQUENT',
+    weight: 20, // base weight reported; boost rolled into totalScore
+    present: td,
+    description: td
+      ? `Tax delinquent${tdEarliestYear ? ` since ${tdEarliestYear}` : ''}` +
+        `${tdAmount > 0 ? ` ($${tdAmount.toLocaleString()})` : ''}` +
+        `${tdYears > 1 ? ` · ${tdYears} certificates` : ''}` +
+        `${tdDeedEligible ? ' · deed-eligible' : ''}`
+      : 'Property tax delinquent (FL county data)',
+  });
+  if (td) totalScore += tdPts;
+
   // ============================================
   // MEDIUM-VALUE SIGNALS (10-15 points each)
   // ============================================
@@ -278,6 +316,20 @@ export function quickDistressScore(property: REAPIPropertyData): number {
   if (property.auction || property.foreclosure) score += 25;
   if (property.taxLien || property.judgment) score += 20;
 
+  // County tax-delinquent (FL scraper data, Option A) — mirror of the full
+  // scorer's TAX_DELINQUENT branch, kept in sync.
+  if (property.isTaxDelinquent) {
+    let tdPts = 20;
+    const tdAmount = property.taxDelinquentAmount || 0;
+    const tdEstValue = property.estimatedValue || 0;
+    const tdHigh = tdAmount > 50000 || (tdEstValue > 0 && tdAmount / tdEstValue > 0.1);
+    if (tdHigh) tdPts += 5;
+    if ((property.taxDelinquentYearsCount || 0) >= 2) tdPts += 5;
+    const ey = property.taxDelinquentEarliestYear;
+    if (ey && (new Date().getFullYear() - ey) >= 2) tdPts += 5;
+    score += Math.min(tdPts, 30);
+  }
+
   // Medium-value signals (10-15 pts)
   if (property.vacant) score += 15;
   if (property.outOfStateAbsenteeOwner) score += 15;
@@ -324,4 +376,52 @@ export function combineWithProfileScore(
 ): number {
   const combined = reapiDistressScore * weights.distress + profileScore * weights.profile;
   return Math.round(Math.min(combined, 100));
+}
+
+// ---------------------------------------------------------------------------
+// Property-shaped scorer (Option A Phase A3 — leads-UI integration entry point)
+//
+// Adapts a Prisma Property row (or a virtual lead synthesized from
+// Parcel+Lien) into the REAPI scorer shape. Used by:
+//   - /api/properties/[id]/score/recompute (manual re-score from drawer)
+//   - The promote-on-engagement flow (when virtual → tenant-owned)
+//   - lib/cron/jobs that batch-score newly-ingested Property rows
+//
+// Virtual leads pass an in-memory partial Property object built from the
+// TaxDelinquencySummary + Parcel join — the same fields apply.
+// ---------------------------------------------------------------------------
+
+/** Minimal Property-row shape the score function reads. Subset of Prisma's Property. */
+export interface PropertyScoreInput {
+  foreclosure: boolean;
+  preForeclosure: boolean;
+  taxDelinquent: boolean;
+  vacant: boolean;
+  bankruptcy: boolean;
+  absenteeOwner: boolean;
+  estimatedValue: number | null;
+  assessedValue: number | null;
+  taxDelinquentAmount: number | null;
+  taxDelinquentYearsCount: number | null;
+  taxDelinquentEarliestYear: number | null;
+}
+
+export function calculateDistressScoreFromProperty(p: PropertyScoreInput): DistressScore {
+  // Adapt PrismaProperty → REAPIPropertyData shape (partial — only the fields
+  // the scorer actually reads). REAPI-specific signals (preForeclosure /
+  // foreclosure / vacant / absenteeOwner) flow straight through; the
+  // tax-delinquent fields flow into the new TAX_DELINQUENT branch.
+  const adapted: Partial<REAPIPropertyData> = {
+    foreclosure: p.foreclosure,
+    preForeclosure: p.preForeclosure,
+    vacant: p.vacant,
+    absenteeOwner: p.absenteeOwner,
+    estimatedValue: p.estimatedValue ?? undefined,
+    // Tax-delinquent specific (the new path)
+    isTaxDelinquent: p.taxDelinquent,
+    taxDelinquentAmount: p.taxDelinquentAmount ?? undefined,
+    taxDelinquentYearsCount: p.taxDelinquentYearsCount ?? undefined,
+    taxDelinquentEarliestYear: p.taxDelinquentEarliestYear ?? undefined,
+  };
+  return calculateDistressScore(adapted as REAPIPropertyData);
 }

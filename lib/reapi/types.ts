@@ -154,6 +154,19 @@ export interface REAPIPropertyData {
   taxLien: boolean | null;
   vacant: boolean;
 
+  // === Florida tax-delinquent integration (Option A, 2026-05-31) ===
+  // These are separate from `taxLien` (REAPI's nationwide field) because
+  // our FL scraper data fills these and REAPI's taxLien never fires for it.
+  // Hydrated from TaxDelinquencySummary at API serialization time.
+  /** True if any unpaid tax certificate exists for this APN in flipops.Lien */
+  isTaxDelinquent?: boolean;
+  /** SUM of Lien.amount WHERE lienCategory='tax' for this APN (USD) */
+  taxDelinquentAmount?: number;
+  /** COUNT of distinct delinquent tax years on this APN */
+  taxDelinquentYearsCount?: number;
+  /** MIN tax year — used for FL Ch. 197 tax-deed eligibility (>=2 yrs old) */
+  taxDelinquentEarliestYear?: number;
+
   // MLS status
   mlsActive: boolean;
   mlsCancelled: boolean;

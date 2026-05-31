@@ -18,6 +18,26 @@ async function getDbUserId(): Promise<string | null> {
 }
 
 /**
+ * Option A guardrail — virtual leads (Parcel+TaxDelinquencySummary join)
+ * carry synthetic `virt-{countyFips}-{apn}` ids. They must be promoted to a
+ * real Property row before any mutation. Returns true if the id is virtual.
+ */
+function isVirtualLeadId(id: string): boolean {
+  return typeof id === 'string' && id.startsWith('virt-');
+}
+
+function virtualLeadError() {
+  return NextResponse.json(
+    {
+      error: 'Virtual lead — promote it first',
+      hint: 'POST /api/properties/promote with { countyFips, apn } to materialize a Property row, then retry against the returned id.',
+      code: 'VIRTUAL_LEAD_NOT_PROMOTED',
+    },
+    { status: 409 },
+  );
+}
+
+/**
  * GET /api/properties/[id]
  * Get a single property by ID
  */
@@ -69,6 +89,8 @@ export async function PATCH(
     }
 
     const { id } = await params;
+    if (isVirtualLeadId(id)) return virtualLeadError();
+
     const body = await request.json();
 
     // Verify the property belongs to the user
@@ -132,6 +154,7 @@ export async function DELETE(
     }
 
     const { id } = await params;
+    if (isVirtualLeadId(id)) return virtualLeadError();
 
     // Verify the property belongs to the user
     const existing = await prisma.property.findFirst({
