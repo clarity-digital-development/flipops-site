@@ -1693,22 +1693,85 @@ model Parcel {
 }
 
 // Audit log of bulk ingest runs (sibling of ScrapeJob, for the bulk modality).
+// EXTENDED 2026-05-30 for the freshness layer (see docs/development/FRESHNESS-LAYER-PLAN.md):
+// becomes the unified run-audit log for both legacy bulk ingest (sourceKey=NULL)
+// and new freshness-layer scrapers (sourceKey FK to ScrapeRegistry).
 model BulkIngestJob {
-  id              String   @id @default(cuid())
-  sourceTag       String                     // "bulk:fl-fgio"
-  scope           String                     // county FIPS ("12031") or state ("FL")
-  status          String                     // "running" | "succeeded" | "failed"
-  recordsFetched  Int      @default(0)
-  recordsUpserted Int      @default(0)
-  startedAt       DateTime @default(now())
-  finishedAt      DateTime?
-  durationMs      Int?
-  errorMessage    String?  @db.Text
-  cursor          String?                    // resumption checkpoint (resultOffset)
+  id                String   @id @default(cuid())
+  sourceTag         String                     // "bulk:fl-fgio" (free-form provenance)
+  scope             String                     // county FIPS ("12031") or state ("FL")
+  status            String                     // "running" | "succeeded" | "failed"
+  recordsFetched    Int      @default(0)
+  recordsUpserted   Int      @default(0)
+  startedAt         DateTime @default(now())
+  finishedAt        DateTime?
+  durationMs        Int?
+  errorMessage      String?  @db.Text
+  cursor            String?                    // resumption checkpoint (resultOffset)
+
+  // Freshness-layer extensions (nullable for legacy rows)
+  sourceKey         String?                              // FK to ScrapeRegistry.sourceKey
+  registry          ScrapeRegistry? @relation(fields: [sourceKey], references: [sourceKey])
+  rejectCount       Int      @default(0)                // hallucination-guard rejects
+  http4xxCount      Int      @default(0)
+  http5xxCount      Int      @default(0)
+  cfChallengeCount  Int      @default(0)
+  selectorMissRate  Float?                              // % of CSS selectors returning 0 results
+  runStatsJson      Json?                               // extensibility
+  tier              String?                             // "P1" | "P2" | "OK" (set by scraper-health)
+  triggerType       String   @default("cron")           // "cron" | "manual" | "backfill"
 
   @@index([sourceTag])
   @@index([status])
   @@index([startedAt])
+  @@index([sourceKey])
+}
+
+// Freshness-layer registry. Declarative source-of-truth for every scraper the
+// scheduler should run. Replaces the FIPS-keyed CountyScraper model for
+// scheduled bulk scrapers (CountyScraper stays alive for the on-demand
+// `refreshCounty()` path in lib/data-sources/index.ts — different use case).
+// See docs/development/FRESHNESS-LAYER-PLAN.md for the full design.
+model ScrapeRegistry {
+  id                     String   @id @default(cuid())
+  sourceKey              String   @unique           // "duval-tax-delinquent", "duval-clerk"
+  domain                 String                      // "jaxdailyrecord.com" (queue-grouping key)
+  countyFips             String?                     // optional; null for statewide
+  state                  String?                     // "FL"
+  scraperFn              String                      // dispatch-map key, e.g. "scrapeDuvalTaxDelinquent"
+  cronExpr               String                      // "0 6 * * *" — validated at write + boot
+  strategy               String                      // "full" | "incremental-date" | "incremental-id" | "snapshot-diff" | "head-check"
+  enabled                Boolean  @default(true)
+  bootstrapping          Boolean  @default(true)     // cleared once baseline established
+  seasonStartMonth       Int?                        // 1-12; null = year-round
+  seasonEndMonth         Int?
+  legalRisk              String                      // REQUIRED — "green" | "yellow" | "red"
+  rateLimitMs            Int      @default(1500)     // baseline politeness (Redis enforces)
+  priority               Int      @default(0)        // tie-breaker for same-minute collisions
+  timezone               String   @default("America/New_York")
+  proxyMode              String   @default("none")   // "none" | "bd-on" | "bd-rotate"
+
+  // Run state
+  lastRunAt              DateTime?
+  lastSuccessAt          DateTime?
+  lastFailureAt          DateTime?
+  lastFailureReason      String?  @db.Text
+  lastHighWaterMark      String?                     // cursor for next run (date or max-id)
+  lastRowCount           Int?
+  rollingMedianRowCount  Int?                        // computed by health-check
+  consecutiveFails       Int      @default(0)
+  consecutiveP1Alerts    Int      @default(0)        // for @channel escalation policy
+  pausedReason           String?                     // populated when health-check auto-pauses
+
+  notes                  String?  @db.Text
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  bulkIngestJobs         BulkIngestJob[]
+
+  @@index([enabled, cronExpr])
+  @@index([domain])
+  @@index([countyFips])
 }
 
 // =============================================================================
@@ -1744,7 +1807,9 @@ model RawSnapshot {
   // Per §5.1 of [FL-COVERAGE-PLAN.md]: every scrape carries the legal-risk
   // zone it was sourced from so we can purge yellow-zone data with one SQL
   // if a cease-and-desist arrives. Default "green" for backwards-compat.
-  legalRisk     String?  @default("green") // "green" | "yellow"
+  // "red" is reserved for hard-locked sources that MUST NEVER appear here —
+  // if a row has legalRisk="red", that's a policy violation to investigate.
+  legalRisk     String?  @default("green") // "green" | "yellow" | "red"
   egressIp      String?  // residential proxy session IP, when applicable
   proxySession  String?  // Bright Data session ID for replay/audit
 
