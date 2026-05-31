@@ -44,6 +44,8 @@
     "cron:all": "npm run cron:data-refresh && npm run cron:g1 && npm run cron:g2 && npm run cron:g3 && npm run cron:g4 && npm run cron:pipeline && npm run cron:contractors && npm run cron:attom && npm run cron:skip-trace",
     "worker": "tsx lib/cron/worker.ts",
     "worker:dev": "tsx watch lib/cron/worker.ts",
+    "worker:bullmq": "tsx lib/cron/worker-bullmq.ts",
+    "worker:bullmq:dev": "tsx watch lib/cron/worker-bullmq.ts",
     "vendors:seed": "tsx scripts/seed-platform-vendors.ts",
     "vendors:refresh": "tsx scripts/refresh-platform-vendors.ts"
   },

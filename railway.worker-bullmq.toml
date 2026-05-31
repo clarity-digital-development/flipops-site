@@ -1,0 +1,8 @@
+[build]
+builder = "nixpacks"
+nixpacksConfigPath = "nixpacks.worker-bullmq.toml"
+
+[deploy]
+startCommand = "npm run worker:bullmq"
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 10

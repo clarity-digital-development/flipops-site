@@ -1,0 +1,20 @@
+# Nixpacks configuration for FlipOps worker-bullmq service
+# Separate Railway service from the legacy `worker` (node-cron + execSync for G1-G4).
+# This service runs BullMQ JobScheduler + Workers for the new freshness-layer scrapers
+# (see docs/development/FRESHNESS-LAYER-PLAN.md).
+#
+# Why a separate service: keeps execSync (blocking) from killing BullMQ's heartbeat.
+# See FRESHNESS-LAYER-PLAN.md §"Phase 6 = Strategy C" for the rationale.
+
+[phases.setup]
+nixPkgs = ["nodejs_22"]
+
+[phases.install]
+cmds = ["npm ci --include=dev"]
+
+[phases.build]
+# Worker doesn't need Next.js build - skip it
+cmds = ["echo 'worker-bullmq service - skipping Next.js build'"]
+
+[start]
+cmd = "npm run worker:bullmq"
