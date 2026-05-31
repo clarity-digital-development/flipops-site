@@ -7,6 +7,7 @@ import { resolveAdapter, registeredSourceKeys } from "@/lib/scrapers/dispatch";
 import { createRunStatsCollector } from "@/lib/scrapers/dispatch/run-stats";
 import type { RunContext } from "@/lib/scrapers/dispatch/types";
 import { runScraperHealthCheck } from "@/lib/cron/monitoring/scraper-health";
+import { setupMonitoringJobs } from "@/lib/cron/worker-bullmq-monitoring";
 
 // ---------------------------------------------------------------------------
 // worker-bullmq — the BullMQ-driven freshness scheduler.
@@ -418,6 +419,9 @@ async function main(): Promise<void> {
 
   // Internal health-check scheduler (Phase 3).
   await ensureHealthCheckScheduler();
+
+  // Phase 6: 5 monitoring/discovery jobs migrated from legacy execSync.
+  await setupMonitoringJobs(connection, queues, workers);
 
   // Initial registry sync.
   await syncRegistry();

@@ -57,21 +57,8 @@ interface WorkflowExecution {
 }
 
 const workflows: Record<string, WorkflowExecution> = {
-  'data-refresh': {
-    name: 'Data Refresh & Sync',
-    path: path.join(__dirname, 'monitoring', 'data-refresh-sync.ts'),
-    executionCount: 0,
-  },
-  'pipeline-monitoring': {
-    name: 'Pipeline Monitoring',
-    path: path.join(__dirname, 'monitoring', 'pipeline-monitoring.ts'),
-    executionCount: 0,
-  },
-  'contractor-performance': {
-    name: 'Contractor Performance',
-    path: path.join(__dirname, 'monitoring', 'contractor-performance.ts'),
-    executionCount: 0,
-  },
+  // data-refresh / pipeline-monitoring / contractor-performance migrated to
+  // worker-bullmq per Phase 6. See lib/cron/worker-bullmq-monitoring.ts.
   'g1-deal-approval': {
     name: 'G1: Deal Approval Alert',
     path: path.join(__dirname, 'guardrails', 'g1-deal-approval.ts'),
@@ -92,16 +79,7 @@ const workflows: Record<string, WorkflowExecution> = {
     path: path.join(__dirname, 'guardrails', 'g4-change-order.ts'),
     executionCount: 0,
   },
-  'attom-discovery': {
-    name: 'ATTOM Property Discovery',
-    path: path.join(__dirname, 'discovery', 'attom-property-discovery.ts'),
-    executionCount: 0,
-  },
-  'skip-tracing': {
-    name: 'Skip Tracing & Enrichment',
-    path: path.join(__dirname, 'discovery', 'skip-tracing-enrichment.ts'),
-    executionCount: 0,
-  },
+  // attom-discovery / skip-tracing migrated to worker-bullmq per Phase 6.
 };
 
 /**
@@ -220,36 +198,21 @@ function startWorker(): void {
   });
   log('   ✓ G4: Change Order Gatekeeper\n');
 
-  // Monitoring - Daily
-  log('📊 Monitoring Workflows (Daily):');
-  cron.schedule('0 8 * * *', () => executeWorkflow('data-refresh'), {
-    timezone: 'UTC',
-  });
-  log('   ✓ Data Refresh & Sync (8:00 AM UTC)');
+  // Monitoring + Discovery jobs MIGRATED to worker-bullmq per Phase 6 of the
+  // freshness layer plan (Strategy C hybrid). G1-G4 stay here (process
+  // isolation via execSync is a safety guarantee we don't want to lose), but
+  // the 5 daily/weekly jobs now run as BullMQ scheduled jobs in the
+  // worker-bullmq Railway service. See lib/cron/worker-bullmq-monitoring.ts.
+  //
+  // MOVED → worker-bullmq:
+  //   - data-refresh    (0 8 * * * UTC)
+  //   - pipeline-monitoring (0 9 * * * UTC)
+  //   - contractor-performance (0 10 * * * UTC)
+  //   - attom-discovery (0 6 * * * UTC)
+  //   - skip-tracing    (0 7 * * 0 UTC)
+  log('🔁 Monitoring + Discovery workflows migrated to worker-bullmq service.\n');
 
-  cron.schedule('0 9 * * *', () => executeWorkflow('pipeline-monitoring'), {
-    timezone: 'UTC',
-  });
-  log('   ✓ Pipeline Monitoring (9:00 AM UTC)');
-
-  cron.schedule('0 10 * * *', () => executeWorkflow('contractor-performance'), {
-    timezone: 'UTC',
-  });
-  log('   ✓ Contractor Performance (10:00 AM UTC)\n');
-
-  // Discovery - Daily and Weekly
-  log('🔍 Discovery Workflows:');
-  cron.schedule('0 6 * * *', () => executeWorkflow('attom-discovery'), {
-    timezone: 'UTC',
-  });
-  log('   ✓ ATTOM Property Discovery (Daily 6:00 AM UTC)');
-
-  cron.schedule('0 7 * * 0', () => executeWorkflow('skip-tracing'), {
-    timezone: 'UTC',
-  });
-  log('   ✓ Skip Tracing & Enrichment (Weekly Sunday 7:00 AM UTC)\n');
-
-  success('✅ All workflows scheduled successfully!\n');
+  success('✅ Guardrail workflows scheduled successfully!\n');
 
   // Log current status
   log('Worker is now running. Press Ctrl+C to stop.\n');
