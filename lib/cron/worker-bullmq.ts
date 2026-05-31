@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { resolveAdapter, registeredSourceKeys } from "@/lib/scrapers/dispatch";
 import { createRunStatsCollector } from "@/lib/scrapers/dispatch/run-stats";
 import type { RunContext } from "@/lib/scrapers/dispatch/types";
+import { runScraperHealthCheck } from "@/lib/cron/monitoring/scraper-health";
 
 // ---------------------------------------------------------------------------
 // worker-bullmq — the BullMQ-driven freshness scheduler.
@@ -344,6 +345,57 @@ async function processJob(job: Job): Promise<void> {
 
 let resyncTimer: NodeJS.Timeout | null = null;
 
+// ---------------------------------------------------------------------------
+// Internal queue: scraper-health.
+// Runs lib/cron/monitoring/scraper-health.ts every 15 minutes. Not a registry
+// row — wired directly here so it's always armed regardless of registry state.
+// ---------------------------------------------------------------------------
+
+const HEALTH_QUEUE_NAME = "internal-health";
+const HEALTH_SCHEDULER_ID = "scraper-health";
+const HEALTH_CRON = "*/15 * * * *";
+
+async function ensureHealthCheckScheduler(): Promise<void> {
+  const queue = new Queue(HEALTH_QUEUE_NAME, {
+    connection,
+    defaultJobOptions: {
+      attempts: 1, // health check is idempotent; don't retry-storm
+      removeOnComplete: { count: 100, age: 7 * 24 * 60 * 60 },
+      removeOnFail: { count: 100 },
+    },
+  });
+  queues.set(HEALTH_QUEUE_NAME, queue);
+
+  const worker = new Worker(
+    HEALTH_QUEUE_NAME,
+    async () => {
+      try {
+        await runScraperHealthCheck(connection);
+      } catch (err) {
+        console.error("[scraper-health] check failed:", err instanceof Error ? err.message : err);
+        throw err;
+      }
+    },
+    {
+      connection,
+      concurrency: 1,
+      stalledInterval: 60_000,
+      lockDuration: 5 * 60_000,
+    },
+  );
+  worker.on("failed", (job, err) => {
+    console.error(`[scraper-health] job failed attempts=${job?.attemptsMade}: ${err.message}`);
+  });
+  workers.set(HEALTH_QUEUE_NAME, worker);
+
+  await queue.upsertJobScheduler(
+    HEALTH_SCHEDULER_ID,
+    { pattern: HEALTH_CRON, tz: "America/New_York" },
+    { name: HEALTH_SCHEDULER_ID, data: { kind: "scraper-health" } },
+  );
+  console.log(`[worker-bullmq] scraper-health scheduled (${HEALTH_CRON})`);
+}
+
 async function main(): Promise<void> {
   console.log("[worker-bullmq] booting…");
   console.log(`[worker-bullmq] registered adapter source keys: ${registeredSourceKeys().length === 0 ? "(none — Phase 1)" : registeredSourceKeys().join(", ")}`);
@@ -363,6 +415,9 @@ async function main(): Promise<void> {
     connection.once("error", onErr);
   });
   console.log("[worker-bullmq] redis ready");
+
+  // Internal health-check scheduler (Phase 3).
+  await ensureHealthCheckScheduler();
 
   // Initial registry sync.
   await syncRegistry();
