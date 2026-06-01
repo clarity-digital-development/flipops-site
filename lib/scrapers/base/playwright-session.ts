@@ -44,7 +44,8 @@ function ensureStealthRegistered() {
 // ---------------------------------------------------------------------------
 
 export interface PlaywrightSessionOptions {
-  /** Route all browser traffic through BRIGHT_DATA_PROXY_URL. */
+  /** Route all browser traffic through the residential proxy (env-resolved:
+   *  PROXY_URL → BRIGHT_DATA_PROXY_URL → HTTPS_PROXY). */
   useProxy?: boolean;
   /** Headless (true) or headful for debugging. Default true. */
   headless?: boolean;
@@ -74,8 +75,14 @@ export class PlaywrightSession {
     };
 
     if (this.opts.useProxy) {
-      const url = process.env.BRIGHT_DATA_PROXY_URL;
-      if (!url) throw new Error("PlaywrightSession: useProxy=true but BRIGHT_DATA_PROXY_URL is not set");
+      // Provider-agnostic precedence: PROXY_URL → BRIGHT_DATA_PROXY_URL →
+      // HTTPS_PROXY. Mirrors lib/scrapers/base/http-client.ts so a single
+      // env-var change rotates BOTH fetch-path and Playwright-path scrapers.
+      const url =
+        process.env.PROXY_URL ??
+        process.env.BRIGHT_DATA_PROXY_URL ??
+        process.env.HTTPS_PROXY;
+      if (!url) throw new Error("PlaywrightSession: useProxy=true but no proxy is configured (set PROXY_URL, BRIGHT_DATA_PROXY_URL, or HTTPS_PROXY)");
       const parsed = new URL(url);
       launchOpts.proxy = {
         server: `${parsed.protocol}//${parsed.host}`,

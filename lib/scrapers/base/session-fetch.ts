@@ -23,7 +23,8 @@ const CHROME_UA_POOL = [
 ];
 
 export interface SessionFetchOptions {
-  /** Route through BRIGHT_DATA_PROXY_URL (yellow-zone calls). */
+  /** Route through the residential proxy (env-resolved: PROXY_URL →
+   *  BRIGHT_DATA_PROXY_URL → HTTPS_PROXY). Yellow-zone calls. */
   useProxy?: boolean;
   /** Pick a real-browser fingerprint per session. Defaults to true. */
   rotateFingerprint?: boolean;
@@ -44,8 +45,14 @@ export class ClerkSession {
     this.timeoutMs = opts.timeoutMs ?? 30_000;
 
     if (opts.useProxy) {
-      const url = process.env.BRIGHT_DATA_PROXY_URL;
-      if (!url) throw new Error("ClerkSession: useProxy=true but BRIGHT_DATA_PROXY_URL is not set");
+      // Provider-agnostic precedence: PROXY_URL → BRIGHT_DATA_PROXY_URL →
+      // HTTPS_PROXY. Mirrors lib/scrapers/base/http-client.ts so a single
+      // env-var change rotates EVERY proxy code path in lock-step.
+      const url =
+        process.env.PROXY_URL ??
+        process.env.BRIGHT_DATA_PROXY_URL ??
+        process.env.HTTPS_PROXY;
+      if (!url) throw new Error("ClerkSession: useProxy=true but no proxy is configured (set PROXY_URL, BRIGHT_DATA_PROXY_URL, or HTTPS_PROXY)");
       // TLS posture identical to http-client.ts (security-reviewed):
       //   proxyTls (us → brd.superproxy.io) → STRICT — BD has a valid public
       //     cert; any MITM here indicates a real on-path attacker and MUST
