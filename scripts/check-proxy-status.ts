@@ -1,31 +1,37 @@
 /* eslint-disable no-console */
 // ---------------------------------------------------------------------------
-// check-bd-status.ts — Bright Data zone health verification.
+// check-proxy-status.ts — provider-agnostic proxy health verification.
 //
-// Run when you suspect BD is broken (e.g. when scrapers start failing with
-// 4xx/5xx via the proxy). Returns a structured report on:
-//   1. BD account state (via API token, optional)
-//   2. Zone listing + status (if API token present)
-//   3. Live proxied fetch against 2 targets (the ground truth — always run)
+// Run when you suspect the residential proxy is broken (e.g. when scrapers
+// start failing with 4xx/5xx). Returns a structured report on:
+//   1. (Optional) Bright Data account/zone API state — only if a BD URL
+//      and BD API token are configured; harmless skip otherwise.
+//   2. Live proxied fetches against 3 targets (the ground truth — always run):
+//      a generic BD self-health URL, a generic GET, and a POST against a
+//      production-scraper target. The POST is the one that catches the
+//      KYC / no-POST-allowed gates some residential providers apply.
 //
 // Usage:
-//   npx tsx scripts/check-bd-status.ts
+//   npx tsx scripts/check-proxy-status.ts
 //
-// Env vars:
-//   BRIGHT_DATA_PROXY_URL    — required. Existing per-zone proxy URL.
-//   BRIGHT_DATA_API_TOKEN    — optional but recommended. Customer-bearer
-//                              from BD dashboard → Account settings → API token.
-//                              Without this, the script skips the account/zone
-//                              API checks and relies on live fetch only.
-//   BRIGHT_DATA_ZONE_NAME    — optional; defaults to parsing `zone-<name>` from
-//                              the proxy URL username.
+// Env vars (precedence: first non-empty wins):
+//   PROXY_URL                  — required. Provider-agnostic proxy URL.
+//                                As of 2026-05-31 this points at
+//                                DataImpulse; previously was BD.
+//   BRIGHT_DATA_PROXY_URL      — fallback for the live probes if PROXY_URL is
+//                                unset. Kept for legacy/diagnostic use.
+//   BRIGHT_DATA_API_TOKEN      — optional. Enables the BD account/zone API
+//                                checks. Not used by DataImpulse.
+//   BRIGHT_DATA_ZONE_NAME      — optional; only for BD. Defaults to parsing
+//                                `zone-<name>` from the BD proxy URL username.
 //
 // Exit codes:
-//   0 — healthy: at least one live proxied fetch returned 2xx
-//   1 — zone disabled or not in active list
-//   2 — quota exhausted / suspension (HTTP 407 / 502 from proxy)
-//   3 — policy restriction without KYC (HTTP 402 / bad_endpoint — fix at
-//       https://brightdata.com/cp/kyc OR switch zone product)
+//   0 — healthy: at least one live proxied fetch returned 2xx AND the
+//       production-scraper POST returned 2xx
+//   1 — zone disabled or not in active list (BD-specific)
+//   2 — quota exhausted / account suspension (HTTP 407 / 502 from proxy)
+//   3 — policy restriction (HTTP 402 / bad_endpoint — KYC required, or
+//       zone product mismatch; provider-specific fix)
 //   4 — other (network error, missing env, unrecognized error)
 // ---------------------------------------------------------------------------
 
@@ -222,7 +228,7 @@ function classifyLiveFetch(r: ProxyFetchResult): { exitCode: number; status: Che
     return {
       exitCode: 3,
       status: "fail",
-      summary: `HTTP 402 (${r.brdErrorCode ?? "no code"}): ${r.brdErrorMsg ?? "Residential policy restriction — KYC required or zone product mismatch. Fix at https://brightdata.com/cp/kyc"}`,
+      summary: `HTTP 402 (${r.brdErrorCode ?? "no code"}): ${r.brdErrorMsg ?? "Residential policy restriction — provider-specific. Common causes: KYC required, per-target POST block, restricted port."}`,
     };
   }
   if (r.httpStatus === 407) {
@@ -251,7 +257,7 @@ function renderTable() {
   const wStatus = 8;
   console.log("");
   console.log("=".repeat(78));
-  console.log("BRIGHT DATA STATUS CHECK");
+  console.log("PROXY STATUS CHECK");
   console.log("=".repeat(78));
   console.log(`${"check".padEnd(wName)}  ${"status".padEnd(wStatus)}  detail`);
   console.log(`${"-".repeat(wName)}  ${"-".repeat(wStatus)}  ${"-".repeat(78 - wName - wStatus - 4)}`);
@@ -263,25 +269,48 @@ function renderTable() {
 }
 
 async function main() {
-  const proxyUrl = process.env.BRIGHT_DATA_PROXY_URL;
+  const proxyUrl = process.env.PROXY_URL ?? process.env.BRIGHT_DATA_PROXY_URL;
   if (!proxyUrl) {
-    console.error("FATAL: BRIGHT_DATA_PROXY_URL is not set. Cannot run live proxy fetch.");
+    console.error("FATAL: PROXY_URL (or BRIGHT_DATA_PROXY_URL as fallback) is not set. Cannot run live proxy fetch.");
     process.exit(4);
   }
-  const token = process.env.BRIGHT_DATA_API_TOKEN;
-  const zone = process.env.BRIGHT_DATA_ZONE_NAME ?? parseZoneFromProxyUrl(proxyUrl);
 
+  // Provider identification — best-effort by host.
+  let provider = "unknown";
+  try {
+    const u = new URL(proxyUrl);
+    if (u.host.includes("brd.superproxy.io") || u.host.includes("brightdata")) provider = "Bright Data";
+    else if (u.host.includes("dataimpulse")) provider = "DataImpulse";
+    else if (u.host.includes("oxylabs")) provider = "Oxylabs";
+    else if (u.host.includes("smartproxy")) provider = "Smartproxy";
+    else provider = u.host;
+  } catch {
+    // ignore
+  }
+
+  // BD API token only meaningful when the proxy URL is actually BD.
+  const isBd = provider === "Bright Data";
+  const token = isBd ? process.env.BRIGHT_DATA_API_TOKEN : undefined;
+  const zone = isBd
+    ? (process.env.BRIGHT_DATA_ZONE_NAME ?? parseZoneFromProxyUrl(proxyUrl))
+    : null;
+
+  console.log(`Provider:  ${provider}`);
   console.log(`Proxy URL: ${proxyUrl.replace(/:[^@]+@/, ":***@")}`);
-  console.log(`Zone:      ${zone ?? "(could not parse)"}`);
-  console.log(`API Token: ${token ? "(set)" : "(not set — API checks will be skipped)"}`);
+  if (isBd) {
+    console.log(`Zone:      ${zone ?? "(could not parse)"}`);
+    console.log(`API Token: ${token ? "(set)" : "(not set — API checks will be skipped)"}`);
+  }
 
-  // ----- API checks (optional, gated on token) -----
-  if (token && zone) {
+  // ----- BD-only API checks (gated on provider + token) -----
+  if (isBd && token && zone) {
     await checkAccountStatus(token);
     await checkZoneActive(token, zone);
     await checkZoneStatus(token, zone);
-  } else if (!token) {
+  } else if (isBd && !token) {
     record({ name: "BD account API", status: "skip", detail: "set BRIGHT_DATA_API_TOKEN to enable. Get it from BD → Account settings → API token" });
+  } else if (!isBd) {
+    record({ name: "Provider account API", status: "skip", detail: `${provider} doesn't have an account-API check yet; relying on live probes` });
   }
 
   // ----- Live fetch ground-truth checks -----
@@ -314,13 +343,17 @@ async function main() {
   const exit = Math.max(c1.exitCode, c2.exitCode, c3.exitCode);
   console.log("=".repeat(78));
   if (exit === 0) {
-    console.log("VERDICT: HEALTHY — all probes returned 2xx. Production scrapers should resume normal operation.");
+    console.log(`VERDICT: HEALTHY (${provider}) — all probes returned 2xx. Production scrapers should resume normal operation.`);
   } else if (exit === 1) {
-    console.log("VERDICT: ZONE DISABLED — fix at brightdata.com/cp/zones.");
+    console.log("VERDICT: ZONE DISABLED — check the provider's zone dashboard.");
   } else if (exit === 2) {
-    console.log("VERDICT: BILLING / QUOTA — fix at brightdata.com/cp/setting/billing.");
+    console.log(`VERDICT: BILLING / QUOTA (${provider}) — check the provider's billing/usage dashboard.`);
   } else if (exit === 3) {
-    console.log("VERDICT: KYC / POLICY GATE — submit KYC at https://brightdata.com/cp/kyc OR switch zone product (Datacenter / Web Unlocker / ISP).");
+    if (isBd) {
+      console.log("VERDICT: KYC / POLICY GATE (Bright Data) — submit KYC at https://brightdata.com/cp/kyc OR switch zone product (Datacenter / Web Unlocker / ISP).");
+    } else {
+      console.log(`VERDICT: POLICY GATE (${provider}) — the residential network blocked the request, often due to a per-target restriction. Check the provider's docs / contact support.`);
+    }
   } else {
     console.log("VERDICT: UNCLASSIFIED — see check table above for individual probe details.");
   }

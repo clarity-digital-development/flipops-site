@@ -31,30 +31,41 @@ const TRANSIENT_STATUSES = new Set([408, 429, 500, 502, 503, 504]);
 
 /** Lazily-built proxy dispatcher; reused across calls to avoid agent churn.
  *
- *  TLS posture is tight by default and ONLY relaxes the target-TLS branch
- *  that BD's Web Unlocker actively MITMs by design:
+ *  Provider precedence (2026-05-31): PROXY_URL (provider-agnostic — currently
+ *  DataImpulse) → BRIGHT_DATA_PROXY_URL (legacy, blocked by KYC gate on
+ *  POST; see project_bright_data_402.md memory) → HTTPS_PROXY / HTTP_PROXY
+ *  fallthroughs. PROXY_URL ships first so production cuts over to DataImpulse
+ *  without touching call sites; BD stays defined as a documented fallback.
  *
- *    • `proxyTls` (connection us → brd.superproxy.io)  → strict verification.
- *      BD has a valid public cert for that domain; any cert mismatch here
- *      indicates a real on-path attacker between Railway and BD's edge, and
- *      MUST fail. This is where our credentials transit in the
- *      Proxy-Authorization header.
- *    • `requestTls` (connection BD → public site, that we see as the
- *      tunnel's TLS to the target) → cert verification skipped. This is
- *      the connection BD intercepts so it can inject JS rendering, captcha
- *      solving, and fingerprint emulation. The cert we see in this branch
- *      is BD's MITM cert, not the target's. The proper alternative would
- *      be pinning BD's MITM CA in `requestTls.ca` — captured as TODO. For
- *      now this matches the `-k` flag BD itself recommends in their docs
- *      and confines the exposure to the MITM-as-a-service surface we
- *      already chose to use.
+ *  TLS posture is tight by default and ONLY relaxes the target-TLS branch
+ *  that the proxy's edge actively MITMs by design:
+ *
+ *    • `proxyTls` (connection us → proxy edge)  → strict verification.
+ *      The proxy has a valid public cert for its gateway domain; any cert
+ *      mismatch here indicates a real on-path attacker between Railway and
+ *      the proxy edge, and MUST fail. This is where our credentials transit
+ *      in the Proxy-Authorization header.
+ *    • `requestTls` (connection proxy → public site, that we see as the
+ *      tunnel's TLS to the target) → cert verification skipped. Both BD's
+ *      Web Unlocker and DataImpulse's residential gateway MITM this branch
+ *      so they can inject JS rendering / fingerprint emulation / sticky
+ *      sessions. The cert we see in this branch is the proxy's MITM cert,
+ *      not the target's. The proper alternative would be pinning each
+ *      provider's MITM CA in `requestTls.ca` — captured as TODO. For now
+ *      this matches the `-k` flag the providers themselves recommend and
+ *      confines the exposure to the MITM-as-a-service surface we already
+ *      chose to use.
  *
  *  Direct (green-zone) fetches never go through this agent and keep full
  *  end-to-end strict TLS.
  */
 let cachedProxyAgent: ProxyAgent | null = null;
 function getProxyAgent(): Dispatcher | null {
-  const url = process.env.BRIGHT_DATA_PROXY_URL ?? process.env.HTTPS_PROXY ?? process.env.HTTP_PROXY;
+  const url =
+    process.env.PROXY_URL ??
+    process.env.BRIGHT_DATA_PROXY_URL ??
+    process.env.HTTPS_PROXY ??
+    process.env.HTTP_PROXY;
   if (!url) return null;
   if (!cachedProxyAgent) {
     cachedProxyAgent = new ProxyAgent({
@@ -155,7 +166,7 @@ export async function politeFetch(
       if (agent) dispatcher = agent;
       else if (process.env.NODE_ENV === "production") {
         throw new Error(
-          "useProxy=true but BRIGHT_DATA_PROXY_URL / HTTPS_PROXY is unset. Yellow-zone fetches require residential proxy in production.",
+          "useProxy=true but no proxy is configured. Set PROXY_URL (or BRIGHT_DATA_PROXY_URL / HTTPS_PROXY as fallbacks). Yellow-zone fetches require residential proxy in production.",
         );
       }
       // In dev with no proxy configured we fall through to direct fetch — useful for offline testing.

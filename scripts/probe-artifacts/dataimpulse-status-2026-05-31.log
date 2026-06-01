@@ -1,0 +1,18 @@
+Provider:  DataImpulse
+Proxy URL: http:***@gw.dataimpulse.com:823
+
+Running live proxied fetches (ground truth)...
+
+==============================================================================
+BRIGHT DATA STATUS CHECK
+==============================================================================
+check                                          status    detail
+---------------------------------------------  --------  ---------------------
+Provider account API                           SKIP      DataImpulse doesn't have an account-API check yet; relying on live probes
+GET geo.brdtest.com (BD self-health)           OK        HTTP 200 — proxy is healthy through to target
+GET httpbin.org/ip (generic GET)               OK        HTTP 200 — proxy is healthy through to target
+POST netapps.ocfl.net (matches prod scrapers)  OK        HTTP 200 — proxy is healthy through to target
+
+==============================================================================
+VERDICT: HEALTHY (DataImpulse) — all probes returned 2xx. Production scrapers should resume normal operation.
+==============================================================================
