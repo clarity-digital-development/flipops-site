@@ -46,46 +46,55 @@ function maskUrl(u: string | undefined): string {
   return u.replace(/:[^@/]+@/, ":***@");
 }
 
-async function pollForCompletion(jobId: string, sourceKey: string): Promise<void> {
-  const deadline = Date.now() + 10 * 60 * 1000; // 10 minutes
+async function pollForCompletion(sourceKey: string, enqueuedAt: Date): Promise<void> {
+  // The BulkIngestJob schema doesn't carry the BullMQ jobId — match instead
+  // on (sourceKey, triggerType='manual-script', startedAt >= enqueuedAt - 5s).
+  // The 5s slack absorbs the small clock skew between local now() and
+  // Railway's audit insert.
+  const deadline = Date.now() + 10 * 60 * 1000;
+  const enqueueFloor = new Date(enqueuedAt.getTime() - 5000);
   let lastSeen = "";
 
   while (Date.now() < deadline) {
     const row = await prisma.bulkIngestJob.findFirst({
-      where: { jobId, sourceKey },
+      where: {
+        sourceKey,
+        triggerType: "manual-script",
+        startedAt: { gte: enqueueFloor },
+      },
       orderBy: { startedAt: "desc" },
     });
 
     if (row && row.finishedAt) {
+      const ok = row.status === "succeeded" && !row.errorMessage && row.recordsFetched > 0;
       console.log("");
       console.log("=".repeat(78));
       console.log("AUDIT ROW (finished)");
       console.log("=".repeat(78));
-      console.log(`  sourceKey:    ${row.sourceKey}`);
-      console.log(`  triggerType:  ${row.triggerType}`);
-      console.log(`  jobId:        ${row.jobId}`);
-      console.log(`  startedAt:    ${row.startedAt.toISOString()}`);
-      console.log(`  finishedAt:   ${row.finishedAt.toISOString()}`);
-      const ms = row.finishedAt.getTime() - row.startedAt.getTime();
-      console.log(`  duration:     ${(ms / 1000).toFixed(1)}s`);
-      console.log(`  rowCount:     ${row.rowCount ?? "(null)"}`);
-      console.log(`  rejectCount:  ${row.rejectCount ?? "(null)"}`);
-      if (row.errorMessage) {
-        console.log(`  errorMessage: ${row.errorMessage.slice(0, 400)}`);
-      } else {
-        console.log(`  errorMessage: (none)`);
-      }
-      const ok = !row.errorMessage && (row.rowCount ?? 0) > 0;
+      console.log(`  id:               ${row.id}`);
+      console.log(`  sourceKey:        ${row.sourceKey}`);
+      console.log(`  sourceTag:        ${row.sourceTag}`);
+      console.log(`  triggerType:      ${row.triggerType}`);
+      console.log(`  status:           ${row.status}`);
+      console.log(`  startedAt:        ${row.startedAt.toISOString()}`);
+      console.log(`  finishedAt:       ${row.finishedAt.toISOString()}`);
+      console.log(`  durationMs:       ${row.durationMs ?? "?"}`);
+      console.log(`  recordsFetched:   ${row.recordsFetched}`);
+      console.log(`  recordsUpserted:  ${row.recordsUpserted}`);
+      console.log(`  rejectCount:      ${row.rejectCount}`);
+      console.log(`  http4xx/5xx/cf:   ${row.http4xxCount} / ${row.http5xxCount} / ${row.cfChallengeCount}`);
+      if (row.errorMessage) console.log(`  errorMessage:     ${row.errorMessage.slice(0, 400)}`);
       console.log("");
-      console.log(ok ? "✓ Verified — proxy + scraper work in Railway." : "⚠ Audit row exists but rowCount=0 or errorMessage set. Check Railway logs.");
+      console.log(ok ? "✓ Verified — proxy + scraper work in Railway." : "⚠ Job finished but recordsFetched=0 or status=failed. See above.");
       return;
     }
 
     const status = row
       ? `claimed by worker, running (started ${Math.round((Date.now() - row.startedAt.getTime()) / 1000)}s ago)`
-      : "not yet claimed by worker — should be picked up within seconds";
+      : "not yet claimed by worker — should be picked up within seconds. If this stays >2 min, the worker process likely isn't running on Railway.";
     if (status !== lastSeen) {
-      console.log(`  [poll +${Math.round((Date.now() - (deadline - 600_000)) / 1000)}s] ${status}`);
+      const elapsedS = Math.round((Date.now() - enqueuedAt.getTime()) / 1000);
+      console.log(`  [poll +${elapsedS}s] ${status}`);
       lastSeen = status;
     }
 
@@ -93,9 +102,8 @@ async function pollForCompletion(jobId: string, sourceKey: string): Promise<void
   }
 
   console.log("");
-  console.log("⚠ Timed out after 10 min waiting for the job to finish.");
-  console.log("  Check Railway logs for worker-bullmq, and re-query BulkIngestJob with:");
-  console.log(`  SELECT * FROM flipops."BulkIngestJob" WHERE "jobId"='${jobId}' AND "sourceKey"='${sourceKey}';`);
+  console.log("⚠ Timed out after 10 min. Check Railway logs for worker-bullmq, and re-query:");
+  console.log(`  SELECT * FROM flipops."BulkIngestJob" WHERE "sourceKey"='${sourceKey}' AND "triggerType"='manual-script' ORDER BY "startedAt" DESC LIMIT 1;`);
 }
 
 async function main() {
@@ -150,6 +158,7 @@ async function main() {
   const queue = new Queue(queueName, { connection });
 
   try {
+    const enqueuedAt = new Date();
     const job = await queue.add(
       sourceKey,
       { sourceKey, trigger: "manual-script" },
@@ -159,11 +168,11 @@ async function main() {
         removeOnFail: false,
       },
     );
-    console.log(`\nEnqueued: jobId=${job.id} on ${queueName}`);
+    console.log(`\nEnqueued: BullMQ jobId=${job.id} on ${queueName} at ${enqueuedAt.toISOString()}`);
 
     if (!wait) {
       console.log("\nNot waiting (--wait not specified). Check Railway worker logs or run:");
-      console.log(`  SELECT * FROM flipops."BulkIngestJob" WHERE "jobId"='${job.id}' ORDER BY "startedAt" DESC LIMIT 1;`);
+      console.log(`  SELECT * FROM flipops."BulkIngestJob" WHERE "sourceKey"='${sourceKey}' AND "triggerType"='manual-script' ORDER BY "startedAt" DESC LIMIT 1;`);
       return;
     }
 
@@ -173,7 +182,7 @@ async function main() {
     }
 
     console.log("\nPolling BulkIngestJob audit table every 5s (max 10 min)...");
-    await pollForCompletion(job.id!, sourceKey);
+    await pollForCompletion(sourceKey, enqueuedAt);
   } finally {
     await queue.close().catch(() => {});
     await connection.quit().catch(() => {});
