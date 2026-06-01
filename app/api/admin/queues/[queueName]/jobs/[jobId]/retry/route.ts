@@ -1,10 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { auth } from "@clerk/nextjs/server";
 import IORedis from "ioredis";
 import { Queue } from "bullmq";
-import { prisma } from "@/lib/prisma";
-
-const ADMIN_EMAIL = "tannercarlson@vvsvault.com";
+import { requireAdmin } from "@/lib/auth/require-admin";
 
 // ---------------------------------------------------------------------------
 // POST /api/admin/queues/[queueName]/jobs/[jobId]/retry
@@ -15,15 +12,8 @@ export async function POST(
   _req: NextRequest,
   { params }: { params: Promise<{ queueName: string; jobId: string }> },
 ) {
-  const { userId: clerkId } = await auth();
-  if (!clerkId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const user = await prisma.user.findUnique({
-    where: { clerkId },
-    select: { email: true },
-  });
-  if (user?.email !== ADMIN_EMAIL) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+  const guard = await requireAdmin();
+  if ("error" in guard) return guard.error;
 
   const { queueName, jobId } = await params;
   const redisUrl = process.env.REDIS_URL;

@@ -54,7 +54,27 @@ const isPublicRoute = createRouteMatcher([
   // REMOVED: /api/test and /api/debug/(.*) - these should require auth
 ]);
 
+// ---------------------------------------------------------------------------
+// Admin-only matchers — these ALWAYS require Clerk auth + downstream
+// requireAdmin() role check, regardless of the `/app(.*)` pre-launch public
+// bypass above. Without this, /app/admin/* and /api/admin/* pages would
+// inherit the pre-launch public bypass and be reachable without sign-in.
+//
+// This is a route-level FIRST gate (Clerk session required); the per-route
+// `requireAdmin()` helper enforces the actual email/role check.
+// ---------------------------------------------------------------------------
+const isAdminRoute = createRouteMatcher([
+  "/app/admin(.*)",
+  "/api/admin(.*)",
+]);
+
 export default clerkMiddleware(async (auth, req) => {
+  // Admin routes get a strict gate ahead of the public-route check — the
+  // `/app(.*)` pre-launch bypass MUST NOT apply to admin surfaces.
+  if (isAdminRoute(req)) {
+    await auth.protect();
+    return;
+  }
   if (!isPublicRoute(req)) {
     await auth.protect();
   }

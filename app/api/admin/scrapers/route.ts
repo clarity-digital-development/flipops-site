@@ -1,8 +1,6 @@
 import { NextResponse } from "next/server";
-import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/prisma";
-
-const ADMIN_EMAIL = "tannercarlson@vvsvault.com";
+import { requireAdmin } from "@/lib/auth/require-admin";
 
 // ---------------------------------------------------------------------------
 // GET /api/admin/scrapers
@@ -11,16 +9,8 @@ const ADMIN_EMAIL = "tannercarlson@vvsvault.com";
 // ---------------------------------------------------------------------------
 
 export async function GET() {
-  const { userId: clerkId } = await auth();
-  if (!clerkId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
-  const user = await prisma.user.findUnique({
-    where: { clerkId },
-    select: { email: true },
-  });
-  if (user?.email !== ADMIN_EMAIL) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+  const guard = await requireAdmin();
+  if ("error" in guard) return guard.error;
 
   const rows = await prisma.scrapeRegistry.findMany({
     orderBy: [{ enabled: "desc" }, { domain: "asc" }, { sourceKey: "asc" }],
