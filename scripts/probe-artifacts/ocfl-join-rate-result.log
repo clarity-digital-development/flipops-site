@@ -1,0 +1,59 @@
+==============================================================================
+OCFL → Parcel join hit-rate (countyFips=12095)
+==============================================================================
+Loaded: 247 records total, 131 accepted by filter stack
+
+==============================================================================
+HIT-RATE RESULTS
+==============================================================================
+  Total accepted (post-filter):  131
+  Strict matches:                1  (0.8%)
+  Loose suffix-expanded matches: 2  (1.5%)
+  Overall denominator (accepted incl. filtered-out):
+    raw bookings fetched:        247
+    end-to-end rate (loose/raw): 0.8%
+
+==============================================================================
+KILL-LINE CHECK (verifier threshold: ≥25% loose-accept rate)
+==============================================================================
+  Verdict: BLACK  — thesis broken; defer Option B until DOB enrichment or different sheriff source
+
+==============================================================================
+STRICT MATCH SAMPLES (top 1)
+==============================================================================
+  [26017097]
+    booking:  9429 7TH AVE, TAFT 32824
+    parcel:   9429 7TH AVE, Orlando 32824
+    owner:    EVZ PROPERTIES LLC
+
+==============================================================================
+LOOSE-ONLY (suffix-expanded) MATCH SAMPLES (top 2)
+==============================================================================
+  [26018557]
+    booking:  13410 BELOIT WOODS LANE, ORLANDO 32824
+    parcel:   13410 BELOIT WOODS LN, Orlando 32824
+    owner:    ACEVEDO DIOGENES
+  [26017097]
+    booking:  9429 7TH AVE, TAFT 32824
+    parcel:   9429 7TH AVE, Orlando 32824
+    owner:    EVZ PROPERTIES LLC
+
+==============================================================================
+MISS SAMPLES (no candidate in countyFips=12095 zip=zip5) — top 15
+==============================================================================
+  [26003073] 8545 WICHITA PLACE  (ORLANDO 32827)
+  [26004074] 6401 LOST TREE CT  (ORLANDO 32818)
+  [26019011] 1115 LINTON AVE  (ORLANDO 32809)
+  [24024441] 6408 NARCOOSSEE RD.  (ORLANDO 32828)
+  [23024055] 1700 HINCKLEY ROAD  (ORLANDO )
+  [25040419] 4900 CENTER LANE  (ORLANDO 32808)
+  [26015835] ****HOMELESS****  (ORLANDO )
+  [26018183] 1413 MCCONIHE ST  (JACKSONVILLE 32209)
+  [26018304] 404 DECLARATION DR  (ORLANDO 32809)
+  [26010274] 14522 LIBERTY STREET  (ORLANDO 32826)
+  [26014280] 4530 CROSSEN DR  (ORLANDO 32822)
+  [26018729] 315 ALABAMA AVE  (APOPKA 32703)
+  [25032127] 3915 ROUND LAKE RD  (ZELLWOOD 32789)
+  [26006652] 1140 AUDUBON WAY  (MAITLAND 32751)
+  [26012086] 4610 CONLEY ST  (ORLANDO 32811)
+

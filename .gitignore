@@ -82,3 +82,10 @@ next-env.d.ts
 
 # LienHub credentials (saved after registration, contains password)
 .lienhub-credentials.json
+scripts/.tmp-ocfl-bookings.pdf
+scripts/.tmp-ocfl-charges.json
+scripts/.tmp-ocfl-details.json
+scripts/.tmp-ocfl-getInmates.json
+scripts/.tmp-ocfl-raw.html
+scripts/probe-artifacts/ocfl-reprobe-200.json
+
