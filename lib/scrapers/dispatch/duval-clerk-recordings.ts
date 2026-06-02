@@ -58,7 +58,14 @@ export const runDuvalClerk: ScraperAdapter = async (
   }
 
   try {
-    const result = await scrapeDuvalRecordings({ date: target, useProxy: true });
+    // useProxy: false — DataImpulse residential IPs are dropped at
+    // or.duvalclerk.com's edge (confirmed via probe 2026-06-02: identical
+    // ~18s upstream drops on both 20s and 45s client budgets, vs direct
+    // GET returning 200 in 394ms). Route via Railway worker egress
+    // directly. Stealth-chromium still defeats Duval's bot detection;
+    // we only lose IP rotation. If Railway IP gets blocked, escalate
+    // per OPTION-B-V0-VERIFICATION.json / project_bright_data_402.md.
+    const result = await scrapeDuvalRecordings({ date: target, useProxy: false });
     const total =
       (result.persistedMortgages ?? 0) +
       (result.persistedLiens ?? 0) +
