@@ -72,9 +72,14 @@ export async function scrapeDuvalRecordings(opts: {
     // Step 0: Session warming — visit landing + Support to look like a
     // human's natural flow, not a direct-to-search hit. This pattern
     // verified working in probe-duval-stealth.ts.
-    await page.goto("https://or.duvalclerk.com/", { waitUntil: "domcontentloaded", timeout: 60_000 });
+    // Per-goto timeout bumped 60s → 90s 2026-06-02: DataImpulse residential
+    // egress to or.duvalclerk.com hits a slower TTFB than BD's prior Web
+    // Unlocker MITM path, occasionally blowing the previous limit. 90s gives
+    // ~3x headroom over BD's typical TTFB to this host. SEARCH_URL inherits
+    // the session default (navTimeoutMs=90_000 above) — no need to override.
+    await page.goto("https://or.duvalclerk.com/", { waitUntil: "domcontentloaded", timeout: 90_000 });
     await page.waitForTimeout(1500 + Math.random() * 1500);
-    await page.goto("https://or.duvalclerk.com/Support", { waitUntil: "domcontentloaded", timeout: 60_000 });
+    await page.goto("https://or.duvalclerk.com/Support", { waitUntil: "domcontentloaded", timeout: 90_000 });
     await page.waitForTimeout(1500 + Math.random() * 1500);
 
     await page.goto(SEARCH_URL, { waitUntil: "domcontentloaded" });
