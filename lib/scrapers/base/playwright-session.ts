@@ -45,7 +45,9 @@ function ensureStealthRegistered() {
 
 export interface PlaywrightSessionOptions {
   /** Route all browser traffic through the residential proxy (env-resolved:
-   *  PROXY_URL → BRIGHT_DATA_PROXY_URL → HTTPS_PROXY). */
+   *  PROXY_URL → BRIGHT_DATA_PROXY_URL → HTTPS_PROXY).
+   *  false explicitly DISABLES Chromium proxy via direct:// override
+   *  (otherwise env HTTPS_PROXY/HTTP_PROXY would leak in). */
   useProxy?: boolean;
   /** Headless (true) or headful for debugging. Default true. */
   headless?: boolean;
@@ -89,6 +91,13 @@ export class PlaywrightSession {
         username: parsed.username ? decodeURIComponent(parsed.username) : undefined,
         password: parsed.password ? decodeURIComponent(parsed.password) : undefined,
       };
+    } else if (this.opts.useProxy === false) {
+      // Explicit opt-out: force Chromium to bypass the OS-level HTTPS_PROXY/
+      // HTTP_PROXY env vars. Without this, Chromium auto-discovers those env
+      // vars and tunnels through whatever proxy the container has set, even
+      // when our code intent is "go direct." 'direct://' is the documented
+      // Playwright bypass (see playwright.dev BrowserType.launch proxy option).
+      launchOpts.proxy = { server: "direct://" };
     }
 
     const engine = this.opts.engine ?? "chromium";
