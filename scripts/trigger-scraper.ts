@@ -47,12 +47,16 @@ function maskUrl(u: string | undefined): string {
 }
 
 async function pollForCompletion(sourceKey: string, enqueuedAt: Date): Promise<void> {
-  // The BulkIngestJob schema doesn't carry the BullMQ jobId — match instead
-  // on (sourceKey, triggerType='manual-script', startedAt >= enqueuedAt - 5s).
-  // The 5s slack absorbs the small clock skew between local now() and
-  // Railway's audit insert.
+  // The BulkIngestJob schema doesn't carry the BullMQ jobId — poll for the
+  // LATEST manual-script row for this sourceKey. We previously filtered on
+  // `startedAt >= enqueuedAt - 5s` to disambiguate from prior runs, but the
+  // worker writes startedAt on a slightly skewed clock and yesterday's runs
+  // (jobIds 28, 53) showed startedAt landing ~9s BEFORE the enqueue
+  // timestamp, which the floor filtered out → 10-min false timeout while the
+  // work actually finished in ~116s. Latest-row semantics is simpler and
+  // correct for an operator-only path; the race with another concurrent
+  // manual trigger within the poll window is acceptable.
   const deadline = Date.now() + 10 * 60 * 1000;
-  const enqueueFloor = new Date(enqueuedAt.getTime() - 5000);
   let lastSeen = "";
 
   while (Date.now() < deadline) {
@@ -60,7 +64,6 @@ async function pollForCompletion(sourceKey: string, enqueuedAt: Date): Promise<v
       where: {
         sourceKey,
         triggerType: "manual-script",
-        startedAt: { gte: enqueueFloor },
       },
       orderBy: { startedAt: "desc" },
     });
@@ -181,7 +184,7 @@ async function main() {
       return;
     }
 
-    console.log("\nPolling BulkIngestJob audit table every 5s (max 10 min)...");
+    console.log("\nPolling BulkIngestJob audit table every 5s (max 10 min) for latest manual-script row...");
     await pollForCompletion(sourceKey, enqueuedAt);
   } finally {
     await queue.close().catch(() => {});
