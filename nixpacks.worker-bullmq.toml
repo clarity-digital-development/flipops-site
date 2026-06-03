@@ -7,7 +7,9 @@
 # See FRESHNESS-LAYER-PLAN.md §"Phase 6 = Strategy C" for the rationale.
 
 [phases.setup]
-nixPkgs = ["nodejs_22"]
+nixPkgs = ["nodejs_22", "poppler_utils"]
+# poppler_utils provides pdftotext, required by Miami-Dade tax-delinquent scraper
+# (lib/scrapers/vendors/miami-dade-tax-delinquent.ts).
 
 [phases.install]
 cmds = ["npm ci --include=dev"]
