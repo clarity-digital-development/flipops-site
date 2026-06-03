@@ -54,12 +54,13 @@ export interface RealAuctionPlaywrightResult {
   persistedLiens: number;
 }
 
-function urlFor(track: RealAuctionTrack, subdomain: string): string {
+function urlFor(track: RealAuctionTrack, subdomain: string, auctionDate?: string): string {
   const root =
     track === "foreclosure" ? "realforeclose.com" :
     track === "tax-deed"    ? "realtaxdeed.com" :
                               "realtaxlien.com";
-  return `https://${subdomain}.${root}/index.cfm?zaction=AUCTION&Zmethod=PREVIEW`;
+  const base = `https://${subdomain}.${root}/index.cfm?zaction=AUCTION&Zmethod=PREVIEW`;
+  return auctionDate ? `${base}&AuctionDate=${encodeURIComponent(auctionDate)}` : base;
 }
 
 // APN denylist — strings that are clearly NOT parcel numbers but have been
@@ -239,13 +240,13 @@ export async function scrapeRealAuctionsPlaywright(opts: {
   if (!county) return null;
   if (!county.tracks.includes(opts.track)) return null;
 
-  const url = urlFor(opts.track, county.subdomain);
   const sourceTag = `scraper:realauction-pw-${opts.countyFips}-${opts.track}`;
 
   // Default auction date = today, MM/DD/YYYY
   const today = new Date();
   const defaultDate = `${String(today.getUTCMonth() + 1).padStart(2, "0")}/${String(today.getUTCDate()).padStart(2, "0")}/${today.getUTCFullYear()}`;
   const auctionDate = opts.auctionDate ?? defaultDate;
+  const url = urlFor(opts.track, county.subdomain, auctionDate);
 
   const sess = new PlaywrightSession({ useProxy: opts.useProxy ?? false, headless: true, navTimeoutMs: 60_000 });
   try {
