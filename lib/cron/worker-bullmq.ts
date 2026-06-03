@@ -213,24 +213,113 @@ async function syncRegistry(): Promise<void> {
 // registry row.
 // ---------------------------------------------------------------------------
 
+/**
+ * Write a `skipped-*` audit row for one of processJob's silent skip paths.
+ *
+ * Historical context: before this helper existed, all five skip paths
+ * (missing sourceKey, no registry row, disabled, out-of-season, no adapter)
+ * returned with only a `console.log` line. Manual triggers against any of
+ * them vanished — we burned an hour chasing a "stuck" auto-paused Duval
+ * Clerk before realizing the trigger had silently been a no-op.
+ *
+ * Now every skip leaves a BulkIngestJob row with the reason in
+ * `errorMessage` and the operator's trigger marker in `triggerType`, so
+ * `/api/admin/scrapers/<key>/runs` (and BullBoard adjacents) can surface
+ * the "why nothing happened" answer to operators directly.
+ */
+async function writeSkipRow(
+  sourceKey: string,
+  trigger: string,
+  status:
+    | "skipped-disabled"
+    | "skipped-out-of-season"
+    | "skipped-no-adapter"
+    | "skipped-no-registry"
+    | "skipped-no-sourcekey",
+  errorMessage: string,
+): Promise<void> {
+  // For skipped-no-registry / skipped-no-sourcekey we MUST set sourceKey=null
+  // on the BulkIngestJob row — `BulkIngestJob.sourceKey` is an FK to
+  // `ScrapeRegistry.sourceKey`, so an unknown/empty value would violate the
+  // constraint and the audit-row write would fail. The reason still lives
+  // in `errorMessage` and the original key in `sourceTag`.
+  const fkSafeSourceKey =
+    status === "skipped-no-registry" || status === "skipped-no-sourcekey"
+      ? null
+      : sourceKey;
+
+  try {
+    await prisma.bulkIngestJob.create({
+      data: {
+        sourceTag: `worker-skip:${sourceKey || "unknown"}`,
+        sourceKey: fkSafeSourceKey,
+        scope: "skip",
+        status,
+        triggerType: trigger,
+        errorMessage,
+        recordsFetched: 0,
+        recordsUpserted: 0,
+        durationMs: 0,
+        finishedAt: new Date(),
+      },
+    });
+  } catch (err) {
+    // Best-effort: never let an audit-row write failure mask the skip itself.
+    console.error(
+      `[worker-bullmq] failed to write skip audit row sourceKey=${sourceKey} status=${status}: ${
+        err instanceof Error ? err.message : String(err)
+      }`,
+    );
+  }
+}
+
 async function processJob(job: Job): Promise<void> {
   const sourceKey: string = job.data?.sourceKey;
+  // Resolve trigger early so every skip path can attribute correctly.
+  const triggerType: string =
+    (typeof job.data?.trigger === "string" && job.data.trigger) || "scheduler";
+
   if (!sourceKey) {
     console.warn("[worker-bullmq] job missing sourceKey:", job.id);
+    await writeSkipRow(
+      "",
+      triggerType,
+      "skipped-no-sourcekey",
+      `Job ${job.id ?? "<unknown>"} missing sourceKey in job.data`,
+    );
     return;
   }
 
   const row = await prisma.scrapeRegistry.findUnique({ where: { sourceKey } });
   if (!row) {
     console.warn(`[worker-bullmq] no registry row for sourceKey=${sourceKey} — skipping`);
+    await writeSkipRow(
+      sourceKey,
+      triggerType,
+      "skipped-no-registry",
+      `No ScrapeRegistry row for sourceKey=${sourceKey} (config bug — registry row deleted or never created)`,
+    );
     return;
   }
   if (!row.enabled) {
+    // Kill-switch: neither manual-script nor manual-admin may bypass this.
+    // To run a disabled scraper, an operator must flip enabled=true on the
+    // registry row first — which itself leaves an audit trail.
+    const reason = row.pausedReason ? `: ${row.pausedReason}` : "";
     console.log(`[worker-bullmq] sourceKey=${sourceKey} disabled — skipping`);
+    await writeSkipRow(
+      sourceKey,
+      triggerType,
+      "skipped-disabled",
+      `Scraper paused${reason} (flip enabled=true on ScrapeRegistry to run)`,
+    );
     return;
   }
 
-  // Season filter.
+  // Season filter. Manual-script and manual-admin triggers MAY bypass this —
+  // out-of-season is a calendar-optimization, not an abuse vector. Operators
+  // running a one-off backfill in February against a tax-roll scraper that
+  // normally only runs May-October shouldn't be blocked.
   if (row.seasonStartMonth != null && row.seasonEndMonth != null) {
     const month = new Date().getMonth() + 1;
     const inSeason =
@@ -238,10 +327,25 @@ async function processJob(job: Job): Promise<void> {
         ? month >= row.seasonStartMonth && month <= row.seasonEndMonth
         : month >= row.seasonStartMonth || month <= row.seasonEndMonth; // wraps year-end
     if (!inSeason) {
-      console.log(
-        `[worker-bullmq] sourceKey=${sourceKey} out-of-season (month=${month}, range=${row.seasonStartMonth}-${row.seasonEndMonth}) — skipping`,
-      );
-      return;
+      const isManualOverride =
+        triggerType === "manual-script" || triggerType === "manual-admin";
+      if (isManualOverride) {
+        console.log(
+          `[worker-bullmq] sourceKey=${sourceKey} out-of-season (month=${month}, range=${row.seasonStartMonth}-${row.seasonEndMonth}) — manual override (${triggerType}): bypassing out-of-season`,
+        );
+        // Fall through to adapter call below.
+      } else {
+        console.log(
+          `[worker-bullmq] sourceKey=${sourceKey} out-of-season (month=${month}, range=${row.seasonStartMonth}-${row.seasonEndMonth}) — skipping`,
+        );
+        await writeSkipRow(
+          sourceKey,
+          triggerType,
+          "skipped-out-of-season",
+          `Out of season (month=${month}) for ${sourceKey} (range=${row.seasonStartMonth}-${row.seasonEndMonth}); pass trigger=manual-script or manual-admin to override`,
+        );
+        return;
+      }
     }
   }
 
@@ -251,16 +355,19 @@ async function processJob(job: Job): Promise<void> {
     // 9 registry rows until Phase 2 fills in the adapters. NOT an error —
     // return cleanly so BullMQ doesn't retry-storm.
     console.log(`[worker-bullmq] no adapter registered for sourceKey=${sourceKey} (Phase 2 will add)`);
+    await writeSkipRow(
+      sourceKey,
+      triggerType,
+      "skipped-no-adapter",
+      `No adapter registered for sourceKey=${sourceKey} (config bug — add to lib/scrapers/dispatch)`,
+    );
     return;
   }
 
-  // Thread the BullMQ job's trigger marker through to the audit row so
-  // analytics can distinguish scheduler-fired runs from operator-triggered
-  // ones (manual-script, manual-admin, backfill, etc.). Default to
-  // "scheduler" for any legacy enqueue that pre-dates the trigger field or
-  // omits it. `||` (not `??`) defends against accidental empty strings too.
-  const triggerType: string =
-    (typeof job.data?.trigger === "string" && job.data.trigger) || "scheduler";
+  // `triggerType` was resolved at the top of processJob so every skip path
+  // could attribute correctly. Threaded through here to the success-path
+  // audit row so analytics can distinguish scheduler-fired runs from
+  // operator-triggered ones (manual-script, manual-admin, backfill, etc.).
 
   // Create audit row.
   const audit = await prisma.bulkIngestJob.create({
