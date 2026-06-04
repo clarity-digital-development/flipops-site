@@ -12,6 +12,7 @@ import { LeadsMap } from "@/components/leads/leads-map";
 import { LeadDetailSheet } from "@/components/leads/lead-detail-sheet";
 import { seedProperties, type Property } from "./seed-data";
 import { trackLeadEvent, trackLeadsViewed } from "@/lib/behavior/client";
+import { Gavel } from "lucide-react";
 
 // ---------------------------------------------------------------------------
 // Leads page — map-first redesign.
@@ -115,6 +116,16 @@ export default function LeadsPage() {
     () => filtered.filter((p) => p.virtual).length,
     [filtered],
   );
+  const auctionScheduledCount = useMemo(() => {
+    const now = Date.now();
+    return filtered.filter(
+      (p) =>
+        p.dataSource === "parcel-auction-bridge" ||
+        (p.nextAuctionDate !== undefined &&
+          p.nextAuctionDate !== null &&
+          new Date(p.nextAuctionDate).getTime() >= now),
+    ).length;
+  }, [filtered]);
 
   const selected = filtered.find((p) => p.id === selectedId) ?? null;
 
@@ -329,8 +340,8 @@ export default function LeadsPage() {
         onClear={handleClearFilters}
       />
 
-      {/* Option A — exposure / virtual headline */}
-      {(totalTaxExposure > 0 || virtualCount > 0) && (
+      {/* Option A — exposure / virtual / auction headline */}
+      {(totalTaxExposure > 0 || virtualCount > 0 || auctionScheduledCount > 0) && (
         <div className="flex-shrink-0 flex flex-wrap items-center gap-3 border-b border-border bg-card px-4 py-2 text-xs">
           {totalTaxExposure > 0 && (
             <div className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-1 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300">
@@ -343,6 +354,13 @@ export default function LeadsPage() {
                 }).format(totalTaxExposure)}
               </span>
               <span>in tax exposure</span>
+            </div>
+          )}
+          {auctionScheduledCount > 0 && (
+            <div className="inline-flex items-center gap-1.5 rounded-full bg-red-50 px-2.5 py-1 text-red-700 dark:bg-red-950/60 dark:text-red-300">
+              <Gavel className="h-3 w-3" />
+              <span className="font-semibold tabular-nums">{auctionScheduledCount}</span>
+              <span>{auctionScheduledCount === 1 ? "auction scheduled" : "auctions scheduled"}</span>
             </div>
           )}
           {virtualCount > 0 && (
