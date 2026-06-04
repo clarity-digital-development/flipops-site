@@ -77,17 +77,22 @@ export async function POST(request: NextRequest) {
 
     // -----------------------------------------------------------------------
     // Look up the virtual lead's source data: Parcel + TaxDelinquencySummary
+    // + AuctionSummary (M2.3). A parcel can have both tax-delinquent AND
+    // scheduled-auction signals — surface both on promote.
     // -----------------------------------------------------------------------
-    const [parcel, summary] = await Promise.all([
+    const [parcel, summary, auctionSummary] = await Promise.all([
       prisma.parcel.findUnique({
         where: { countyFips_apn: { countyFips, apn } },
       }),
       prisma.taxDelinquencySummary.findUnique({
         where: { countyFips_apn: { countyFips, apn } },
       }),
+      prisma.auctionSummary.findUnique({
+        where: { countyFips_apn: { countyFips, apn } },
+      }),
     ]);
 
-    if (!parcel && !summary) {
+    if (!parcel && !summary && !auctionSummary) {
       // Nothing to promote from — this APN isn't a known virtual lead.
       return NextResponse.json(
         { error: `No virtual lead found for countyFips=${countyFips} apn=${apn}` },
@@ -99,6 +104,7 @@ export async function POST(request: NextRequest) {
     // Mint the Property row. Sources:
     //   - Address / property characteristics come from Parcel
     //   - Tax-delinquent fields come from TaxDelinquencySummary
+    //   - Foreclosure / auction signals come from AuctionSummary (M2.3)
     //   - Score is computed fresh by calculateDistressScoreFromProperty
     //     so the in-app score and the materialized aggregate stay in sync
     //     post-promote (the aggregate's score may be stale relative to
@@ -110,10 +116,16 @@ export async function POST(request: NextRequest) {
     const taxDelinquentEarliestYear = summary?.earliestYear ?? null;
     const taxDelinquentLatestYear = summary?.latestYear ?? null;
 
-    // Fresh score from the canonical scorer (not the SQL-materialized one).
+    const hasScheduledAuction = !!auctionSummary?.nextAuctionDate;
+    const isForeclosure = !!auctionSummary; // any auction activity = foreclosure family
+    const isPreForeclosure = hasScheduledAuction; // scheduled future auction
+
+    // Fresh score from the canonical scorer v2.1 — includes the new
+    // FUTURE_AUCTION signal so promoted auction-virtual rows carry their
+    // imminent-auction boost into the Property table.
     const distressScore = calculateDistressScoreFromProperty({
-      foreclosure: false,
-      preForeclosure: false,
+      foreclosure: isForeclosure,
+      preForeclosure: isPreForeclosure,
       taxDelinquent: isTaxDelinquent,
       vacant: false,
       bankruptcy: false,
@@ -123,6 +135,9 @@ export async function POST(request: NextRequest) {
       taxDelinquentAmount,
       taxDelinquentYearsCount,
       taxDelinquentEarliestYear,
+      hasScheduledAuction,
+      nextAuctionDate: auctionSummary?.nextAuctionDate ?? null,
+      hasLisPendens: false,
     });
 
     const address = parcel?.situsAddress ?? '(address pending)';
@@ -172,6 +187,8 @@ export async function POST(request: NextRequest) {
         taxDelinquentYearsCount,
         taxDelinquentEarliestYear,
         taxDelinquentLatestYear,
+        foreclosure: isForeclosure,
+        preForeclosure: isPreForeclosure,
         score: distressScore.score,
         scoreBreakdown: JSON.stringify({
           score: distressScore.score,
@@ -180,8 +197,10 @@ export async function POST(request: NextRequest) {
           signals: distressScore.signals,
         }),
         scoredAt: new Date(),
-        dataSource: 'parcel-lien-bridge',
-        sourceId: `virt-${countyFips}-${apn}`,
+        dataSource: auctionSummary ? 'parcel-auction-bridge' : 'parcel-lien-bridge',
+        sourceId: auctionSummary
+          ? `virt-fc-${countyFips}-${apn}`
+          : `virt-${countyFips}-${apn}`,
       },
       update: {
         // Merge in the bridge fields if a Property happened to exist at this
@@ -195,6 +214,8 @@ export async function POST(request: NextRequest) {
         taxDelinquentYearsCount,
         taxDelinquentEarliestYear,
         taxDelinquentLatestYear,
+        foreclosure: isForeclosure,
+        preForeclosure: isPreForeclosure,
         score: distressScore.score,
         scoreBreakdown: JSON.stringify({
           score: distressScore.score,

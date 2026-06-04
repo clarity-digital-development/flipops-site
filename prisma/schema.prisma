@@ -1746,6 +1746,43 @@ model TaxDelinquencySummary {
   @@index([countyFips, score(sort: Desc)])
 }
 
+// ---------------------------------------------------------------------------
+// AuctionSummary — Option A Phase M2.1 materialized aggregate.
+//
+// Pre-computes one row per (countyFips, apn) combining all Foreclosure rows
+// for that parcel. Foreclosure's unique key is (countyFips, caseNumber,
+// stageCode, source) so a single parcel can have many Foreclosure rows when
+// auctions get rescheduled, dismissed-and-refiled, or captured across sources.
+// AuctionSummary collapses those into a single materialized lead row keyed by
+// parcel, with score/grade/motivation materialized so the /api/properties
+// UNION can ORDER BY score in SQL (verifier HG2 in OPTION-A doc).
+//
+// nextAuctionDate := MIN(auctionDate WHERE stageCode='SCHEDULED' AND auctionDate > NOW())
+// ---------------------------------------------------------------------------
+model AuctionSummary {
+  id                 String   @id @default(cuid())
+  countyFips         String
+  apn                String
+  nextAuctionDate    DateTime?
+  pastAuctionCount   Int      @default(0)   // SOLD + DISMISSED
+  scheduledCount     Int      @default(0)
+  judgmentAmountMax  Float?
+  openingBidMin      Float?
+  lastCaseNumber     String?
+  firstCapturedAt    DateTime
+  lastCapturedAt     DateTime
+  // Materialized scoring (linchpin)
+  score              Int?
+  grade              String?  // A/B/C/D/F
+  motivation         String?
+  updatedAt          DateTime @updatedAt
+
+  @@unique([countyFips, apn])
+  @@index([score(sort: Desc)])
+  @@index([countyFips, score(sort: Desc)])
+  @@index([nextAuctionDate])
+}
+
 // Audit log of bulk ingest runs (sibling of ScrapeJob, for the bulk modality).
 // EXTENDED 2026-05-30 for the freshness layer (see docs/development/FRESHNESS-LAYER-PLAN.md):
 // becomes the unified run-audit log for both legacy bulk ingest (sourceKey=NULL)

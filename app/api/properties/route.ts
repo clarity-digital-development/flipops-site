@@ -175,17 +175,25 @@ export async function GET(request: NextRequest) {
             ' OR ',
           )})`;
 
-    // For virtual rows, only taxDelinquent applies (the others are REAPI
-    // signals that don't exist in our scraper world). If the user selected
-    // ANY chip other than taxDelinquent, virtual rows are excluded entirely.
+    // For tax-virtual rows, only taxDelinquent applies (other REAPI signals
+    // don't exist there). For auction-virtual rows, foreclosure/preForeclosure
+    // apply (the auction IS the foreclosure signal). If the user selected
+    // chips that exclude a branch entirely, we drop that branch.
     const virtualPassesDistress =
       distress.length === 0 || distress.includes('taxDelinquent');
+    const auctionPassesDistress =
+      distress.length === 0 ||
+      distress.includes('foreclosure') ||
+      distress.includes('preForeclosure');
 
     const cursorMineSql = cursor
       ? Prisma.sql`AND (COALESCE(p."score", 0), p."id") < (${cursor.score}, ${cursor.id})`
       : Prisma.empty;
     const cursorVirtualSql = cursor
       ? Prisma.sql`AND (COALESCE(s."score", 0), ('virt-' || s."countyFips" || '-' || s."apn")) < (${cursor.score}, ${cursor.id})`
+      : Prisma.empty;
+    const cursorAuctionSql = cursor
+      ? Prisma.sql`AND (COALESCE(s."score", 0), ('virt-fc-' || s."countyFips" || '-' || s."apn")) < (${cursor.score}, ${cursor.id})`
       : Prisma.empty;
 
     const zipMineSql = zipFilter
@@ -208,6 +216,16 @@ export async function GET(request: NextRequest) {
       taxOwedMin > 0
         ? Prisma.sql`AND COALESCE(s."totalAmount", 0) >= ${taxOwedMin}`
         : Prisma.empty;
+
+    // Auction-virtual rows don't have tax-owed amounts. If the user is
+    // filtering on taxOwedMin, exclude auction rows entirely.
+    const taxOwedAuctionSql =
+      taxOwedMin > 0 ? Prisma.sql`AND FALSE` : Prisma.empty;
+    const scoreMinAuctionSql =
+      scoreMin > 0 ? Prisma.sql`AND COALESCE(s."score", 0) >= ${scoreMin}` : Prisma.empty;
+    const zipAuctionSql = zipFilter
+      ? Prisma.sql`AND COALESCE(par."situsZip", '') = ${zipFilter}`
+      : Prisma.empty;
 
     // -------------------- Mine branch --------------------
     const mineQuery = Prisma.sql`
@@ -330,22 +348,115 @@ export async function GET(request: NextRequest) {
           AND pp."countyFips" = s."countyFips"
           AND pp."apn" = s."apn"
       )
+      -- HG1 cross-branch dedupe: suppress tax-virtual when an auction is
+      -- actively SCHEDULED for the same parcel (auction is more imminent).
+      -- Tax-virtual stays primary when AuctionSummary only has past sales.
+      AND NOT EXISTS (
+        SELECT 1 FROM flipops."AuctionSummary" auc
+        WHERE auc."countyFips" = s."countyFips"
+          AND auc."apn" = s."apn"
+          AND auc."nextAuctionDate" IS NOT NULL
+      )
         ${cursorVirtualSql}
         ${zipVirtualSql}
         ${scoreMinVirtualSql}
         ${taxOwedVirtualSql}
     `;
 
+    // -------------------- Auction-virtual branch (M2.3) --------------------
+    // AuctionSummary materialized aggregate joined to Parcel. Surfaces parcels
+    // with scheduled future foreclosure auctions (grade A in M2.1 backfill) or
+    // historical auction activity (grade B). LEFT JOIN excluded — we require
+    // Parcel enrichment so the lead card has an address.
+    //
+    // Cross-branch behavior: this branch always runs when in scope. The Tax-
+    // virtual branch suppresses itself when AuctionSummary has a scheduled
+    // auction (see NOT EXISTS clause above). Result: scheduled-auction parcels
+    // surface here; pure tax-delinquent parcels surface in the tax branch.
+    const auctionQuery = Prisma.sql`
+      SELECT
+        ('virt-fc-' || s."countyFips" || '-' || s."apn") AS id,
+        TRUE                                              AS virtual,
+        s."apn"                                           AS apn,
+        s."countyFips"                                    AS county_fips,
+        FALSE                                             AS partial,
+        COALESCE(par."situsAddress", '(address pending)') AS address,
+        COALESCE(par."situsCity", '')                     AS city,
+        COALESCE(par."state", 'FL')                       AS state,
+        par."situsZip"                                    AS zip,
+        NULL                                              AS county,
+        par."propertyType"                                AS property_type,
+        par."bedrooms"                                    AS bedrooms,
+        par."bathrooms"                                   AS bathrooms,
+        par."squareFeet"                                  AS square_feet,
+        par."lotSize"                                     AS lot_size,
+        par."yearBuilt"                                   AS year_built,
+        par."assessedValue"::float                        AS assessed_value,
+        par."marketValue"::float                          AS estimated_value,
+        par."lastSaleDate"::text                          AS last_sale_date,
+        par."lastSalePrice"::float                        AS last_sale_price,
+        NULL                                              AS listing_date,
+        NULL::int                                         AS days_on_market,
+        COALESCE(s."score", 20)                           AS score,
+        s."grade"                                         AS grade,
+        s."motivation"                                    AS motivation,
+        NULL::text                                        AS score_breakdown,
+        'parcel-auction-bridge'                           AS data_source,
+        COALESCE(par."ownerName", '(unknown owner)')      AS owner_name,
+        FALSE                                             AS enriched,
+        NULL::text                                        AS phone_numbers,
+        NULL::text                                        AS emails,
+        TRUE                                              AS foreclosure,
+        TRUE                                              AS pre_foreclosure,
+        -- Surface tax-delinquent secondary badge when both signals exist.
+        (EXISTS (
+          SELECT 1 FROM flipops."TaxDelinquencySummary" tds
+          WHERE tds."countyFips" = s."countyFips" AND tds."apn" = s."apn"
+        ))                                                 AS tax_delinquent,
+        FALSE                                             AS vacant,
+        FALSE                                             AS bankruptcy,
+        FALSE                                             AS absentee_owner,
+        NULL::text                                        AS metadata,
+        s."lastCapturedAt"::text                          AS created_at,
+        NULL::float                                       AS tax_delinquent_amount,
+        NULL::int                                         AS tax_delinquent_years_count,
+        NULL::int                                         AS tax_delinquent_earliest_year,
+        NULL::int                                         AS tax_delinquent_latest_year,
+        par."latitude"::float                             AS latitude,
+        par."longitude"::float                            AS longitude
+      FROM flipops."AuctionSummary" s
+      INNER JOIN flipops."Parcel" par
+        ON par."countyFips" = s."countyFips" AND par."apn" = s."apn"
+      WHERE s."score" IS NOT NULL
+        AND NOT EXISTS (
+          SELECT 1 FROM flipops."Property" pp
+          WHERE pp."userId" = ${userId}
+            AND pp."countyFips" = s."countyFips"
+            AND pp."apn" = s."apn"
+        )
+        ${cursorAuctionSql}
+        ${zipAuctionSql}
+        ${scoreMinAuctionSql}
+        ${taxOwedAuctionSql}
+    `;
+
+    const branches: Prisma.Sql[] = [];
+    if (wantMine) branches.push(mineQuery);
+    if (wantVirtual && virtualPassesDistress) branches.push(virtualQuery);
+    if (wantVirtual && auctionPassesDistress) branches.push(auctionQuery);
+
     let unionSql: Prisma.Sql;
-    if (wantMine && wantVirtual && virtualPassesDistress) {
-      unionSql = Prisma.sql`(${mineQuery}) UNION ALL (${virtualQuery})`;
-    } else if (wantMine && (!wantVirtual || !virtualPassesDistress)) {
-      unionSql = mineQuery;
-    } else if (wantVirtual && virtualPassesDistress) {
-      unionSql = virtualQuery;
-    } else {
-      // user requested virtual-only but distress filter excludes virtual rows
+    if (branches.length === 0) {
+      // user requested virtual-only but distress filter excludes everything
       unionSql = Prisma.sql`SELECT * FROM (${mineQuery}) sub WHERE FALSE`;
+    } else if (branches.length === 1) {
+      unionSql = branches[0];
+    } else {
+      // Wrap each branch in parens so UNION ALL parses cleanly.
+      unionSql = Prisma.join(
+        branches.map((b) => Prisma.sql`(${b})`),
+        ' UNION ALL ',
+      );
     }
 
     const finalSql = Prisma.sql`
@@ -421,12 +532,18 @@ export async function GET(request: NextRequest) {
     }));
 
     // Counts — for the demo stats bar. Cheap single-row queries.
-    const counts = await getCounts(userId, source, virtualPassesDistress, {
-      zipFilter,
-      scoreMin,
-      taxOwedMin,
-      distress,
-    });
+    const counts = await getCounts(
+      userId,
+      source,
+      virtualPassesDistress,
+      auctionPassesDistress,
+      {
+        zipFilter,
+        scoreMin,
+        taxOwedMin,
+        distress,
+      },
+    );
 
     return NextResponse.json({ properties, cursor: nextCursor, counts });
   } catch (error) {
@@ -439,12 +556,17 @@ async function getCounts(
   userId: string,
   source: 'all' | 'mine' | 'virtual',
   virtualPassesDistress: boolean,
+  auctionPassesDistress: boolean,
   filters: { zipFilter: string | null; scoreMin: number; taxOwedMin: number; distress: string[] },
-): Promise<{ total: number; mine: number; virtual: number }> {
+): Promise<{ total: number; mine: number; virtual: number; auction: number }> {
   const wantMine = source === 'all' || source === 'mine';
   const wantVirtual = (source === 'all' || source === 'virtual') && virtualPassesDistress;
+  const wantAuction =
+    (source === 'all' || source === 'virtual') &&
+    auctionPassesDistress &&
+    filters.taxOwedMin === 0; // auction branch has no tax-owed dimension
 
-  const [mineCount, virtualCount] = await Promise.all([
+  const [mineCount, virtualCount, auctionCount] = await Promise.all([
     wantMine
       ? prisma.$queryRaw<[{ n: bigint }]>`
           SELECT COUNT(*)::bigint AS n FROM flipops."Property" p
@@ -465,14 +587,37 @@ async function getCounts(
               AND pp."countyFips" = s."countyFips"
               AND pp."apn" = s."apn"
           )
+          AND NOT EXISTS (
+            SELECT 1 FROM flipops."AuctionSummary" auc
+            WHERE auc."countyFips" = s."countyFips"
+              AND auc."apn" = s."apn"
+              AND auc."nextAuctionDate" IS NOT NULL
+          )
             ${filters.zipFilter ? Prisma.sql`AND COALESCE(par."situsZip", '') = ${filters.zipFilter}` : Prisma.empty}
             ${filters.scoreMin > 0 ? Prisma.sql`AND COALESCE(s."score", 0) >= ${filters.scoreMin}` : Prisma.empty}
             ${filters.taxOwedMin > 0 ? Prisma.sql`AND COALESCE(s."totalAmount", 0) >= ${filters.taxOwedMin}` : Prisma.empty}
+        `
+      : Promise.resolve([{ n: BigInt(0) }] as [{ n: bigint }]),
+    wantAuction
+      ? prisma.$queryRaw<[{ n: bigint }]>`
+          SELECT COUNT(*)::bigint AS n FROM flipops."AuctionSummary" s
+          INNER JOIN flipops."Parcel" par
+            ON par."countyFips" = s."countyFips" AND par."apn" = s."apn"
+          WHERE s."score" IS NOT NULL
+            AND NOT EXISTS (
+              SELECT 1 FROM flipops."Property" pp
+              WHERE pp."userId" = ${userId}
+                AND pp."countyFips" = s."countyFips"
+                AND pp."apn" = s."apn"
+            )
+            ${filters.zipFilter ? Prisma.sql`AND COALESCE(par."situsZip", '') = ${filters.zipFilter}` : Prisma.empty}
+            ${filters.scoreMin > 0 ? Prisma.sql`AND COALESCE(s."score", 0) >= ${filters.scoreMin}` : Prisma.empty}
         `
       : Promise.resolve([{ n: BigInt(0) }] as [{ n: bigint }]),
   ]);
 
   const mine = Number(mineCount[0].n);
   const virtual = Number(virtualCount[0].n);
-  return { total: mine + virtual, mine, virtual };
+  const auction = Number(auctionCount[0].n);
+  return { total: mine + virtual + auction, mine, virtual, auction };
 }
