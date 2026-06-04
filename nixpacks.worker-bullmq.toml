@@ -17,6 +17,10 @@ nixPkgs = [
   # mesa, alsa, libxkbcommon, libxcomposite, libxdamage, etc.) are missing
   # from the base nixpacks image. Duval Clerk (stealth-chromium) and the
   # tax-delinquent scrapers (PlaywrightSession) all need these.
+  # NOTE: X11 libs live under the `xorg.` namespace in nixpkgs and are
+  # capitalized (libXcomposite, not libxcomposite). Lowercase / apt-style
+  # names like `libxcomposite` or `libxss1` are NOT valid nixpkgs identifiers
+  # and will fail the build with "undefined variable libxcomposite".
   "nss",
   "glib",
   "atk",
@@ -27,10 +31,10 @@ nixPkgs = [
   "pango",
   "cairo",
   "libxkbcommon",
-  "libxcomposite",
-  "libxdamage",
-  "libxfixes",
-  "libxrandr",
+  "xorg.libXcomposite",
+  "xorg.libXdamage",
+  "xorg.libXfixes",
+  "xorg.libXrandr",
   "mesa",
   "alsa-lib",
 ]
