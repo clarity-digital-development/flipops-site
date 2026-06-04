@@ -208,6 +208,7 @@ export function LeadListPanel({
           return (
             <button
               key={lead.id}
+              data-lead-id={lead.id}
               onClick={() => onSelectLead(lead.id)}
               className={cn(
                 "group flex flex-col gap-2 rounded-lg border p-3 text-left transition-all",

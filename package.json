@@ -131,6 +131,7 @@
   "devDependencies": {
     "@cloudflare/next-on-pages": "^1.13.16",
     "@eslint/eslintrc": "^3",
+    "@playwright/test": "^1.60.0",
     "@types/node": "^20.19.17",
     "@types/node-cron": "^3.0.11",
     "@types/react": "^19.2.7",
