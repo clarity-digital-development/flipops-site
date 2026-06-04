@@ -8,14 +8,7 @@ import { createRunStatsCollector } from "@/lib/scrapers/dispatch/run-stats";
 import type { RunContext } from "@/lib/scrapers/dispatch/types";
 import { runScraperHealthCheck } from "@/lib/cron/monitoring/scraper-health";
 import { setupMonitoringJobs } from "@/lib/cron/worker-bullmq-monitoring";
-import { refreshAuctionSummary } from "@/scripts/rescore-auction";
-
-// Source keys whose successful completion should refresh the materialized
-// AuctionSummary aggregate. Add new keys here when more sources feed
-// Foreclosure rows that contribute to AuctionSummary scoring.
-const AUCTION_SUMMARY_REFRESH_SOURCE_KEYS = new Set<string>([
-  "realauction-fl-foreclosures",
-]);
+import { handleScrapeCompleted } from "@/lib/cron/auction-summary-hook";
 
 // ---------------------------------------------------------------------------
 // worker-bullmq — the BullMQ-driven freshness scheduler.
@@ -127,20 +120,8 @@ function ensureWorker(qcfg: QueueConfig): void {
   w.on("error", (err) => {
     console.error(`[worker-bullmq] worker error queue=${qcfg.queueName}:`, err.message);
   });
-  w.on("completed", async (job) => {
-    const sourceKey = job?.data?.sourceKey;
-    if (!sourceKey || !AUCTION_SUMMARY_REFRESH_SOURCE_KEYS.has(sourceKey)) return;
-    try {
-      const result = await refreshAuctionSummary();
-      console.log(
-        `[worker-bullmq] AuctionSummary refreshed after ${sourceKey}: rows=${result.rowsAffected} duration=${result.durationMs}ms`,
-      );
-    } catch (err) {
-      console.error(
-        `[worker-bullmq] AuctionSummary refresh failed after ${sourceKey}:`,
-        err instanceof Error ? err.message : err,
-      );
-    }
+  w.on("completed", (job) => {
+    void handleScrapeCompleted(job);
   });
   workers.set(qcfg.queueName, w);
   console.log(
