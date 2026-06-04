@@ -78,11 +78,27 @@ export default function LeadsPage() {
       if (scoreMin > 0 && (p.score ?? 0) < scoreMin) return false;
       if (taxOwedMin > 0 && (p.taxDelinquentAmount ?? 0) < taxOwedMin) return false;
       if (distress.size > 0) {
+        // Auction Scheduled (M3): a property qualifies when it has a future-
+        // scheduled auction. Two signals can confirm this:
+        //   1. dataSource === 'parcel-auction-bridge' (rows surfaced via the
+        //      /api/properties UNION from AuctionSummary), OR
+        //   2. nextAuctionDate is present AND not in the past
+        // Either is sufficient — the bridge-source check covers virtual rows,
+        // the date check covers real Property rows that have been promoted
+        // but still carry the auction signal.
+        const now = Date.now();
+        const auctionScheduledMatch =
+          p.dataSource === "parcel-auction-bridge" ||
+          (p.nextAuctionDate !== undefined &&
+            p.nextAuctionDate !== null &&
+            new Date(p.nextAuctionDate).getTime() >= now);
+
         const matchesAny =
           (distress.has("foreclosure") && p.foreclosure) ||
           (distress.has("preForeclosure") && p.preForeclosure) ||
           (distress.has("taxDelinquent") && p.taxDelinquent) ||
-          (distress.has("vacant") && p.vacant);
+          (distress.has("vacant") && p.vacant) ||
+          (distress.has("auctionScheduled") && auctionScheduledMatch);
         if (!matchesAny) return false;
       }
       return true;

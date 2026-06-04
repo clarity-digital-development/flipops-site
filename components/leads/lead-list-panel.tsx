@@ -1,6 +1,6 @@
 "use client";
 
-import { MapPin, Phone, Mail, Flame, Users, Receipt, Sparkles } from "lucide-react";
+import { MapPin, Phone, Mail, Flame, Users, Receipt, Sparkles, Gavel } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
@@ -13,6 +13,36 @@ function formatTaxAmountCompact(n?: number | null): string | null {
     maximumFractionDigits: 0,
     notation: "compact",
   }).format(n);
+}
+
+/**
+ * Format the countdown to the next scheduled auction.
+ * Pure function — returns a human-readable string or null.
+ *
+ * - "Today" — same calendar day
+ * - "Tomorrow" — 1 day out
+ * - "Auction in Nd" — 2-30 days out
+ * - "Auction in N months" — 30+ days out (Math.round(days/30))
+ * - "Past auction" — date is in the past
+ * - null — no date provided
+ */
+function formatAuctionCountdown(nextAuctionDate?: string | Date | null): string | null {
+  if (!nextAuctionDate) return null;
+  const target = nextAuctionDate instanceof Date ? nextAuctionDate : new Date(nextAuctionDate);
+  if (Number.isNaN(target.getTime())) return null;
+
+  // Normalize both dates to midnight local for stable day-diff math.
+  const now = new Date();
+  const startOfTarget = new Date(target.getFullYear(), target.getMonth(), target.getDate());
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const msPerDay = 1000 * 60 * 60 * 24;
+  const days = Math.round((startOfTarget.getTime() - startOfToday.getTime()) / msPerDay);
+
+  if (days < 0) return "Past auction";
+  if (days === 0) return "Today";
+  if (days === 1) return "Tomorrow";
+  if (days <= 30) return `Auction in ${days}d`;
+  return `Auction in ${Math.round(days / 30)} months`;
 }
 
 // ---------------------------------------------------------------------------
@@ -39,6 +69,10 @@ export interface ListLead {
   taxDelinquentAmount?: number | null;
   taxDelinquentYearsCount?: number | null;
   virtual?: boolean;
+  // M3.B — auction-bridge display
+  nextAuctionDate?: string | Date | null;
+  pastAuctionCount?: number | null;
+  dataSource?: string | null;
 }
 
 interface LeadListPanelProps {
@@ -239,7 +273,16 @@ export function LeadListPanel({
                       New
                     </span>
                   )}
-                  {chips.length === 0 && !lead.virtual && (
+                  {(lead.dataSource === "parcel-auction-bridge" || lead.nextAuctionDate) && (
+                    <span
+                      className="inline-flex items-center gap-0.5 rounded-full bg-red-100 px-1.5 py-0.5 text-[10px] font-semibold text-red-700 dark:bg-red-950 dark:text-red-300"
+                      title="Scheduled or recent foreclosure auction on this parcel."
+                    >
+                      <Gavel className="h-2.5 w-2.5" />
+                      Auction
+                    </span>
+                  )}
+                  {chips.length === 0 && !lead.virtual && !lead.nextAuctionDate && lead.dataSource !== "parcel-auction-bridge" && (
                     <span className="text-[10px] text-muted-foreground">
                       No distress flags
                     </span>
@@ -263,6 +306,22 @@ export function LeadListPanel({
                   )}
                 </div>
               )}
+
+              {/* M3.B — auction countdown secondary line */}
+              {(() => {
+                const countdown = formatAuctionCountdown(lead.nextAuctionDate);
+                const showPast =
+                  !countdown &&
+                  lead.pastAuctionCount != null &&
+                  lead.pastAuctionCount > 0;
+                if (!countdown && !showPast) return null;
+                return (
+                  <div className="mt-0.5 flex items-center gap-1 text-[10px] text-red-600 dark:text-red-400 tabular-nums">
+                    <Gavel className="h-3 w-3" />
+                    <span>{countdown ?? "Past auction"}</span>
+                  </div>
+                );
+              })()}
             </button>
           );
         })}

@@ -65,6 +65,18 @@ export interface Property {
   taxDelinquentYearsCount?: number | null;
   taxDelinquentEarliestYear?: number | null;
   taxDelinquentLatestYear?: number | null;
+
+  // === Option B / M2 — auction surfacing fields ===
+  /** Populated by /api/properties UNION when dataSource is
+   * parcel-auction-bridge. Sourced from AuctionSummary materialized
+   * aggregate (per countyFips+apn). Only present on auction-virtual or
+   * cross-signal hybrid rows — live UNION endpoint only, never seeded. */
+  nextAuctionDate?: string;
+  judgmentAmount?: number | null;
+  openingBid?: number | null;
+  lastCaseNumber?: string | null;
+  scheduledCount?: number | null;
+  pastAuctionCount?: number | null;
 }
 
 export const seedProperties: Property[] = [

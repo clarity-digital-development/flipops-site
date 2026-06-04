@@ -17,6 +17,8 @@ import {
   Calendar,
   Layers,
   Sparkles,
+  Gavel,
+  Scale,
 } from "lucide-react";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { VisuallyHidden } from "@radix-ui/react-visually-hidden";
@@ -66,6 +68,14 @@ export interface DetailLead {
   grade?: string | null;
   motivation?: string | null;
   scoreBreakdown?: string | null;
+  // M3.C — auction lead detail
+  nextAuctionDate?: string | Date | null;
+  openingBid?: number | null;
+  judgmentAmount?: number | null;
+  lastCaseNumber?: string | null;
+  scheduledCount?: number | null;
+  pastAuctionCount?: number | null;
+  dataSource?: string | null;
 }
 
 interface ScoreSignal {
@@ -147,9 +157,33 @@ function parsePhoneOrEmail(raw?: string): string[] {
   }
 }
 
-function formatCurrency(n?: number): string {
+function formatCurrency(n?: number | null): string {
   if (n == null) return "—";
   return `$${n.toLocaleString()}`;
+}
+
+function formatAuctionDate(d?: string | Date | null): {
+  abs: string;
+  rel: string;
+} | null {
+  if (!d) return null;
+  const date = typeof d === "string" ? new Date(d) : d;
+  if (isNaN(date.getTime())) return null;
+  const abs = date.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+  const now = new Date();
+  const diffMs = date.getTime() - now.getTime();
+  const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
+  let rel: string;
+  if (diffDays === 0) rel = "today";
+  else if (diffDays === 1) rel = "tomorrow";
+  else if (diffDays === -1) rel = "yesterday";
+  else if (diffDays > 0) rel = `in ${diffDays} days`;
+  else rel = `${Math.abs(diffDays)} days ago`;
+  return { abs, rel };
 }
 
 export function LeadDetailSheet({
@@ -383,18 +417,62 @@ export function LeadDetailSheet({
                       value={`${lead.taxDelinquentYearsCount} certificates`}
                     />
                   )}
+
+                  {/* M3.C — auction lead detail rows */}
+                  {(() => {
+                    const auctionDate = formatAuctionDate(lead.nextAuctionDate);
+                    return auctionDate ? (
+                      <DetailCell
+                        icon={Gavel}
+                        label="Auction Date"
+                        value={`${auctionDate.abs} (${auctionDate.rel})`}
+                        valueClassName="text-red-600 dark:text-red-400"
+                      />
+                    ) : null;
+                  })()}
+                  {lead.openingBid != null && lead.openingBid > 0 && (
+                    <DetailCell
+                      icon={DollarSign}
+                      label="Opening Bid"
+                      value={formatCurrency(lead.openingBid)}
+                    />
+                  )}
+                  {lead.judgmentAmount != null && lead.judgmentAmount > 0 && (
+                    <DetailCell
+                      icon={Scale}
+                      label="Judgment Amount"
+                      value={formatCurrency(lead.judgmentAmount)}
+                    />
+                  )}
                 </div>
+
+                {/* M3.C — foreclosure case caption */}
+                {lead.lastCaseNumber && (
+                  <p className="mt-2 text-[11px] text-muted-foreground">
+                    Foreclosure case # {lead.lastCaseNumber}
+                  </p>
+                )}
 
                 {/* Virtual-lead badge — disclosure that this lead came from
                     freshness-layer data and will be added to the user's
                     leads on first action */}
-                {lead.virtual && (
+                {lead.virtual && lead.dataSource !== "parcel-auction-bridge" && (
                   <div className="mt-3 flex items-start gap-2 rounded-md border border-violet-200 bg-violet-50 px-3 py-2 text-xs text-violet-900 dark:border-violet-900 dark:bg-violet-950 dark:text-violet-200">
                     <Sparkles className="mt-0.5 h-3.5 w-3.5 flex-shrink-0" />
                     <span>
                       <strong>Surfaced lead.</strong> This property hasn't been added to your leads yet.
                       The first action (Skip Trace, Log Contact, Send to Dialer, Underwriting) will save it
                       to your workspace.
+                    </span>
+                  </div>
+                )}
+
+                {/* M3.C — auction-specific virtual-lead disclosure */}
+                {lead.virtual && lead.dataSource === "parcel-auction-bridge" && (
+                  <div className="mt-3 flex items-start gap-2 rounded-md border border-violet-200 bg-violet-50 px-3 py-2 text-xs text-violet-900 dark:border-violet-900 dark:bg-violet-950 dark:text-violet-200">
+                    <Sparkles className="mt-0.5 h-3.5 w-3.5 flex-shrink-0" />
+                    <span>
+                      <strong>Surfaced from FL auction calendar.</strong> First action saves it to your workspace.
                     </span>
                   </div>
                 )}
@@ -497,10 +575,12 @@ function DetailCell({
   icon: Icon,
   label,
   value,
+  valueClassName,
 }: {
   icon: React.ComponentType<{ className?: string }>;
   label: string;
   value: string;
+  valueClassName?: string;
 }) {
   return (
     <div className="rounded-lg border border-border bg-card/50 px-3 py-2">
@@ -508,7 +588,7 @@ function DetailCell({
         <Icon className="h-3 w-3" />
         {label}
       </div>
-      <div className="text-sm font-medium truncate">{value}</div>
+      <div className={cn("text-sm font-medium truncate", valueClassName)}>{value}</div>
     </div>
   );
 }

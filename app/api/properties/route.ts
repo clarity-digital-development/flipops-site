@@ -92,6 +92,14 @@ interface LeadRow {
   taxDelinquentLatestYear: number | null;
   latitude: number | null;
   longitude: number | null;
+  // Auction-virtual specific (sourced from AuctionSummary when
+  // dataSource === 'parcel-auction-bridge', else null on tax/mine branches).
+  nextAuctionDate: string | null;
+  openingBid: number | null;
+  judgmentAmount: number | null;
+  lastCaseNumber: string | null;
+  scheduledCount: number | null;
+  pastAuctionCount: number | null;
 }
 
 const MAX_LIMIT = 500;
@@ -274,7 +282,13 @@ export async function GET(request: NextRequest) {
         p."taxDelinquentEarliestYear"     AS tax_delinquent_earliest_year,
         p."taxDelinquentLatestYear"       AS tax_delinquent_latest_year,
         p."latitude"::float               AS latitude,
-        p."longitude"::float              AS longitude
+        p."longitude"::float              AS longitude,
+        NULL::timestamp                   AS next_auction_date,
+        NULL::float                       AS opening_bid,
+        NULL::float                       AS judgment_amount,
+        NULL::text                        AS last_case_number,
+        NULL::int                         AS scheduled_count,
+        NULL::int                         AS past_auction_count
       FROM flipops."Property" p
       WHERE p."userId" = ${userId}
         AND ${distressMineSql}
@@ -338,7 +352,13 @@ export async function GET(request: NextRequest) {
         s."earliestYear"                                 AS tax_delinquent_earliest_year,
         s."latestYear"                                   AS tax_delinquent_latest_year,
         par."latitude"::float                            AS latitude,
-        par."longitude"::float                           AS longitude
+        par."longitude"::float                           AS longitude,
+        NULL::timestamp                                  AS next_auction_date,
+        NULL::float                                      AS opening_bid,
+        NULL::float                                      AS judgment_amount,
+        NULL::text                                       AS last_case_number,
+        NULL::int                                        AS scheduled_count,
+        NULL::int                                        AS past_auction_count
       FROM flipops."TaxDelinquencySummary" s
       LEFT JOIN flipops."Parcel" par
         ON par."countyFips" = s."countyFips" AND par."apn" = s."apn"
@@ -423,7 +443,13 @@ export async function GET(request: NextRequest) {
         NULL::int                                         AS tax_delinquent_earliest_year,
         NULL::int                                         AS tax_delinquent_latest_year,
         par."latitude"::float                             AS latitude,
-        par."longitude"::float                            AS longitude
+        par."longitude"::float                            AS longitude,
+        s."nextAuctionDate"                               AS next_auction_date,
+        s."openingBidMin"::float                          AS opening_bid,
+        s."judgmentAmountMax"::float                      AS judgment_amount,
+        s."lastCaseNumber"                                AS last_case_number,
+        s."scheduledCount"                                AS scheduled_count,
+        s."pastAuctionCount"                              AS past_auction_count
       FROM flipops."AuctionSummary" s
       INNER JOIN flipops."Parcel" par
         ON par."countyFips" = s."countyFips" AND par."apn" = s."apn"
@@ -529,6 +555,17 @@ export async function GET(request: NextRequest) {
       taxDelinquentLatestYear: (r.tax_delinquent_latest_year as number | null) ?? null,
       latitude: (r.latitude as number | null) ?? null,
       longitude: (r.longitude as number | null) ?? null,
+      // M3 auction wire-up: AuctionSummary fields surface on the
+      // parcel-auction-bridge branch; NULL on mine/tax branches.
+      nextAuctionDate:
+        r.next_auction_date != null
+          ? new Date(r.next_auction_date as string | Date).toISOString()
+          : null,
+      openingBid: (r.opening_bid as number | null) ?? null,
+      judgmentAmount: (r.judgment_amount as number | null) ?? null,
+      lastCaseNumber: (r.last_case_number as string | null) ?? null,
+      scheduledCount: (r.scheduled_count as number | null) ?? null,
+      pastAuctionCount: (r.past_auction_count as number | null) ?? null,
     }));
 
     // Counts — for the demo stats bar. Cheap single-row queries.

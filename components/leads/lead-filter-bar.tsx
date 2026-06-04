@@ -1,6 +1,6 @@
 "use client";
 
-import { Search, Flame, Home, Ban, X, SlidersHorizontal, Receipt } from "lucide-react";
+import { Search, Flame, Home, Ban, X, SlidersHorizontal, Receipt, Gavel } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -22,7 +22,8 @@ export type DistressFilter =
   | "foreclosure"
   | "preForeclosure"
   | "taxDelinquent"
-  | "vacant";
+  | "vacant"
+  | "auctionScheduled";
 
 const DISTRESS_CHIPS: {
   key: DistressFilter;
@@ -53,6 +54,12 @@ const DISTRESS_CHIPS: {
     label: "Vacant",
     icon: Home,
     activeClass: "bg-violet-500 text-white border-violet-500 dark:bg-violet-600 dark:border-violet-600",
+  },
+  {
+    key: "auctionScheduled",
+    label: "Auction Scheduled",
+    icon: Gavel,
+    activeClass: "bg-red-600 text-white border-red-600 dark:bg-red-700 dark:border-red-700",
   },
 ];
 
