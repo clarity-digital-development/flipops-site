@@ -25,9 +25,18 @@ import { prisma } from "@/lib/prisma";
 //   3. Manual:  DATABASE_URL=... npx tsx scripts/rescore-auction.ts
 //      Optional --county <FIPS> to scope to one county.
 //
-// Score formula (simple, per spec):
-//   85 if nextAuctionDate IS NOT NULL    (live scheduled auction)
-//   60 otherwise                          (history only — SOLD/DISMISSED)
+// Score formula (proximity-bucketed):
+//   95 if scheduled auction within 7 days   (imminent — A)
+//   85 if scheduled within 14 days          (very near — A)
+//   75 if scheduled within 30 days          (near — A)
+//   65 if scheduled within 90 days          (scheduled — A bottom)
+//   55 if scheduled beyond 90 days OR past-only with history (B)
+//   50 otherwise                             (history only — B bottom)
+//
+// Mirrors the scorer v2.1 FUTURE_AUCTION proximity decay, but materialized
+// in SQL so the /api/properties UNION can ORDER BY without recomputing per
+// row. Scorer.ts remains the authoritative formula for in-app scoring (called
+// at promote-time); this materialized score is for list ranking only.
 //
 // Grade thresholds (mirror distress-scorer.ts):
 //   A >= 65 | B 50-64 | C 35-49 | D 20-34 | F <20
@@ -66,13 +75,21 @@ export async function refreshAuctionSummary(opts: { countyFips?: string } = {}):
       sub."lastCaseNumber",
       sub."firstCapturedAt",
       sub."lastCapturedAt",
-      CASE WHEN sub."nextAuctionDate" IS NOT NULL THEN 85 ELSE 60 END AS "score",
       CASE
-        WHEN (CASE WHEN sub."nextAuctionDate" IS NOT NULL THEN 85 ELSE 60 END) >= 65 THEN 'A'
-        WHEN (CASE WHEN sub."nextAuctionDate" IS NOT NULL THEN 85 ELSE 60 END) >= 50 THEN 'B'
-        WHEN (CASE WHEN sub."nextAuctionDate" IS NOT NULL THEN 85 ELSE 60 END) >= 35 THEN 'C'
-        WHEN (CASE WHEN sub."nextAuctionDate" IS NOT NULL THEN 85 ELSE 60 END) >= 20 THEN 'D'
-        ELSE 'F'
+        WHEN sub."nextAuctionDate" IS NOT NULL THEN
+          CASE
+            WHEN sub."nextAuctionDate" <= NOW() + INTERVAL '7 days'  THEN 95
+            WHEN sub."nextAuctionDate" <= NOW() + INTERVAL '14 days' THEN 85
+            WHEN sub."nextAuctionDate" <= NOW() + INTERVAL '30 days' THEN 75
+            WHEN sub."nextAuctionDate" <= NOW() + INTERVAL '90 days' THEN 65
+            ELSE 55
+          END
+        WHEN sub."pastAuctionCount" > 0 THEN 55
+        ELSE 50
+      END AS "score",
+      CASE
+        WHEN sub."nextAuctionDate" IS NOT NULL AND sub."nextAuctionDate" <= NOW() + INTERVAL '90 days' THEN 'A'
+        ELSE 'B'
       END AS "grade",
       CASE
         WHEN sub."nextAuctionDate" IS NOT NULL THEN
