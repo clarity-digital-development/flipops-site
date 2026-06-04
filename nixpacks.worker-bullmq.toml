@@ -7,12 +7,52 @@
 # See FRESHNESS-LAYER-PLAN.md §"Phase 6 = Strategy C" for the rationale.
 
 [phases.setup]
-nixPkgs = ["nodejs_22", "poppler_utils"]
+nixPkgs = [
+  "nodejs_22",
+  "poppler_utils",
+  # Chromium system libs for Playwright headless on Railway containers.
+  # Without these, vanillaChromium.launch() crashes with
+  # "browserType.launch: Target page, context or browser has been closed"
+  # because the shared libraries Chromium expects (nss, atk, gtk3, libdrm,
+  # mesa, alsa, libxkbcommon, libxcomposite, libxdamage, etc.) are missing
+  # from the base nixpacks image. Duval Clerk (stealth-chromium) and the
+  # tax-delinquent scrapers (PlaywrightSession) all need these.
+  "nss",
+  "glib",
+  "atk",
+  "at-spi2-atk",
+  "cups",
+  "libdrm",
+  "gtk3",
+  "pango",
+  "cairo",
+  "libxkbcommon",
+  "libxcomposite",
+  "libxdamage",
+  "libxfixes",
+  "libxrandr",
+  "mesa",
+  "alsa-lib",
+]
 # poppler_utils provides pdftotext, required by Miami-Dade tax-delinquent scraper
 # (lib/scrapers/vendors/miami-dade-tax-delinquent.ts).
 
 [phases.install]
-cmds = ["npm ci --include=dev"]
+# Install Chromium binary into the Playwright browsers cache so
+# vanillaChromium.launch() can find an executable at runtime.
+# --with-deps would normally apt-get system libs, but nixpacks isn't apt-based,
+# so we declare those libs explicitly in nixPkgs above instead.
+cmds = [
+  "npm ci --include=dev",
+  "npx playwright install chromium",
+]
+
+[variables]
+# Pin Playwright browsers to a writable cache path inside the container so
+# the install step's binaries are findable at runtime (Railway's default
+# HOME may differ between build and start phases).
+PLAYWRIGHT_BROWSERS_PATH = "/app/.cache/ms-playwright"
+PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD = "0"
 
 [phases.build]
 # Worker doesn't need Next.js build - skip it

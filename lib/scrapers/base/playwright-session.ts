@@ -72,8 +72,26 @@ export class PlaywrightSession {
   /** Lazily launch the browser; reused across pages within the session. */
   private async ensureBrowser(): Promise<Browser> {
     if (this.browser) return this.browser;
+    // Container-safe Chromium flags. Without these, Railway's nixpacks
+    // container kills the browser process at launch with
+    // "Target page, context or browser has been closed" because:
+    //   --no-sandbox            → Railway runs as non-root w/o user-namespaces
+    //   --disable-dev-shm-usage → /dev/shm is only ~64MB in containers; Chromium
+    //                             writes there for IPC and OOMs immediately
+    //   --disable-gpu           → no GPU available; software rendering is fine
+    //   --single-process        → reduces zombie-child issues under nixpacks PID 1
+    // Local macOS/Windows dev environments tolerate these too, so we apply
+    // them unconditionally rather than gating on platform detection.
     const launchOpts: Parameters<typeof vanillaChromium.launch>[0] = {
       headless: this.opts.headless !== false,
+      args: [
+        "--no-sandbox",
+        "--disable-setuid-sandbox",
+        "--disable-dev-shm-usage",
+        "--disable-gpu",
+        "--disable-software-rasterizer",
+        "--no-zygote",
+      ],
     };
 
     if (this.opts.useProxy) {
