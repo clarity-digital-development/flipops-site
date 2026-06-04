@@ -97,7 +97,10 @@ export const runRealAuction: ScraperAdapter = async (
           const result = await scrapeRealAuctionsPlaywright({
             countyFips: county.countyFips,
             track,
-            useProxy: true,
+            // useProxy=false: RealAuction's WAF 403s the DataImpulse
+            // residential pool (L0 probe 2026-06-02). The new XHR path runs
+            // direct from Railway. See vendor file header for fallback plan.
+            useProxy: false,
             auctionDate,
           });
           if (result === null) {

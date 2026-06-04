@@ -1,36 +1,48 @@
 import * as cheerio from "cheerio";
-import { PlaywrightSession } from "../base/playwright-session";
 import { prisma } from "@/lib/prisma";
 import { captureRaw } from "@/lib/data-sources/raw-capture";
+import { politeFetch } from "../base/http-client";
+import { captureCookiesFromUrl } from "../base/cookie-fetch";
+import { decodeMacroHtml } from "./realauction-macros";
 import { REALAUCTION_COUNTIES, type RealAuctionTrack } from "./realauction";
 
 // ---------------------------------------------------------------------------
-// RealAuction Playwright scraper (F2.2, post-pivot 2026-05-29).
+// RealAuction XHR scraper (F2.2, post-pivot 2026-06-04).
 //
-// Discovery: contrary to our earlier assumption, the auction CALENDAR is
-// PUBLIC — no login required. The login form on the splash page is for
-// BIDDERS, not viewers. Pattern verified against Duval foreclosure:
+// NOTE: despite the file name (`realauction-playwright.ts`), this scraper no
+// longer uses Playwright. We kept the file name to avoid a cascade of import
+// updates across the dispatcher / scheduler / tests. The retired Playwright
+// path used a stealth-chromium nav to the PREVIEW splash page and waited
+// 3s for the AJAX inject — slow (60s+ Chromium startup per (county, date))
+// and unnecessary now that we hit the real data endpoint directly.
 //
-//   URL:  https://{county}.realforeclose.com/index.cfm?zaction=AUCTION&Zmethod=PREVIEW
-//   Equivalent tax-deed: realtaxdeed.com domain, same URL pattern
-//   Returns: real public auction calendar with full case details
+// New flow per (county, date):
+//   1. GET splash URL via politeFetch → parse Set-Cookie into a Cookie
+//      header (CFID/CFTOKEN + AWSALB + CF_CLIENT_<COUNTY>_*).
+//      Cached per county for 25 minutes (cookies expire ~30 min).
+//   2. For each AREA in {W (waiting), R (running), C (closed/sold)} issue
+//      one authenticated XHR GET to:
+//        /index.cfm?zaction=AUCTION&Zmethod=UPDATE&FNC=LOAD
+//          &AREA={W|R|C}&AuctionDate=MM/DD/YYYY
+//      with headers { Cookie, X-Requested-With: XMLHttpRequest, ... }.
+//   3. The response is JSON: { retHTML, rlist }. retHTML is wire-compacted
+//      via 12 `@`-prefixed macros (see lib/scrapers/vendors/realauction-macros.ts).
+//   4. Decode → feed to cheerio → reuse the existing parseAuctionRows()
+//      logic (unchanged: still iterates div[id^='AITEM_'] / table.ad_tab).
 //
-// Data layout (verified — see scripts/probe-artifacts/realauction-dom-analysis-2026-06-03.md):
-//   - "Running" / "Waiting" / "Closed" auctions are injected into
-//     div#Area_R / div#Area_W / div#Area_C via XHR AFTER the page loads.
-//   - Each auction is a `div[id^='AITEM_']` with a nested `table.ad_tab`:
-//       Auction Type:    FORECLOSURE | TAX DEED
-//       Case #:          16-2023-CA-011271-XXXX-MA
-//       Final Judgment Amount: $194,101.91
-//       Parcel ID:       <a href="...pao...">035892-0000</a>
-//       Property Address: 9256 5TH AVE
-//                         JACKSONVILLE, FL- 32208   (continuation row, empty AD_LBL)
-//       Assessed Value:  $92,567.00
-//       Plaintiff Max Bid: $216,205.58  (or literal "Hidden" in preview)
+// Proxy posture: useProxy defaults to FALSE. RealAuction's WAF returns 403
+// to the DataImpulse residential pool (L0 probe 2026-06-02 verified), same
+// pattern we hit with OCFL on the Duval Clerk pivot. Direct egress from
+// Railway is required. If Railway IPs eventually get blocked too, fall back
+// to BD-with-KYC (see project_bright_data_402.md).
 //
-//   The auction DATE comes from the URL request param `AuctionDate=MM/DD/YYYY`
-//   — it is NOT in the static DOM until the page polls. Passing it through
-//   from the caller is the correct approach.
+// Status mapping: AREA is now AUTHORITATIVE — we know which area each row
+// came from at fetch time, so we set status directly rather than re-reading
+// the enclosing Area_* container. parseAuctionRows() falls back to its
+// own container-walk if the per-area override is not provided.
+//
+// The auction DATE comes from the request param `AuctionDate=MM/DD/YYYY`
+// — it is NOT in the response payload — so we thread it through to each row.
 //
 // Same parser handles all 16 wired counties via the subdomain pattern.
 // ---------------------------------------------------------------------------
@@ -54,13 +66,57 @@ export interface RealAuctionPlaywrightResult {
   persistedLiens: number;
 }
 
-function urlFor(track: RealAuctionTrack, subdomain: string, auctionDate?: string): string {
-  const root =
-    track === "foreclosure" ? "realforeclose.com" :
-    track === "tax-deed"    ? "realtaxdeed.com" :
-                              "realtaxlien.com";
-  const base = `https://${subdomain}.${root}/index.cfm?zaction=AUCTION&Zmethod=PREVIEW`;
+function rootFor(track: RealAuctionTrack): string {
+  return track === "foreclosure" ? "realforeclose.com" :
+         track === "tax-deed"    ? "realtaxdeed.com" :
+                                   "realtaxlien.com";
+}
+
+function splashUrlFor(track: RealAuctionTrack, subdomain: string, auctionDate?: string): string {
+  const base = `https://${subdomain}.${rootFor(track)}/index.cfm?zaction=AUCTION&Zmethod=PREVIEW`;
   return auctionDate ? `${base}&AuctionDate=${encodeURIComponent(auctionDate)}` : base;
+}
+
+function xhrUrlFor(
+  track: RealAuctionTrack,
+  subdomain: string,
+  area: "W" | "R" | "C",
+  auctionDate: string,
+): string {
+  return `https://${subdomain}.${rootFor(track)}/index.cfm?zaction=AUCTION&Zmethod=UPDATE&FNC=LOAD&AREA=${area}&AuctionDate=${encodeURIComponent(auctionDate)}`;
+}
+
+// ---------------------------------------------------------------------------
+// Per-county cookie cache.
+//
+// RealAuction cookies expire ~30 minutes after they're set. We cache for
+// 25 minutes to leave a safety buffer. Cookies are county-namespaced
+// (CF_CLIENT_<COUNTY>_*) so we MUST cache per-subdomain, not globally.
+// Keyed by `${subdomain}:${rootHost}` so foreclosure / tax-deed / tax-lien
+// hosts each get their own bucket.
+// ---------------------------------------------------------------------------
+const COOKIE_TTL_MS = 25 * 60 * 1000;
+const cookieCache = new Map<string, { cookieHeader: string; capturedAt: number }>();
+
+async function getCookieHeaderFor(
+  splashUrl: string,
+  cacheKey: string,
+  useProxy: boolean,
+): Promise<string> {
+  const now = Date.now();
+  const cached = cookieCache.get(cacheKey);
+  if (cached && now - cached.capturedAt < COOKIE_TTL_MS) {
+    return cached.cookieHeader;
+  }
+  const cookieHeader = await captureCookiesFromUrl(splashUrl, { useProxy });
+  cookieCache.set(cacheKey, { cookieHeader, capturedAt: now });
+  return cookieHeader;
+}
+
+interface XhrEnvelope {
+  retHTML?: string;
+  rlist?: string;
+  [k: string]: unknown;
 }
 
 // APN denylist — strings that are clearly NOT parcel numbers but have been
@@ -107,14 +163,23 @@ function extractApnFromHref(href: string | undefined): string | null {
  * Duval (12031) and Hillsborough (12057) under the previous body-walking
  * implementation.
  */
-function parseAuctionRows(html: string, requestedAuctionDate?: string): AuctionRow[] {
+function parseAuctionRows(
+  html: string,
+  requestedAuctionDate?: string,
+  areaOverride?: "W" | "R" | "C",
+): AuctionRow[] {
   const $ = cheerio.load(html);
   const auctions: AuctionRow[] = [];
 
-  // Determine each AITEM's status by its enclosing Area_{R|W|C} container.
-  // Falls back to "waiting" when the container is absent.
+  // When the caller fetches a specific AREA endpoint we already know the
+  // status authoritatively. Otherwise (legacy full-page parse) we walk up
+  // to the enclosing Area_{R|W|C} container.
   // (cheerio's Element type isn't exported in v1; use the generic node type.)
+  const statusFromArea = (area: "W" | "R" | "C"): AuctionRow["status"] =>
+    area === "R" ? "running" : area === "C" ? "sold" : "waiting";
+
   const statusFor = (item: unknown): AuctionRow["status"] => {
+    if (areaOverride) return statusFromArea(areaOverride);
     const $area = $(item as never).closest("[id^='Area_'],[arid]");
     const arid = ($area.attr("arid") ?? $area.attr("id") ?? "").toUpperCase();
     if (arid.includes("R")) return "running";
@@ -230,6 +295,13 @@ function parseAuctionDate(s: string | undefined): Date | null {
   return new Date(Date.UTC(year, month - 1, day, h + etToUtcHours, m_));
 }
 
+/**
+ * Scrape one (county, track, date) via the authenticated XHR endpoint.
+ *
+ * useProxy defaults to FALSE — DataImpulse residential IPs are 403'd by
+ * RealAuction's WAF. Caller may override but should only do so to test
+ * a future provider that has been verified non-blocked.
+ */
 export async function scrapeRealAuctionsPlaywright(opts: {
   countyFips: string;
   track: RealAuctionTrack;
@@ -240,68 +312,138 @@ export async function scrapeRealAuctionsPlaywright(opts: {
   if (!county) return null;
   if (!county.tracks.includes(opts.track)) return null;
 
-  const sourceTag = `scraper:realauction-pw-${opts.countyFips}-${opts.track}`;
+  const useProxy = opts.useProxy ?? false;
+  const sourceTag = `scraper:realauction-xhr-${opts.countyFips}-${opts.track}`;
 
   // Default auction date = today, MM/DD/YYYY
   const today = new Date();
   const defaultDate = `${String(today.getUTCMonth() + 1).padStart(2, "0")}/${String(today.getUTCDate()).padStart(2, "0")}/${today.getUTCFullYear()}`;
   const auctionDate = opts.auctionDate ?? defaultDate;
-  const url = urlFor(opts.track, county.subdomain, auctionDate);
+  const splashUrl = splashUrlFor(opts.track, county.subdomain, auctionDate);
 
-  const sess = new PlaywrightSession({ useProxy: opts.useProxy ?? false, headless: true, navTimeoutMs: 60_000 });
-  try {
-    const page = await sess.newPage();
-    await page.goto(url, { waitUntil: "domcontentloaded" });
-    await page.waitForTimeout(3000); // settle for any async render
+  // (1) Cookie capture — cached per (subdomain, track-root) for 25 min.
+  const cacheKey = `${county.subdomain}:${rootFor(opts.track)}`;
+  const cookieHeader = await getCookieHeaderFor(splashUrl, cacheKey, useProxy);
 
-    const html = await page.content();
-    const rows = parseAuctionRows(html, auctionDate);
+  // (2) Issue per-AREA XHR calls. The 3 W/R/C buckets partition the
+  // calendar into upcoming / in-flight / completed auctions for the date.
+  const areas: Array<"W" | "R" | "C"> = ["W", "R", "C"];
+  const rows: AuctionRow[] = [];
+  const envelopesByArea: Record<string, { url: string; httpStatus: number; retHTMLBytes: number; rlist?: string; bodyFirst200: string }> = {};
 
-    void captureRaw({
-      entityType: "parcel",
-      source: "playwright",
-      sourceTag,
-      category: "realauction_calendar",
-      countyFips: opts.countyFips,
-      requestParams: { url, track: opts.track, auctionDate },
-      rawResponse: { extracted: rows, htmlBytes: html.length, htmlSample: html.slice(0, 8000) },
-      legalRisk: "yellow",
-    });
+  for (const area of areas) {
+    const xhrUrl = xhrUrlFor(opts.track, county.subdomain, area, auctionDate);
+    let httpStatus = 0;
+    let body = "";
+    try {
+      const res = await politeFetch(xhrUrl, {
+        method: "GET",
+        useProxy,
+        // Always rotate UA — the WAF rejects the polite bot UA on the splash
+        // (verified 2026-06-04), and we want the XHR fingerprint to match
+        // the splash request that minted the session cookie.
+        rotateFingerprint: true,
+        headers: {
+          Cookie: cookieHeader,
+          "X-Requested-With": "XMLHttpRequest",
+          Accept: "application/json,text/javascript,*/*;q=0.01",
+          Referer: splashUrl,
+        },
+      });
+      httpStatus = res.status;
+      body = await res.text();
+    } catch (err) {
+      // Surface the error in the audit envelope but keep going for the
+      // other areas — a single area failure shouldn't doom the (county, date).
+      // eslint-disable-next-line no-console
+      console.warn(`[realauction-xhr] ${opts.countyFips}/${opts.track}/${auctionDate} AREA=${area} fetch failed: ${(err as Error).message}`);
+      envelopesByArea[area] = {
+        url: xhrUrl,
+        httpStatus: 0,
+        retHTMLBytes: 0,
+        bodyFirst200: `ERROR: ${(err as Error).message}`,
+      };
+      continue;
+    }
 
-    const result: RealAuctionPlaywrightResult = {
-      countyFips: opts.countyFips,
-      track: opts.track,
-      found: rows.length,
-      persistedForeclosures: 0,
-      persistedLiens: 0,
+    let envelope: XhrEnvelope = {};
+    try {
+      // The server sometimes prepends ColdFusion whitespace before the JSON
+      // payload — JSON.parse tolerates leading whitespace per spec, so no
+      // trim() needed. retHTML may also be a literal empty string when the
+      // area has no auctions for the date.
+      envelope = JSON.parse(body) as XhrEnvelope;
+    } catch {
+      envelope = { retHTML: "", rlist: "" };
+    }
+    const retHTML = typeof envelope.retHTML === "string" ? envelope.retHTML : "";
+    envelopesByArea[area] = {
+      url: xhrUrl,
+      httpStatus,
+      retHTMLBytes: retHTML.length,
+      rlist: typeof envelope.rlist === "string" ? envelope.rlist : undefined,
+      bodyFirst200: body.slice(0, 200),
     };
 
-    for (const r of rows) {
-      // Brevard (12009) Option C exclusion: the Brevard RealAuction calendar
-      // page renders the Parcel ID row with a structurally different layout
-      // than the shared Duval pattern that ad_tab parsing assumes — historic
-      // ingests wrote the case number into the apn column for ~20 rows/month.
-      // Rather than ship a half-fix, v0 EXCLUDES Brevard rows whose extracted
-      // apn equals the case number (or is missing). Proper Brevard support
-      // (separate case→APN lookup against brevardpa.com) is queued for v0.1
-      // per docs/development/v0-auction-verdict-2026-06-02.md.
-      if (opts.countyFips === "12009") {
-        if (!r.parcelId || r.parcelId === r.caseNumber) {
-          // Skip — would write garbage apn. Persist nothing for this row.
-          continue;
-        }
-      }
+    // Empty retHTML = no auctions in that bucket for that date. Not an error.
+    if (!retHTML) continue;
 
-      if (opts.track === "tax-lien") {
-        result.persistedLiens += await persistAsTaxLien(opts.countyFips, sourceTag, r);
-      } else {
-        result.persistedForeclosures += await persistAsForeclosure(opts.countyFips, sourceTag, r, opts.track);
+    const decoded = decodeMacroHtml(retHTML);
+    const rowsFromArea = parseAuctionRows(decoded, auctionDate, area);
+    for (const r of rowsFromArea) rows.push(r);
+  }
+
+  // (3) Audit snapshot — one capture per (county, track, date) covering
+  // all three area envelopes. Same shape contract as before for downstream
+  // analytics: { extracted: rows, htmlBytes, htmlSample } at the top level.
+  const totalRetHtmlBytes = Object.values(envelopesByArea).reduce((s, e) => s + e.retHTMLBytes, 0);
+  void captureRaw({
+    entityType: "parcel",
+    source: "xhr",
+    sourceTag,
+    category: "realauction_calendar",
+    countyFips: opts.countyFips,
+    requestParams: { splashUrl, track: opts.track, auctionDate, areas },
+    rawResponse: {
+      extracted: rows,
+      htmlBytes: totalRetHtmlBytes,
+      htmlSample: "",
+      envelopesByArea,
+    },
+    legalRisk: "yellow",
+  });
+
+  const result: RealAuctionPlaywrightResult = {
+    countyFips: opts.countyFips,
+    track: opts.track,
+    found: rows.length,
+    persistedForeclosures: 0,
+    persistedLiens: 0,
+  };
+
+  for (const r of rows) {
+    // Brevard (12009) Option C exclusion: the Brevard RealAuction calendar
+    // page renders the Parcel ID row with a structurally different layout
+    // than the shared Duval pattern that ad_tab parsing assumes — historic
+    // ingests wrote the case number into the apn column for ~20 rows/month.
+    // Rather than ship a half-fix, v0 EXCLUDES Brevard rows whose extracted
+    // apn equals the case number (or is missing). Proper Brevard support
+    // (separate case→APN lookup against brevardpa.com) is queued for v0.1
+    // per docs/development/v0-auction-verdict-2026-06-02.md.
+    if (opts.countyFips === "12009") {
+      if (!r.parcelId || r.parcelId === r.caseNumber) {
+        // Skip — would write garbage apn. Persist nothing for this row.
+        continue;
       }
     }
-    return result;
-  } finally {
-    await sess.close();
+
+    if (opts.track === "tax-lien") {
+      result.persistedLiens += await persistAsTaxLien(opts.countyFips, sourceTag, r);
+    } else {
+      result.persistedForeclosures += await persistAsForeclosure(opts.countyFips, sourceTag, r, opts.track);
+    }
   }
+  return result;
 }
 
 async function persistAsForeclosure(countyFips: string, source: string, r: AuctionRow, track: RealAuctionTrack): Promise<number> {
