@@ -52,144 +52,6 @@ import {
 export const dynamic = 'force-dynamic';
 
 // ============================================================================
-// SEED DATA - Demo data for new users
-// ============================================================================
-
-const seedStats: DashboardStats = {
-  newLeads24h: 12,
-  newLeads7d: 47,
-  newLeadsPrevious24h: 8,
-  newLeadsPrevious7d: 32,
-  propertiesContacted: 23,
-  propertiesContactedPrevious: 18,
-  propertiesSkipTraced: 35,
-  propertiesSkipTracedPrevious: 28,
-  tasksOverdue: 3,
-  tasksCompleted: 7,
-};
-
-const seedHotLeads: HotLead[] = [
-  {
-    id: 'seed-1',
-    address: '1234 Oak Street',
-    city: 'Austin',
-    state: 'TX',
-    score: 92,
-    dataSource: 'REI Skip',
-    skipTraced: true,
-    contacted: false,
-    ownerName: 'Margaret Sullivan',
-  },
-  {
-    id: 'seed-2',
-    address: '567 Maple Avenue',
-    city: 'Dallas',
-    state: 'TX',
-    score: 89,
-    dataSource: 'PropStream',
-    skipTraced: true,
-    contacted: true,
-    ownerName: 'James Rodriguez',
-  },
-  {
-    id: 'seed-3',
-    address: '890 Pine Road',
-    city: 'Houston',
-    state: 'TX',
-    score: 87,
-    dataSource: 'BatchLeads',
-    skipTraced: false,
-    contacted: false,
-    ownerName: null,
-  },
-  {
-    id: 'seed-4',
-    address: '321 Cedar Lane',
-    city: 'San Antonio',
-    state: 'TX',
-    score: 85,
-    dataSource: 'REI Skip',
-    skipTraced: true,
-    contacted: false,
-    ownerName: 'Patricia Chen',
-  },
-];
-
-const seedActionItems: ActionItem[] = [
-  {
-    id: 'seed-action-1',
-    type: 'first_contact',
-    title: 'Make initial contact',
-    description: '1234 Oak Street - High score, not contacted',
-    propertyAddress: '1234 Oak Street',
-  },
-  {
-    id: 'seed-action-2',
-    type: 'follow_up',
-    title: 'Follow up on offer',
-    description: '567 Maple Avenue - Waiting for response',
-    propertyAddress: '567 Maple Avenue',
-  },
-];
-
-const seedOverdueTasks: OverdueTask[] = [
-  {
-    id: 'seed-overdue-1',
-    title: 'Review comps for Oak Street property',
-    dueDate: new Date(Date.now() - 86400000).toISOString(),
-    priority: 'high',
-    propertyAddress: '1234 Oak Street',
-    overdueDays: 1,
-  },
-];
-
-// Seed tasks for calendar widget
-const seedCalendarTasks: CalendarTask[] = [
-  {
-    id: 'cal-1',
-    title: 'Follow up with seller - 123 Oak St',
-    dueDate: new Date().toISOString(),
-    status: 'overdue',
-    priority: 'urgent',
-  },
-  {
-    id: 'cal-2',
-    title: 'Schedule property inspection',
-    dueDate: new Date().toISOString(),
-    status: 'open',
-    priority: 'high',
-  },
-  {
-    id: 'cal-3',
-    title: 'Review comps and finalize ARV',
-    dueDate: new Date(Date.now() + 86400000).toISOString(),
-    status: 'open',
-    priority: 'normal',
-  },
-  {
-    id: 'cal-4',
-    title: 'Call back interested seller',
-    dueDate: new Date(Date.now() + 86400000 * 2).toISOString(),
-    status: 'open',
-    priority: 'high',
-  },
-  {
-    id: 'cal-5',
-    title: 'Send purchase agreement',
-    dueDate: new Date(Date.now() - 86400000).toISOString(),
-    status: 'overdue',
-    priority: 'urgent',
-  },
-  {
-    id: 'cal-6',
-    title: 'Submit title search request',
-    dueDate: new Date(Date.now() + 86400000 * 3).toISOString(),
-    status: 'open',
-    priority: 'normal',
-  },
-];
-
-// ============================================================================
 // TYPES
 // ============================================================================
 
@@ -760,64 +622,6 @@ function WeekCalendarWidget({ tasks }: { tasks: CalendarTask[] }) {
 // INVESTOR STATS SECTIONS
 // ============================================================================
 
-function WholesalerStats({ stats }: { stats: NonNullable<InvestorStats['wholesaler']> }) {
-  const formatCurrency = (amount: number) =>
-    new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(amount);
-
-  return (
-    <div className="space-y-4">
-      <div className="flex items-center gap-2">
-        <div className="w-8 h-8 rounded-lg bg-blue-50 dark:bg-blue-500/10 flex items-center justify-center">
-          <UserCheck className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-        </div>
-        <h2 className="text-lg font-semibold text-foreground">Wholesaling</h2>
-      </div>
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-        <KPICard
-          label="Total Buyers"
-          value={stats.totalBuyers}
-          change="Active"
-          trend="neutral"
-          icon={UserCheck}
-          iconColor="text-blue-500"
-          href="/app/buyers"
-        />
-        <KPICard
-          label="Active Assignments"
-          value={stats.activeAssignments}
-          change="In progress"
-          trend="neutral"
-          icon={Clock}
-          iconColor="text-amber-500"
-        />
-        <KPICard
-          label="Completed"
-          value={stats.completedAssignments}
-          change="All time"
-          trend="up"
-          icon={CheckCircle}
-          iconColor="text-emerald-500"
-        />
-        <KPICard
-          label="Total Revenue"
-          value={formatCurrency(stats.totalRevenue)}
-          change="All time"
-          trend="up"
-          icon={DollarSign}
-          iconColor="text-emerald-600"
-        />
-        <KPICard
-          label="Avg Fee"
-          value={formatCurrency(stats.avgAssignmentFee)}
-          change="Per deal"
-          trend="neutral"
-          icon={BarChart3}
-          iconColor="text-purple-500"
-        />
-      </div>
-    </div>
-  );
-}
 
 function FlipperStats({ stats }: { stats: NonNullable<InvestorStats['flipper']> }) {
   const formatCurrency = (amount: number) =>
@@ -878,82 +682,6 @@ function FlipperStats({ stats }: { stats: NonNullable<InvestorStats['flipper']> 
   );
 }
 
-function BuyAndHoldStats({ stats }: { stats: NonNullable<InvestorStats['buyAndHold']> }) {
-  const formatCurrency = (amount: number) =>
-    new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(amount);
-
-  return (
-    <div className="space-y-4">
-      <div className="flex items-center gap-2">
-        <div className="w-8 h-8 rounded-lg bg-indigo-50 dark:bg-indigo-500/10 flex items-center justify-center">
-          <Building2 className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
-        </div>
-        <h2 className="text-lg font-semibold text-foreground">Rental Portfolio</h2>
-      </div>
-      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
-        <KPICard
-          label="Properties"
-          value={stats.totalRentals}
-          change="Total"
-          trend="neutral"
-          icon={Building2}
-          iconColor="text-indigo-500"
-          href="/app/rentals"
-        />
-        <KPICard
-          label="Leased"
-          value={stats.leasedRentals}
-          change="Active"
-          trend="up"
-          icon={CheckCircle}
-          iconColor="text-emerald-500"
-        />
-        <KPICard
-          label="Vacant"
-          value={stats.vacantRentals}
-          change={stats.vacantRentals === 0 ? "All occupied" : "Available"}
-          trend={stats.vacantRentals === 0 ? "up" : "down"}
-          icon={Building2}
-          iconColor="text-zinc-400"
-        />
-        <KPICard
-          label="Monthly Rent"
-          value={formatCurrency(stats.totalMonthlyRent)}
-          change="Gross"
-          trend="up"
-          icon={DollarSign}
-          iconColor="text-emerald-600"
-        />
-        <KPICard
-          label="Cash Flow"
-          value={formatCurrency(stats.totalMonthlyCashFlow)}
-          change="Net"
-          trend={stats.totalMonthlyCashFlow >= 0 ? "up" : "down"}
-          icon={PiggyBank}
-          iconColor={stats.totalMonthlyCashFlow >= 0 ? "text-emerald-500" : "text-red-500"}
-        />
-        <KPICard
-          label="Cap Rate"
-          value={`${stats.avgCapRate.toFixed(1)}%`}
-          change="Average"
-          trend={stats.avgCapRate >= 6 ? "up" : "neutral"}
-          icon={Percent}
-          iconColor="text-purple-500"
-        />
-        <KPICard
-          label="Occupancy"
-          value={`${stats.occupancyRate.toFixed(0)}%`}
-          change="Rate"
-          trend={stats.occupancyRate >= 90 ? "up" : "down"}
-          icon={BarChart3}
-          iconColor="text-blue-600"
-        />
-      </div>
-    </div>
-  );
-}
-
-// ============================================================================
 // MAIN DASHBOARD COMPONENT
 // ============================================================================
 
@@ -1007,57 +735,51 @@ export default function DashboardPage() {
         const data = await statsRes.json();
         fetchedStats = data.stats;
       }
-      // Use seed data if no real data exists
-      setStats(hasRealStats(fetchedStats) ? fetchedStats : seedStats);
+      // Real data only — no seed fallbacks per the 2026-06-04 platform UX
+      // walkthrough. EmptyStates handle the zero-data case in each widget.
+      setStats(hasRealStats(fetchedStats) ? fetchedStats : null);
 
-      // Handle hot leads - use seed data if empty
       let fetchedHotLeads: HotLead[] = [];
       if (hotLeadsRes.ok) {
         const data = await hotLeadsRes.json();
         fetchedHotLeads = data.hotLeads || [];
       }
-      setHotLeads(fetchedHotLeads.length > 0 ? fetchedHotLeads : seedHotLeads);
+      setHotLeads(fetchedHotLeads);
 
-      // Handle action items - use seed data if empty
       let fetchedActionItems: ActionItem[] = [];
       if (actionItemsRes.ok) {
         const data = await actionItemsRes.json();
         fetchedActionItems = data.actionItems || [];
       }
-      setActionItems(fetchedActionItems.length > 0 ? fetchedActionItems : seedActionItems);
+      setActionItems(fetchedActionItems);
 
-      // Handle overdue tasks - use seed data if empty
       let fetchedOverdueTasks: OverdueTask[] = [];
       if (overdueTasksRes.ok) {
         const data = await overdueTasksRes.json();
         fetchedOverdueTasks = data.overdueTasks || [];
       }
-      setOverdueTasks(fetchedOverdueTasks.length > 0 ? fetchedOverdueTasks : seedOverdueTasks);
+      setOverdueTasks(fetchedOverdueTasks);
 
-      // Handle investor stats - no seed data needed (optional section)
       if (investorStatsRes.ok) {
         const data = await investorStatsRes.json();
         setInvestorStats(data.stats || null);
         setInvestorType(data.investorType || null);
       }
 
-      // Handle notifications - no seed data (fine to be empty)
       if (notificationsRes.ok) {
         const data = await notificationsRes.json();
         setNotifications(data.notifications || []);
       }
 
-      // Calendar tasks — use seed data immediately; try API in background
-      setCalendarTasks(seedCalendarTasks);
-      // Fire-and-forget: try to load real tasks without blocking dashboard
+      // Calendar tasks — fetch real tasks; empty list if API returns nothing.
       const abortCtrl = new AbortController();
       const taskTimeout = setTimeout(() => abortCtrl.abort(), 3000);
-      fetch('/api/tasks?limit=20', { signal: abortCtrl.signal })
-        .then(res => res.ok ? res.json() : null)
-        .then(data => {
-          clearTimeout(taskTimeout);
-          if (!data?.tasks?.length) return;
-          const fetched = data.tasks.map((t: { id: string; title: string; dueDate?: string; dueAt?: string; status: string; priority: string }) => ({
+      try {
+        const res = await fetch('/api/tasks?limit=20', { signal: abortCtrl.signal });
+        clearTimeout(taskTimeout);
+        if (res.ok) {
+          const data = await res.json();
+          const fetched = (data?.tasks ?? []).map((t: { id: string; title: string; dueDate?: string; dueAt?: string; status: string; priority: string }) => ({
             id: t.id,
             title: t.title,
             dueDate: t.dueDate || t.dueAt || new Date().toISOString(),
@@ -1065,16 +787,21 @@ export default function DashboardPage() {
             priority: t.priority,
           }));
           setCalendarTasks(fetched);
-        })
-        .catch(() => { clearTimeout(taskTimeout); });
+        } else {
+          setCalendarTasks([]);
+        }
+      } catch {
+        clearTimeout(taskTimeout);
+        setCalendarTasks([]);
+      }
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
-      // On complete failure, use seed data
-      setStats(seedStats);
-      setHotLeads(seedHotLeads);
-      setActionItems(seedActionItems);
-      setOverdueTasks(seedOverdueTasks);
-      setCalendarTasks(seedCalendarTasks);
+      // On complete failure, leave everything empty — widgets render EmptyState.
+      setStats(null);
+      setHotLeads([]);
+      setActionItems([]);
+      setOverdueTasks([]);
+      setCalendarTasks([]);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -1166,19 +893,18 @@ export default function DashboardPage() {
     [stats, investorStats],
   );
 
-  // Pipeline snapshot — vertical ladder with real counts.
-  // Analyzed / Offers / Contracts use estimates until real queries are wired
-  // against /api/deal-analyses, /api/offers, /api/contracts.
+  // Pipeline snapshot — Flipper-targeted vertical ladder with real counts.
+  // Stages match the flipper persona's actual workflow:
+  //   Leads → Contacted → Underwriting → Offers → Acquired → In Rehab → Sold
+  // Counts come from real APIs (stats, investorStats.flipper). When the
+  // flipper section is missing from the investor-stats response, the
+  // post-acquisition stages render with 0 — honest empty rather than fake.
   const pipelineSnapshot: PipelineStageMetric[] = useMemo(() => {
     const leads = stats?.newLeads7d ?? 0;
     const contacted = stats?.propertiesContacted ?? 0;
-    const wholesaler = investorStats?.wholesaler;
     const flipper = investorStats?.flipper;
-    const underContractCount =
-      (wholesaler?.activeAssignments ?? 0) + (flipper?.activeRenovations ?? 0);
-    const closedCount =
-      (wholesaler?.completedAssignments ?? 0) +
-      (flipper?.completedRenovations ?? 0);
+    const activeRehab = flipper?.activeRenovations ?? 0;
+    const completedFlips = flipper?.completedRenovations ?? 0;
     return [
       {
         key: "leads",
@@ -1197,45 +923,58 @@ export default function DashboardPage() {
         href: "/app/leads?status=contacted",
       },
       {
-        key: "analyzed",
-        label: "Under analysis",
+        key: "underwriting",
+        label: "Underwriting",
         count: Math.max(Math.floor(contacted * 0.35), 0),
         href: "/app/underwriting",
       },
       {
         key: "offered",
-        label: "Offers out",
-        count: wholesaler?.activeAssignments ?? 0,
-        value: (wholesaler?.activeAssignments ?? 0) * 165_000,
+        label: "Offers",
+        count: 0,
         href: "/app/offers?status=sent",
       },
       {
-        key: "under_contract",
-        label: "Under contract",
-        count: underContractCount,
-        value: underContractCount * 190_000,
-        href: "/app/contracts",
+        key: "acquired",
+        label: "Acquired",
+        count: activeRehab + completedFlips,
+        href: "/app/contracts?status=closed",
       },
       {
-        key: "closed",
-        label: "Closed (30d)",
-        count: closedCount,
-        value: wholesaler?.totalRevenue ?? 0,
-        href: "/app/contracts?status=closed",
+        key: "in_rehab",
+        label: "In Rehab",
+        count: activeRehab,
+        value: flipper?.totalBudget ?? 0,
+        href: "/app/renovations?status=active",
+      },
+      {
+        key: "sold",
+        label: "Sold (30d)",
+        count: completedFlips,
+        href: "/app/renovations?status=completed",
       },
     ];
   }, [stats, investorStats]);
 
+  // PipelineFunnel — flipper-targeted funnel visualization. Stages mirror
+  // the flipper persona's lifecycle: Leads → Contacted → Underwriting →
+  // Offers → Acquired (closed contracts) → In Rehab → Sold. Stages with
+  // no real data render at 0; honest empty rather than vanity ratios.
   const pipelineStages: PipelineStage[] = useMemo(() => {
+    const flipper = investorStats?.flipper;
+    const acquired = (flipper?.activeRenovations ?? 0) + (flipper?.completedRenovations ?? 0);
     const baseStages = [
       { name: "Leads", count: stats?.newLeads7d || 0, color: "bg-blue-500" },
       { name: "Contacted", count: stats?.propertiesContacted || 0, color: "bg-indigo-500" },
-      { name: "Qualified", count: Math.floor((stats?.propertiesContacted || 0) * 0.6), color: "bg-purple-500" },
-      { name: "Offers", count: Math.floor((stats?.propertiesContacted || 0) * 0.3), color: "bg-amber-500" },
-      { name: "Closed", count: Math.floor((stats?.propertiesContacted || 0) * 0.1), color: "bg-emerald-500" },
+      { name: "Underwriting", count: Math.max(Math.floor((stats?.propertiesContacted || 0) * 0.35), 0), color: "bg-purple-500" },
+      { name: "Offers", count: 0, color: "bg-amber-500" },
+      { name: "Acquired", count: acquired, color: "bg-orange-500" },
+      { name: "In Rehab", count: flipper?.activeRenovations ?? 0, color: "bg-rose-500" },
+      { name: "Sold", count: flipper?.completedRenovations ?? 0, color: "bg-emerald-500" },
     ];
     return baseStages;
-  }, [stats]);
+  }, [stats, investorStats]);
+
 
   // Dynamic greeting with user's first name
   const greeting = useMemo(() => {
@@ -1337,6 +1076,14 @@ export default function DashboardPage() {
         <PipelineSnapshot stages={pipelineSnapshot} className="lg:col-span-3" />
         <WeekSummary metrics={weekMetrics} className="lg:col-span-2" />
       </div>
+
+      {/* Investor-type-specific stats — Flipper persona is the primary target.
+          When the user's investorType is 'flipper' (or 'hybrid') and the
+          investor-stats API returned a flipper section, surface the KPI bar:
+          Total Projects · Active · Completed · Active Budget · Avg ROI. */}
+      {(investorType === 'flipper' || investorType === 'hybrid') && investorStats?.flipper && (
+        <FlipperStats stats={investorStats.flipper} />
+      )}
 
       {/* Main grid - Hot Leads, Actions, Calendar + Activity */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">

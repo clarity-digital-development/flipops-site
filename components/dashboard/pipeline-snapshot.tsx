@@ -9,6 +9,9 @@ import {
   FileSignature,
   CheckCircle2,
   ArrowRight,
+  Hammer,
+  Key,
+  TrendingUp,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
@@ -20,12 +23,20 @@ import { cn } from "@/lib/utils";
 // ---------------------------------------------------------------------------
 
 export interface PipelineStageMetric {
+  // Keys cover both the original wholesaler-flavored stages (analyzed,
+  // offered, under_contract, closed) and the flipper-targeted stages
+  // (underwriting, acquired, in_rehab, sold) added 2026-06-04 when the
+  // Dashboard pivoted to the flipper persona as primary target.
   key:
     | "leads"
     | "contacted"
     | "analyzed"
+    | "underwriting"
     | "offered"
     | "under_contract"
+    | "acquired"
+    | "in_rehab"
+    | "sold"
     | "closed";
   label: string;
   count: number;
@@ -53,6 +64,11 @@ const STAGE_META: Record<
     accent: "text-amber-600 dark:text-amber-400",
     dot: "bg-amber-500",
   },
+  underwriting: {
+    icon: Calculator,
+    accent: "text-amber-600 dark:text-amber-400",
+    dot: "bg-amber-500",
+  },
   offered: {
     icon: FileText,
     accent: "text-orange-600 dark:text-orange-400",
@@ -62,6 +78,21 @@ const STAGE_META: Record<
     icon: FileSignature,
     accent: "text-teal-600 dark:text-teal-400",
     dot: "bg-teal-500",
+  },
+  acquired: {
+    icon: Key,
+    accent: "text-teal-600 dark:text-teal-400",
+    dot: "bg-teal-500",
+  },
+  in_rehab: {
+    icon: Hammer,
+    accent: "text-rose-600 dark:text-rose-400",
+    dot: "bg-rose-500",
+  },
+  sold: {
+    icon: TrendingUp,
+    accent: "text-emerald-600 dark:text-emerald-400",
+    dot: "bg-emerald-500",
   },
   closed: {
     icon: CheckCircle2,
