@@ -17,6 +17,8 @@
     "test": "vitest",
     "test:ui": "vitest --ui",
     "test:panels": "vitest tests/panels.*.spec.ts",
+    "test:e2e": "playwright test",
+    "test:e2e:leads-auction": "playwright test tests/e2e/leads-auction-promote.spec.ts",
     "test:guardrails:fire": "tsx scripts/fire-event.ts",
     "typecheck": "tsc --noEmit && cd workers && npm run typecheck",
     "prisma:generate": "prisma generate",
