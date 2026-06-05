@@ -2,6 +2,8 @@
 export const dynamic = 'force-dynamic';
 
 import { useState, useEffect, useRef } from "react";
+import { useRouter } from "next/navigation";
+import { EmptyState } from "@/components/ui/empty-state";
 import { GenerateOfferModal, OfferData } from "@/app/components/generate-offer-modal";
 import { OfferWidget } from "@/app/components/offer-widget";
 import {
@@ -100,227 +102,40 @@ interface Thread {
   optInStatus: { sms: boolean; email: boolean };
 }
 
-// Mock data generator
-const generateMockThreads = (): Thread[] => {
-  const sentiments: Array<"positive" | "neutral" | "negative" | undefined> = ["positive", "neutral", "negative", undefined];
-  const stages = ["New", "Contacted", "Engaged", "Negotiating", "Under Contract", "Won", "Lost"];
-  const channels = [["sms"], ["email"], ["sms", "email"], ["voicemail"], ["sms", "email", "voicemail"]];
+// Phase 5: threads come from GET /api/threads (synthesized from
+// Property.contactNotes — see app/api/threads/route.ts). The old mock generator
+// and the per-thread mock-message generator below were deleted as part of the
+// real-wiring migration.
+//
+// API shape:
+//   { threads: Array<Thread & { messages: Message[] }> }
+// where lastMessageTime + message.timestamp arrive as ISO strings.
 
-  return Array.from({ length: 20 }, (_, i) => ({
-    id: `thread-${i + 1}`,
-    leadId: `L-${1000 + i}`,
-    leadName: [
-      "John Smith", "Jane Doe", "Mike Johnson", "Sarah Williams", "Robert Brown",
-      "Emily Davis", "Chris Miller", "Amanda Wilson", "David Moore", "Lisa Taylor"
-    ][i % 10],
-    leadAddress: `${100 + i * 10} ${["Main", "Oak", "Pine", "Elm", "Maple"][i % 5]} St, Jacksonville, FL`,
-    lastMessage: [
-      "Yes, I'm interested in selling. What's your offer?",
-      "Can you send me more information about the process?",
-      "I need to think about it and discuss with my spouse",
-      "The property needs some repairs, does that matter?",
-      "What's the timeline for closing?",
-      "I'm not ready to sell right now",
-      "Can we schedule a time to view the property?",
-      "Your offer seems low compared to market value",
-      "I have a mortgage, how does that work?",
-      "Thanks for reaching out, but I'm not interested"
-    ][i % 10],
-    lastMessageTime: new Date(Date.now() - Math.random() * 7 * 24 * 60 * 60 * 1000),
-    unreadCount: Math.random() > 0.6 ? Math.floor(Math.random() * 5) : 0,
-    channels: channels[i % channels.length],
-    sentiment: sentiments[i % 4],
-    score: 60 + Math.floor(Math.random() * 40),
-    stage: stages[i % stages.length],
-    tags: [
-      ["Distressed", "High Equity"],
-      ["Pre-foreclosure"],
-      ["Vacant", "Tax Delinquent"],
-      ["Inherited"],
-      ["Absentee Owner"],
-    ][i % 5],
-    phoneNumbers: [`(904) ${String(Math.floor(Math.random() * 900) + 100)}-${String(Math.floor(Math.random() * 9000) + 1000)}`],
-    emails: [`${["john", "jane", "mike", "sarah", "robert"][i % 5]}@example.com`],
-    optInStatus: { sms: Math.random() > 0.2, email: Math.random() > 0.3 }
-  }));
+type ApiMessage = Omit<Message, "timestamp"> & { timestamp: string };
+type ApiThread = Omit<Thread, "lastMessageTime"> & {
+  lastMessageTime: string;
+  messages: ApiMessage[];
 };
 
-const generateMockMessages = (threadId: string): Message[] => {
-  const threadIndex = parseInt(threadId.split('-')[1]) - 1;
-  const addresses = [
-    "123 Main St, Jacksonville, FL",
-    "456 Oak Ave, Miami, FL",
-    "789 Pine Rd, Orlando, FL",
-    "321 Elm Dr, Tampa, FL",
-    "654 Maple Ct, St. Petersburg, FL"
-  ];
-  const names = ["John", "Jane", "Mike", "Sarah", "Robert"];
-  const address = addresses[threadIndex % 5];
-  const firstName = names[threadIndex % 5];
-
-  const conversations: { [key: string]: Message[] } = {
-    "thread-1": [
-      {
-        id: "msg-1-1",
-        threadId: "thread-1",
-        direction: "out",
-        channel: "sms",
-        body: `Hi ${firstName}, I noticed your property at ${address} and I'm interested in making a cash offer. Are you still considering selling?`,
-        status: "delivered",
-        timestamp: new Date(Date.now() - 7200000),
-        sender: "You"
-      },
-      {
-        id: "msg-1-2",
-        threadId: "thread-1",
-        direction: "in",
-        channel: "sms",
-        body: "Yes, we've been thinking about it. The house needs a lot of work though. What kind of offer are you thinking?",
-        status: "read",
-        timestamp: new Date(Date.now() - 6900000),
-        sender: firstName,
-        sentiment: "neutral"
-      },
-      {
-        id: "msg-1-3",
-        threadId: "thread-1",
-        direction: "out",
-        channel: "sms",
-        body: "We specialize in properties that need work and can close quickly with cash. Based on comparable sales in your area, I can offer around $285,000.",
-        status: "delivered",
-        timestamp: new Date(Date.now() - 6600000),
-        sender: "You"
-      },
-      {
-        id: "msg-1-4",
-        threadId: "thread-1",
-        direction: "in",
-        channel: "sms",
-        body: "That's lower than I was hoping for. We owe about $220,000 on the mortgage. Can you do $300,000?",
-        status: "read",
-        timestamp: new Date(Date.now() - 6300000),
-        sender: firstName,
-        sentiment: "negative"
-      },
-      {
-        id: "msg-1-5",
-        threadId: "thread-1",
-        direction: "out",
-        channel: "sms",
-        body: "Let me review the numbers again. Could we schedule a quick walkthrough tomorrow?",
-        status: "delivered",
-        timestamp: new Date(Date.now() - 6000000),
-        sender: "You"
-      },
-      {
-        id: "msg-1-6",
-        threadId: "thread-1",
-        direction: "in",
-        channel: "sms",
-        body: "Sure, I'm available after 3pm tomorrow. The roof does leak in one spot and the AC doesn't work.",
-        status: "read",
-        timestamp: new Date(Date.now() - 5700000),
-        sender: firstName,
-        sentiment: "positive"
-      }
-    ],
-    "thread-2": [
-      {
-        id: "msg-2-1",
-        threadId: "thread-2",
-        direction: "out",
-        channel: "email",
-        body: `Subject: Cash Offer for ${address}\n\nDear ${firstName},\n\nI'm a local real estate investor interested in your property.\n\nWe offer:\n• Quick cash sale (7-14 days)\n• No repairs needed\n• No realtor fees\n\nBest regards`,
-        status: "delivered",
-        timestamp: new Date(Date.now() - 86400000),
-        sender: "You"
-      },
-      {
-        id: "msg-2-2",
-        threadId: "thread-2",
-        direction: "in",
-        channel: "email",
-        body: "I might be interested but I'm not in a rush. What's your process?",
-        status: "read",
-        timestamp: new Date(Date.now() - 82800000),
-        sender: firstName,
-        sentiment: "neutral"
-      }
-    ],
-    "thread-3": [
-      {
-        id: "msg-3-1",
-        threadId: "thread-3",
-        direction: "in",
-        channel: "voicemail",
-        body: `Hi, this is ${firstName}. I got your letter. I'm going through a divorce and need to sell quickly. Please call me back.`,
-        status: "read",
-        timestamp: new Date(Date.now() - 10800000),
-        sender: firstName,
-        sentiment: "negative"
-      },
-      {
-        id: "msg-3-2",
-        threadId: "thread-3",
-        direction: "out",
-        channel: "sms",
-        body: `Hi ${firstName}, I just got your voicemail. I can help with a fast cash sale. When would be a good time to talk?`,
-        status: "delivered",
-        timestamp: new Date(Date.now() - 9000000),
-        sender: "You"
-      },
-      {
-        id: "msg-3-3",
-        threadId: "thread-3",
-        direction: "in",
-        channel: "sms",
-        body: "Can you call me now? I need to get this handled ASAP.",
-        status: "read",
-        timestamp: new Date(Date.now() - 8700000),
-        sender: firstName,
-        sentiment: "negative"
-      }
-    ]
-  };
-
-  if (conversations[threadId]) {
-    return conversations[threadId];
+async function fetchThreads(): Promise<Array<Thread & { messages: Message[] }>> {
+  const res = await fetch("/api/threads", { cache: "no-store" });
+  if (!res.ok) {
+    throw new Error(`GET /api/threads failed: ${res.status}`);
   }
+  const json = (await res.json()) as { threads?: ApiThread[] };
+  const raw = json.threads ?? [];
+  return raw.map((t) => ({
+    ...t,
+    lastMessageTime: new Date(t.lastMessageTime),
+    messages: (t.messages ?? []).map((m) => ({
+      ...m,
+      timestamp: new Date(m.timestamp),
+    })),
+  }));
+}
 
-  return [
-    {
-      id: `msg-${threadId}-1`,
-      threadId,
-      direction: "out",
-      channel: "sms",
-      body: `Hi, is this the owner of ${address}? I'm interested in purchasing your property for cash.`,
-      status: "delivered",
-      timestamp: new Date(Date.now() - 3600000),
-      sender: "You"
-    },
-    {
-      id: `msg-${threadId}-2`,
-      threadId,
-      direction: "in",
-      channel: "sms",
-      body: "Yes, this is the owner. Who is this and how did you get my number?",
-      status: "read",
-      timestamp: new Date(Date.now() - 3300000),
-      sender: firstName,
-      sentiment: "neutral"
-    },
-    {
-      id: `msg-${threadId}-3`,
-      threadId,
-      direction: "out",
-      channel: "sms",
-      body: "I'm with FlipOps Investment. We use public records. Would you be interested in a cash offer?",
-      status: "delivered",
-      timestamp: new Date(Date.now() - 3000000),
-      sender: "You"
-    }
-  ];
-};
+// generateMockMessages() removed — messages now come bundled with each Thread
+// from GET /api/threads. See ApiThread.messages above.
 
 const messageTemplates = [
   { id: "1", name: "Initial Outreach", body: "Hi {{firstName}}, I noticed your property at {{address}}. We can make you a cash offer with a quick close. Interested?" },
@@ -426,9 +241,11 @@ function ScoreRing({ score, size = 48 }: { score: number; size?: number }) {
 }
 
 export default function InboxPage() {
-  const [threads, setThreads] = useState<Thread[]>([]);
-  const [selectedThread, setSelectedThread] = useState<Thread | null>(null);
+  const router = useRouter();
+  const [threads, setThreads] = useState<Array<Thread & { messages: Message[] }>>([]);
+  const [selectedThread, setSelectedThread] = useState<(Thread & { messages: Message[] }) | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [messageBody, setMessageBody] = useState("");
   const [selectedChannel, setSelectedChannel] = useState<"sms" | "email" | "voicemail">("sms");
   const [searchQuery, setSearchQuery] = useState("");
@@ -453,16 +270,32 @@ export default function InboxPage() {
     dateRange: "all" as "all" | "today" | "week" | "month",
   });
 
+  // Real load: GET /api/threads. On failure we surface an EmptyState rather
+  // than fabricate mock data (per the platform UX walkthrough).
   useEffect(() => {
-    setTimeout(() => {
-      setThreads(generateMockThreads());
-      setLoading(false);
-    }, 400);
+    let cancelled = false;
+    (async () => {
+      try {
+        const real = await fetchThreads();
+        if (cancelled) return;
+        setThreads(real);
+        setLoadError(null);
+      } catch (err) {
+        if (cancelled) return;
+        console.error("[Inbox] failed to load threads", err);
+        setThreads([]);
+        setLoadError(err instanceof Error ? err.message : "Failed to load");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
   }, []);
 
   useEffect(() => {
     if (selectedThread) {
-      setMessages(generateMockMessages(selectedThread.id));
+      // Messages now travel with the Thread payload.
+      setMessages(selectedThread.messages ?? []);
       setThreads(prev => prev.map(t =>
         t.id === selectedThread.id ? { ...t, unreadCount: 0 } : t
       ));
@@ -473,14 +306,43 @@ export default function InboxPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  const handleRefresh = () => {
+  const handleRefresh = async () => {
     setRefreshing(true);
-    setTimeout(() => {
-      setThreads(generateMockThreads());
-      setRefreshing(false);
+    try {
+      const real = await fetchThreads();
+      setThreads(real);
+      setLoadError(null);
       toast.success("Inbox refreshed");
-    }, 500);
+    } catch (err) {
+      console.error("[Inbox] refresh failed", err);
+      setLoadError(err instanceof Error ? err.message : "Failed to refresh");
+      toast.error("Couldn't refresh inbox");
+    } finally {
+      setRefreshing(false);
+    }
   };
+
+  // ---- Phase 5 action wiring ----
+  // Schedule Call -> dialer prefilled with this lead.
+  const handleScheduleCall = (leadId: string) => {
+    router.push(`/app/dialer?leadId=${encodeURIComponent(leadId)}`);
+  };
+  // View Lead Profile -> open the lead row in the Leads page.
+  const handleViewLeadProfile = (leadId: string) => {
+    router.push(`/app/leads?propertyId=${encodeURIComponent(leadId)}`);
+  };
+  // TODO(phase 6): real cadence enrollment via Nylas + Telnyx sequencing.
+  const handleEnrollInCadence = () =>
+    toast("Coming soon", { description: "Cadence enrollment lands in the next phase." });
+  // TODO(phase 6): real read-state requires a Conversation/Message model.
+  const handleMarkUnread = () =>
+    toast("Coming soon", { description: "Read state tracking is on the way." });
+  // TODO(phase 6): starring requires a per-user thread metadata table.
+  const handleStar = () =>
+    toast("Coming soon", { description: "Starring conversations is on the way." });
+  // TODO(phase 6): archive requires soft-delete flag on the synthesized thread source.
+  const handleArchive = () =>
+    toast("Coming soon", { description: "Archive lands with the conversation model." });
 
   const sendMessage = () => {
     if ((!messageBody.trim() && attachments.length === 0) || !selectedThread) return;
@@ -827,6 +689,21 @@ export default function InboxPage() {
           <div className="p-2">
             {loading ? (
               <ThreadListSkeleton />
+            ) : threads.length === 0 ? (
+              // Hard empty state (no threads at all, or fetch failed). Per the
+              // UX walkthrough, link to /app/leads as the next action.
+              <EmptyState
+                icon={<MessageSquare className="h-8 w-8" />}
+                title="No conversations yet"
+                description={
+                  loadError
+                    ? "We couldn't load your inbox. Try refreshing."
+                    : "Conversations appear here when you contact a lead or a lead responds."
+                }
+                actionLabel="Go to Leads"
+                actionHref="/app/leads"
+                compact
+              />
             ) : filteredThreads.length === 0 ? (
               <div className="py-12 text-center">
                 <MessageSquare className="h-10 w-10 mx-auto mb-3 text-gray-300 dark:text-gray-700" />
@@ -944,20 +821,23 @@ export default function InboxPage() {
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className="w-48 rounded-xl">
-                      <DropdownMenuItem className="rounded-lg">
+                      <DropdownMenuItem
+                        className="rounded-lg"
+                        onClick={() => handleViewLeadProfile(selectedThread.leadId)}
+                      >
                         <User className="h-4 w-4 mr-2" />
                         View Lead Profile
                       </DropdownMenuItem>
-                      <DropdownMenuItem className="rounded-lg">
+                      <DropdownMenuItem className="rounded-lg" onClick={handleStar}>
                         <Star className="h-4 w-4 mr-2" />
                         Star Conversation
                       </DropdownMenuItem>
-                      <DropdownMenuItem className="rounded-lg">
+                      <DropdownMenuItem className="rounded-lg" onClick={handleMarkUnread}>
                         <Mail className="h-4 w-4 mr-2" />
                         Mark as Unread
                       </DropdownMenuItem>
                       <DropdownMenuSeparator />
-                      <DropdownMenuItem className="rounded-lg text-rose-600">
+                      <DropdownMenuItem className="rounded-lg text-rose-600" onClick={handleArchive}>
                         <Archive className="h-4 w-4 mr-2" />
                         Archive
                       </DropdownMenuItem>
@@ -1253,6 +1133,7 @@ export default function InboxPage() {
                 variant="outline"
                 size="sm"
                 className="w-full justify-start h-9 text-sm rounded-lg border-gray-200 dark:border-border hover:bg-blue-50 hover:border-blue-200 hover:text-blue-700 dark:hover:bg-blue-950/30 dark:hover:border-blue-800 dark:hover:text-blue-400 transition-colors"
+                onClick={() => handleScheduleCall(selectedThread.leadId)}
               >
                 <PhoneCall className="h-4 w-4 mr-2.5" />
                 Schedule Call
@@ -1270,6 +1151,7 @@ export default function InboxPage() {
                 variant="outline"
                 size="sm"
                 className="w-full justify-start h-9 text-sm rounded-lg border-gray-200 dark:border-border hover:bg-purple-50 hover:border-purple-200 hover:text-purple-700 dark:hover:bg-purple-950/30 dark:hover:border-purple-800 dark:hover:text-purple-400 transition-colors"
+                onClick={handleEnrollInCadence}
               >
                 <Zap className="h-4 w-4 mr-2.5" />
                 Enroll in Cadence
