@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import { prisma } from '@/lib/prisma';
+import { requireUser } from '@/lib/auth/require-user';
 
 /**
  * GET /api/comps
@@ -19,7 +18,10 @@ const prisma = new PrismaClient();
  */
 export async function GET(request: NextRequest) {
   try {
-    const userId = "mock-user-id"; // Temporary for development
+    const guard = await requireUser();
+    if ('error' in guard) return guard.error;
+    const _userId = guard.userId;
+    void _userId;
 
     const searchParams = request.nextUrl.searchParams;
     const city = searchParams.get('city');

@@ -1,15 +1,17 @@
 import { NextResponse } from 'next/server';
-import prisma from '@/lib/prisma';
+import { prisma } from '@/lib/prisma';
+import { requireUser } from '@/lib/auth/require-user';
 
 // GET /api/user/profile
 // Get current user profile including investor type and onboarding status
 export async function GET() {
   try {
-    const userId = "mock-user-id"; // Temporary for CSS debugging
+    const guard = await requireUser();
+    if ('error' in guard) return guard.error;
+    const { userId } = guard;
 
-    // Find the user
     const user = await prisma.user.findUnique({
-      where: { clerkId: userId },
+      where: { id: userId },
       select: {
         id: true,
         email: true,

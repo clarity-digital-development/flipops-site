@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import { prisma } from '@/lib/prisma';
+import { requireUser } from '@/lib/auth/require-user';
 
 /**
  * GET /api/deal-analysis/[propertyId]
@@ -12,7 +11,9 @@ export async function GET(
   { params }: { params: Promise<{ propertyId: string }> }
 ) {
   try {
-    const userId = "mock-user-id"; // Temporary for CSS debugging
+    const guard = await requireUser();
+    if ('error' in guard) return guard.error;
+    const { userId } = guard;
 
     const { propertyId } = await params;
 

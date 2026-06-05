@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import { prisma } from '@/lib/prisma';
+import { requireUser } from '@/lib/auth/require-user';
 
 /**
  * POST /api/deal-analysis
@@ -29,7 +28,9 @@ const prisma = new PrismaClient();
  */
 export async function POST(request: NextRequest) {
   try {
-    const userId = "mock-user-id"; // Temporary for CSS debugging
+    const guard = await requireUser();
+    if ('error' in guard) return guard.error;
+    const { userId } = guard;
 
     const body = await request.json();
 

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
-import prisma from '@/lib/prisma';
+import { prisma } from '@/lib/prisma';
+import { requireUser } from '@/lib/auth/require-user';
 
 // GET /api/contracts/[id]
 // Get contract details
@@ -8,18 +9,11 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const userId = "mock-user-id"; // Temporary for CSS debugging
+    const guard = await requireUser();
+    if ('error' in guard) return guard.error;
+    const { userId } = guard;
 
     const { id } = await params;
-
-    // Find the user
-    const user = await prisma.user.findUnique({
-      where: { clerkId: userId },
-    });
-
-    if (!user) {
-      return NextResponse.json({ error: 'User not found' }, { status: 404 });
-    }
 
     // Get the contract
     const contract = await prisma.contract.findUnique({
@@ -35,7 +29,7 @@ export async function GET(
     }
 
     // Verify ownership
-    if (contract.userId !== user.id) {
+    if (contract.userId !== userId) {
       return NextResponse.json({ error: 'Unauthorized to access this contract' }, { status: 403 });
     }
 
@@ -71,20 +65,13 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const userId = "mock-user-id"; // Temporary for CSS debugging
+    const guard = await requireUser();
+    if ('error' in guard) return guard.error;
+    const { userId } = guard;
 
     const { id } = await params;
     const body = await request.json();
     const { status, closingDate, signedAt, escrowOpenedAt, closedAt, notes, documentUrls } = body;
-
-    // Find the user
-    const user = await prisma.user.findUnique({
-      where: { clerkId: userId },
-    });
-
-    if (!user) {
-      return NextResponse.json({ error: 'User not found' }, { status: 404 });
-    }
 
     // Get the contract
     const contract = await prisma.contract.findUnique({
@@ -96,7 +83,7 @@ export async function PATCH(
     }
 
     // Verify ownership
-    if (contract.userId !== user.id) {
+    if (contract.userId !== userId) {
       return NextResponse.json({ error: 'Unauthorized to update this contract' }, { status: 403 });
     }
 
@@ -163,18 +150,11 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const userId = "mock-user-id"; // Temporary for CSS debugging
+    const guard = await requireUser();
+    if ('error' in guard) return guard.error;
+    const { userId } = guard;
 
     const { id } = await params;
-
-    // Find the user
-    const user = await prisma.user.findUnique({
-      where: { clerkId: userId },
-    });
-
-    if (!user) {
-      return NextResponse.json({ error: 'User not found' }, { status: 404 });
-    }
 
     // Get the contract
     const contract = await prisma.contract.findUnique({
@@ -186,7 +166,7 @@ export async function DELETE(
     }
 
     // Verify ownership
-    if (contract.userId !== user.id) {
+    if (contract.userId !== userId) {
       return NextResponse.json({ error: 'Unauthorized to delete this contract' }, { status: 403 });
     }
 

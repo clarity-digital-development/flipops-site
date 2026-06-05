@@ -1,11 +1,14 @@
 import { NextResponse } from 'next/server';
-import prisma from '@/lib/prisma';
+import { prisma } from '@/lib/prisma';
+import { requireUser } from '@/lib/auth/require-user';
 
 // POST /api/user/onboarding
 // Complete onboarding flow and set investor type
 export async function POST(request: Request) {
   try {
-    const userId = "mock-user-id"; // Temporary for CSS debugging
+    const guard = await requireUser();
+    if ('error' in guard) return guard.error;
+    const { userId } = guard;
 
     const body = await request.json();
     const { investorType, investorProfile } = body;
@@ -19,22 +22,19 @@ export async function POST(request: Request) {
       );
     }
 
-    // Find the user
-    const user = await prisma.user.findUnique({
-      where: { clerkId: userId },
+    // Look up current investorProfile to preserve it when new value not provided
+    const existing = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { investorProfile: true },
     });
-
-    if (!user) {
-      return NextResponse.json({ error: 'User not found' }, { status: 404 });
-    }
 
     // Update user with investor type and mark onboarding complete
     const updatedUser = await prisma.user.update({
-      where: { id: user.id },
+      where: { id: userId },
       data: {
         investorType,
         onboardingComplete: true,
-        investorProfile: investorProfile ? JSON.stringify(investorProfile) : user.investorProfile,
+        investorProfile: investorProfile ? JSON.stringify(investorProfile) : existing?.investorProfile,
       },
     });
 
