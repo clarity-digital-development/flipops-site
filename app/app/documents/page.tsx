@@ -331,6 +331,10 @@ export default function DocumentsPage() {
   const [filterDocType, setFilterDocType] = useState<Document['docType'] | 'all'>('all');
   const [filterFolder, setFilterFolder] = useState<string>('all');
   const [expandedFolders, setExpandedFolders] = useState<string[]>(['fld-1', 'fld-7']);
+  // Live documents from /api/documents. When the backend returns an empty list
+  // (typical pre-launch when no real documents have been created), we fall back
+  // to the seed-data file so the UI still demos correctly. Phase 6.
+  const [liveDocuments, setLiveDocuments] = useState<Document[] | null>(null);
   const [newPacket, setNewPacket] = useState<Partial<Packet>>({
     packetType: 'Acquisition',
     status: 'draft',
@@ -341,11 +345,37 @@ export default function DocumentsPage() {
     setMounted(true);
   }, []);
 
+  // Fetch live documents on mount. Silently falls back to seed-data on failure.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch('/api/documents', { cache: 'no-store' });
+        if (!res.ok) return;
+        const json = await res.json();
+        if (cancelled) return;
+        if (Array.isArray(json.documents) && json.documents.length > 0) {
+          setLiveDocuments(json.documents as Document[]);
+        }
+      } catch {
+        // Network error — keep seed-data fallback.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const documentsSource: Document[] =
+    liveDocuments && liveDocuments.length > 0
+      ? liveDocuments
+      : documentsSeedData.documents;
+
   const isLeadExports = filterFolder === LEAD_EXPORTS_FOLDER_ID;
 
   // Filter documents
   const filterDocuments = () => {
-    return documentsSeedData.documents.filter(doc => {
+    return documentsSource.filter(doc => {
       const matchesSearch = doc.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
         doc.tags.some(tag => tag.toLowerCase().includes(searchQuery.toLowerCase())) ||
         (doc.relatedName && doc.relatedName.toLowerCase().includes(searchQuery.toLowerCase()));
@@ -418,64 +448,151 @@ export default function DocumentsPage() {
     });
   };
 
-  // Document actions with proper toast
+  // ---- Document actions wired to /api/documents ---------------------------
+  // Phase 6 — Send / Download / Use Template / Generate Packet stay as toasts
+  // ("Coming soon") because email, file storage, the template library, and the
+  // packet builder are all deferred. Void, Duplicate, Edit, Archive, and Resend
+  // hit real endpoints (or move the user into a real editing context).
+  //
+  // After any mutation, we refresh from /api/documents so the table reflects
+  // the new server state without a full page reload.
+
+  const refetchDocuments = async () => {
+    try {
+      const res = await fetch('/api/documents', { cache: 'no-store' });
+      if (!res.ok) return;
+      const json = await res.json();
+      if (Array.isArray(json.documents) && json.documents.length > 0) {
+        setLiveDocuments(json.documents as Document[]);
+      }
+    } catch {
+      // ignore
+    }
+  };
+
   const handleSendDocument = (doc: Document) => {
+    // Deferred: no email provider (Resend / Postmark) configured yet.
     toast({
-      title: "Document sent",
-      description: `${doc.title} has been sent for signature.`,
+      title: "Coming soon",
+      description: `Email sending isn't wired up yet — ${doc.title} stays as a draft.`,
     });
   };
 
   const handleDownloadDocument = (doc: Document) => {
+    // Deferred: no file storage (S3 / Vercel Blob) configured yet.
     toast({
-      title: "Download started",
-      description: `Downloading ${doc.title}...`,
+      title: "Coming soon",
+      description: `Downloads aren't wired up yet — ${doc.title} has no stored file.`,
     });
   };
 
-  const handleVoidDocument = (doc: Document) => {
-    toast({
-      title: "Document voided",
-      description: `${doc.title} has been voided.`,
-      variant: "destructive",
-    });
+  const handleVoidDocument = async (doc: Document) => {
+    try {
+      const res = await fetch(`/api/documents/${doc.id}/void`, { method: 'POST' });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        toast({
+          title: "Could not void document",
+          description: err?.error || `Server returned ${res.status}`,
+          variant: "destructive",
+        });
+        return;
+      }
+      toast({
+        title: "Document voided",
+        description: `${doc.title} has been voided.`,
+        variant: "destructive",
+      });
+      await refetchDocuments();
+    } catch (e) {
+      toast({
+        title: "Could not void document",
+        description: e instanceof Error ? e.message : "Network error",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleNewVersion = (doc: Document) => {
+    // Deferred: version-bump endpoint will land with template library.
     setSelectedDocument(doc);
     toast({
-      title: "Creating new version",
-      description: `Starting new version of ${doc.title}`,
+      title: "Coming soon",
+      description: `Version bump isn't wired up yet — opening ${doc.title} as-is.`,
     });
   };
 
   const handleEditDocument = (doc: Document) => {
+    // Edit = open the document viewer / details sheet. Inline field edits go
+    // through PATCH /api/documents/[id] from inside the sheet (next phase).
     setSelectedDocument(doc);
     setShowDocumentViewer(true);
-    toast({
-      title: "Edit mode",
-      description: `Editing ${doc.title}`,
-    });
   };
 
-  const handleDuplicateDocument = (doc: Document) => {
-    toast({
-      title: "Document duplicated",
-      description: `Created copy of ${doc.title}`,
-    });
+  const handleDuplicateDocument = async (doc: Document) => {
+    try {
+      const res = await fetch(`/api/documents/${doc.id}/duplicate`, {
+        method: 'POST',
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        toast({
+          title: "Could not duplicate",
+          description: err?.error || `Server returned ${res.status}`,
+          variant: "destructive",
+        });
+        return;
+      }
+      toast({
+        title: "Document duplicated",
+        description: `Created copy of ${doc.title}`,
+      });
+      await refetchDocuments();
+    } catch (e) {
+      toast({
+        title: "Could not duplicate",
+        description: e instanceof Error ? e.message : "Network error",
+        variant: "destructive",
+      });
+    }
   };
 
-  const handleArchiveDocument = (doc: Document) => {
-    toast({
-      title: "Document archived",
-      description: `${doc.title} has been archived.`,
-    });
+  const handleArchiveDocument = async (doc: Document) => {
+    // Archive == move to the Archive folder (fld-10) via PATCH.
+    try {
+      const res = await fetch(`/api/documents/${doc.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ folderId: 'fld-10' }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        toast({
+          title: "Could not archive",
+          description: err?.error || `Server returned ${res.status}`,
+          variant: "destructive",
+        });
+        return;
+      }
+      toast({
+        title: "Document archived",
+        description: `${doc.title} has been archived.`,
+      });
+      await refetchDocuments();
+    } catch (e) {
+      toast({
+        title: "Could not archive",
+        description: e instanceof Error ? e.message : "Network error",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleResendDocument = (doc: Document) => {
+    // Deferred: depends on email provider.
     toast({
-      title: "Reminder sent",
-      description: `Signature reminder sent for ${doc.title}`,
+      title: "Coming soon",
+      description: `Reminder emails aren't wired up yet — ${doc.title}.`,
     });
   };
 
@@ -485,19 +602,48 @@ export default function DocumentsPage() {
   };
 
   const handleUseTemplate = (template: DocumentTemplate) => {
+    // Deferred: template library / merge engine.
     toast({
-      title: "Template selected",
-      description: `Using template: ${template.name}`,
+      title: "Coming soon",
+      description: `Templates aren't wired up yet — ${template.name}.`,
     });
     setShowTemplateLibrary(false);
   };
 
   const handleGeneratePacket = () => {
+    // Deferred: packet builder.
     toast({
-      title: "Packet created",
-      description: "Your document packet has been generated successfully.",
+      title: "Coming soon",
+      description: "Packet generation isn't wired up yet.",
     });
     setShowPacketBuilder(false);
+  };
+
+  const handleDeleteDocument = async (doc: Document) => {
+    try {
+      const res = await fetch(`/api/documents/${doc.id}`, { method: 'DELETE' });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        toast({
+          title: "Could not delete",
+          description: err?.error || `Server returned ${res.status}`,
+          variant: "destructive",
+        });
+        return;
+      }
+      toast({
+        title: "Document deleted",
+        description: `${doc.title} has been permanently removed.`,
+        variant: "destructive",
+      });
+      await refetchDocuments();
+    } catch (e) {
+      toast({
+        title: "Could not delete",
+        description: e instanceof Error ? e.message : "Network error",
+        variant: "destructive",
+      });
+    }
   };
 
   // Calculate metrics
@@ -610,7 +756,7 @@ export default function DocumentsPage() {
                 <Home className="h-4 w-4" />
                 <span className="flex-1 text-sm">All Documents</span>
                 <span className="text-xs tabular-nums text-muted-foreground bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 rounded">
-                  {documentsSeedData.documents.length}
+                  {documentsSource.length}
                 </span>
               </div>
               {renderFolderTree()}
@@ -992,6 +1138,13 @@ export default function DocumentsPage() {
                                       Void
                                     </DropdownMenuItem>
                                   )}
+                                  <DropdownMenuItem
+                                    className="text-red-600 dark:text-red-400"
+                                    onClick={() => handleDeleteDocument(doc)}
+                                  >
+                                    <XCircle className="h-4 w-4 mr-2" />
+                                    Delete
+                                  </DropdownMenuItem>
                                 </DropdownMenuContent>
                               </DropdownMenu>
                             </TableCell>
