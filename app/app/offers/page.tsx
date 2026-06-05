@@ -71,7 +71,30 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { format, formatDistanceToNow, differenceInDays, isPast } from "date-fns";
 import Link from "next/link";
-import { seedOffers, calculateOfferStats, type SeedOffer } from "./seed-data";
+import { EmptyState } from "@/components/ui/empty-state";
+
+// ============================================================================
+// STATS CALCULATION
+// ============================================================================
+
+function calculateOfferStats(offers: Offer[]) {
+  return {
+    total: offers.length,
+    draft: offers.filter(o => o.status === "draft").length,
+    sent: offers.filter(o => o.status === "sent").length,
+    countered: offers.filter(o => o.status === "countered").length,
+    accepted: offers.filter(o => o.status === "accepted").length,
+    rejected: offers.filter(o => o.status === "rejected").length,
+    expired: offers.filter(o => o.status === "expired").length,
+    totalValue: offers.reduce((sum, o) => sum + o.amount, 0),
+    avgOffer: offers.length > 0 ? offers.reduce((sum, o) => sum + o.amount, 0) / offers.length : 0,
+    pendingValue: offers.filter(o => o.status === "sent" || o.status === "countered").reduce((sum, o) => sum + o.amount, 0),
+    acceptedValue: offers.filter(o => o.status === "accepted").reduce((sum, o) => sum + o.amount, 0),
+    conversionRate: offers.length > 0 ? (offers.filter(o => o.status === "accepted").length / offers.length) * 100 : 0,
+    withContracts: offers.filter(o => o.contract).length,
+    needsContract: offers.filter(o => o.status === "accepted" && !o.contract).length
+  };
+}
 
 // ============================================================================
 // TYPES
@@ -710,32 +733,26 @@ export default function OffersPage() {
   const [contractNotes, setContractNotes] = useState("");
   const [creatingContract, setCreatingContract] = useState(false);
 
-  // Fetch offers from API or use seed data
+  // Fetch offers from API — strictly real data, no seed fallback.
   useEffect(() => {
     const fetchOffers = async () => {
       try {
         const response = await fetch('/api/offers');
         if (response.ok) {
           const data = await response.json();
-          if (data.offers && data.offers.length > 0) {
-            setOffers(data.offers);
-          } else {
-            // Use seed data as fallback
-            setOffers(seedOffers as unknown as Offer[]);
-          }
+          setOffers(data.offers ?? []);
         } else {
-          setOffers(seedOffers as unknown as Offer[]);
+          setOffers([]);
         }
       } catch (error) {
         console.error('Error fetching offers:', error);
-        setOffers(seedOffers as unknown as Offer[]);
+        setOffers([]);
       } finally {
         setIsLoading(false);
       }
     };
 
-    const timer = setTimeout(fetchOffers, 500);
-    return () => clearTimeout(timer);
+    fetchOffers();
   }, []);
 
   const formatCurrency = (amount: number) => {
@@ -763,7 +780,7 @@ export default function OffersPage() {
   }, [offers, searchQuery, statusFilter]);
 
   // Calculate stats
-  const stats = useMemo(() => calculateOfferStats(offers as unknown as SeedOffer[]), [offers]);
+  const stats = useMemo(() => calculateOfferStats(offers), [offers]);
 
   // Handlers
   const handleOfferAction = (offerId: string, action: string) => {
@@ -1006,24 +1023,21 @@ export default function OffersPage() {
               ))}
             </div>
           ) : filteredOffers.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-16 text-center">
-              <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-100 to-purple-100 dark:from-blue-900/30 dark:to-purple-900/30 flex items-center justify-center mb-4">
-                <Sparkles className="h-8 w-8 text-blue-600 dark:text-blue-400" />
-              </div>
-              <h3 className="text-lg font-semibold mb-2">No offers found</h3>
-              <p className="text-muted-foreground max-w-md mb-6">
-                {searchQuery || statusFilter !== "all"
-                  ? "Try adjusting your filters to see more offers"
-                  : "Create your first offer from the Underwriting page to get started"
-                }
-              </p>
-              <Button asChild>
-                <Link href="/app/underwriting">
-                  <Plus className="h-4 w-4 mr-2" />
-                  Create Offer
-                </Link>
-              </Button>
-            </div>
+            searchQuery || statusFilter !== "all" ? (
+              <EmptyState
+                icon={<Sparkles className="h-10 w-10" />}
+                title="No offers match your filters"
+                description="Try adjusting your search or status filter to see more offers."
+              />
+            ) : (
+              <EmptyState
+                icon={<FileSignature className="h-10 w-10" />}
+                title="No offers yet"
+                description="Offers are created from the Underwriting workspace after you analyze a property. Pick a deal to underwrite and send your first offer."
+                actionLabel="Go to Underwriting"
+                actionHref="/app/underwriting"
+              />
+            )
           ) : (
             <div className={cn(
               "grid gap-4",

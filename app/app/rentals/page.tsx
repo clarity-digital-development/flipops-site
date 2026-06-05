@@ -52,7 +52,7 @@ import { VisuallyHidden } from "@radix-ui/react-visually-hidden";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
-import { seedRentals } from "./seed-data";
+import { EmptyState } from "@/components/ui/empty-state";
 
 export const dynamic = 'force-dynamic';
 
@@ -1018,26 +1018,6 @@ function RentalDetailSheet({
   );
 }
 
-function EmptyState() {
-  return (
-    <div className="flex flex-col items-center justify-center py-20 text-center">
-      <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-primary/20 to-primary/10 flex items-center justify-center mb-6">
-        <Building2 className="h-10 w-10 text-primary" />
-      </div>
-      <h3 className="text-xl font-bold text-foreground mb-2">No Rental Properties</h3>
-      <p className="text-muted-foreground max-w-md mb-6">
-        Start building your rental portfolio by converting closed contracts to rental properties.
-      </p>
-      <Button asChild>
-        <Link href="/app/contracts">
-          <FileText className="h-4 w-4 mr-2" />
-          View Contracts
-        </Link>
-      </Button>
-    </div>
-  );
-}
-
 // ============================================================================
 // MAIN COMPONENT
 // ============================================================================
@@ -1052,7 +1032,7 @@ export default function RentalsPage() {
   const [selectedRental, setSelectedRental] = useState<Rental | null>(null);
   const [detailSheetOpen, setDetailSheetOpen] = useState(false);
 
-  // Fetch rentals
+  // Fetch rentals — strictly real data, no seed fallback.
   useEffect(() => {
     const fetchRentals = async () => {
       try {
@@ -1061,16 +1041,11 @@ export default function RentalsPage() {
         if (!response.ok) throw new Error("Failed to fetch rentals");
         const data = await response.json();
 
-        // Combine API data with seed data
         const apiRentals = (data.rentals || []).map((r: any) => ({ ...r, isDemo: false }));
-        const demoRentals = seedRentals.map(r => ({ ...r, isDemo: true }));
-
-        // Use seed data if no API data, otherwise combine
-        setRentals(apiRentals.length > 0 ? [...apiRentals, ...demoRentals] : demoRentals);
+        setRentals(apiRentals);
       } catch (error) {
         console.error("Error fetching rentals:", error);
-        // Use seed data as fallback
-        setRentals(seedRentals.map(r => ({ ...r, isDemo: true })));
+        setRentals([]);
       } finally {
         setLoading(false);
       }
@@ -1311,7 +1286,13 @@ export default function RentalsPage() {
                 <p className="text-muted-foreground">Try adjusting your search or filters</p>
               </div>
             ) : (
-              <EmptyState />
+              <EmptyState
+                icon={<Building2 className="h-10 w-10" />}
+                title="No Rental Properties"
+                description="Convert a closed contract into a rental property to start tracking cash flow, tenants, and maintenance."
+                actionLabel="View Closed Contracts"
+                actionHref="/app/contracts?status=closed"
+              />
             )
           ) : viewMode === "grid" ? (
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 pr-4">

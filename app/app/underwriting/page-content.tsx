@@ -61,8 +61,8 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useUser } from "@clerk/nextjs";
 import { type RepairItem } from "./seed-data";
-import { seedProperties as leadsSeedProperties } from "../leads/seed-data";
 import { MAOWaterfallPanel } from "@/components/deals/mao-waterfall";
+import { EmptyState as CompsEmptyState } from "@/components/ui/empty-state";
 import { trackLeadEvent } from "@/lib/behavior/client";
 
 // ============================================================================
@@ -977,242 +977,26 @@ export default function UnderwritingPage() {
     }
   }, [isLoaded]);
 
-  // Convert leads seed data to underwriting Property format
-  const convertLeadsToProperties = (): Property[] => {
-    return leadsSeedProperties.map(lead => ({
-      id: lead.id,
-      address: lead.address,
-      city: lead.city,
-      state: lead.state,
-      zip: lead.zip,
-      county: lead.county || null,
-      propertyType: lead.propertyType || null,
-      bedrooms: lead.bedrooms || null,
-      bathrooms: lead.bathrooms || null,
-      squareFeet: lead.squareFeet || null,
-      lotSize: lead.lotSize || null,
-      yearBuilt: lead.yearBuilt || null,
-      assessedValue: lead.assessedValue || null,
-      estimatedValue: lead.estimatedValue || null,
-      lastSaleDate: lead.lastSaleDate || null,
-      lastSalePrice: lead.lastSalePrice || null,
-      listingDate: null,
-      daysOnMarket: null,
-      score: lead.score || null,
-      scoreBreakdown: null,
-      dataSource: lead.dataSource || null,
-      ownerName: lead.ownerName || null,
-      enriched: !!lead.phoneNumbers || !!lead.emails,
-      phoneNumbers: lead.phoneNumbers || null,
-      emails: lead.emails || null,
-      foreclosure: lead.foreclosure,
-      preForeclosure: lead.preForeclosure,
-      taxDelinquent: lead.taxDelinquent,
-      vacant: lead.vacant,
-      bankruptcy: false,
-      absenteeOwner: false,
-      metadata: JSON.stringify({
-        equityPercent: lead.equityPercent,
-        estimatedEquity: lead.estimatedValue && lead.mortgageBalance
-          ? lead.estimatedValue - lead.mortgageBalance
-          : undefined,
-        openMortgageBalance: lead.mortgageBalance,
-        highEquity: (lead.equityPercent || 0) >= 50,
-        freeClear: lead.mortgageBalance === 0,
-        distressSignals: [
-          lead.foreclosure && 'foreclosure',
-          lead.preForeclosure && 'pre-foreclosure',
-          lead.taxDelinquent && 'tax-delinquent',
-          lead.vacant && 'vacant',
-        ].filter(Boolean),
-      }),
-      createdAt: new Date(lead.createdAt),
-    }));
-  };
-
   const fetchProperties = async () => {
     try {
       setLoadingProperties(true);
       const response = await fetch('/api/properties?limit=50');
       if (response.ok) {
         const data = await response.json();
-        if (data.properties && data.properties.length > 0) {
-          setProperties(data.properties);
-          if (!selectedPropertyId) {
-            setSelectedPropertyId(data.properties[0].id);
-          }
-        } else {
-          // Fallback to leads seed data when API returns empty
-          const seedData = convertLeadsToProperties();
-          setProperties(seedData);
-          if (seedData.length > 0 && !selectedPropertyId) {
-            setSelectedPropertyId(seedData[0].id);
-          }
+        const list: Property[] = (data.properties ?? []) as Property[];
+        setProperties(list);
+        if (list.length > 0 && !selectedPropertyId) {
+          setSelectedPropertyId(list[0].id);
         }
       } else {
-        // Fallback to leads seed data when API fails
-        const seedData = convertLeadsToProperties();
-        setProperties(seedData);
-        if (seedData.length > 0 && !selectedPropertyId) {
-          setSelectedPropertyId(seedData[0].id);
-        }
+        setProperties([]);
       }
     } catch (error) {
       console.error('Error fetching properties:', error);
-      // Fallback to leads seed data on error
-      const seedData = convertLeadsToProperties();
-      setProperties(seedData);
-      if (seedData.length > 0 && !selectedPropertyId) {
-        setSelectedPropertyId(seedData[0].id);
-      }
+      setProperties([]);
     } finally {
       setLoadingProperties(false);
     }
-  };
-
-  // Generate seed repairs based on property characteristics
-  const generateSeedRepairs = (property: Property): RepairItem[] => {
-    const repairs: RepairItem[] = [];
-    const yearBuilt = property.yearBuilt || 1970;
-    const sqft = property.squareFeet || 1500;
-    const age = new Date().getFullYear() - yearBuilt;
-
-    // Age-based repairs (older homes need more work)
-    if (age >= 40) {
-      repairs.push({
-        id: `REPAIR-${property.id}-roof`,
-        sessionId: "",
-        category: "roof",
-        description: "Roof replacement - 40+ year old structure",
-        qty: sqft,
-        uom: "sqft",
-        unitCost: 8,
-        totalCost: Math.round(sqft * 8),
-        confidence: "high"
-      });
-    }
-
-    if (age >= 30) {
-      repairs.push({
-        id: `REPAIR-${property.id}-hvac`,
-        sessionId: "",
-        category: "hvac",
-        description: "HVAC system replacement",
-        qty: 1,
-        uom: "system",
-        unitCost: 6500,
-        totalCost: 6500,
-        confidence: "medium"
-      });
-    }
-
-    if (age >= 50) {
-      repairs.push({
-        id: `REPAIR-${property.id}-electrical`,
-        sessionId: "",
-        category: "electrical",
-        description: "Electrical panel upgrade and partial rewire",
-        qty: sqft,
-        uom: "sqft",
-        unitCost: 5,
-        totalCost: Math.round(sqft * 5),
-        confidence: "medium"
-      });
-    }
-
-    // Distress signal based repairs
-    if (property.vacant) {
-      repairs.push({
-        id: `REPAIR-${property.id}-paint`,
-        sessionId: "",
-        category: "paint",
-        description: "Full interior/exterior paint - vacant property",
-        qty: sqft * 1.5,
-        uom: "sqft",
-        unitCost: 3,
-        totalCost: Math.round(sqft * 1.5 * 3),
-        confidence: "high"
-      });
-      repairs.push({
-        id: `REPAIR-${property.id}-landscaping`,
-        sessionId: "",
-        category: "landscaping",
-        description: "Landscaping cleanup - overgrown yard",
-        qty: 1,
-        uom: "lot",
-        unitCost: 2500,
-        totalCost: 2500,
-        confidence: "medium"
-      });
-    }
-
-    if (property.taxDelinquent || property.preForeclosure) {
-      repairs.push({
-        id: `REPAIR-${property.id}-flooring`,
-        sessionId: "",
-        category: "flooring",
-        description: "LVP flooring throughout - deferred maintenance",
-        qty: sqft,
-        uom: "sqft",
-        unitCost: 5,
-        totalCost: Math.round(sqft * 5),
-        confidence: "medium"
-      });
-    }
-
-    if (property.foreclosure) {
-      repairs.push({
-        id: `REPAIR-${property.id}-windows`,
-        sessionId: "",
-        category: "windows",
-        description: "Window replacements - foreclosure damage",
-        qty: 8,
-        uom: "each",
-        unitCost: 450,
-        totalCost: 3600,
-        confidence: "medium"
-      });
-      repairs.push({
-        id: `REPAIR-${property.id}-exterior`,
-        sessionId: "",
-        category: "exterior",
-        description: "Exterior repairs and cleanup",
-        qty: sqft * 0.3,
-        uom: "sqft",
-        unitCost: 6,
-        totalCost: Math.round(sqft * 0.3 * 6),
-        confidence: "low"
-      });
-    }
-
-    // Standard cosmetic updates for any property
-    const baths = property.bathrooms || 2;
-    repairs.push({
-      id: `REPAIR-${property.id}-bath`,
-      sessionId: "",
-      category: "bath",
-      description: `Update ${baths} bathroom(s) - fixtures and vanities`,
-      qty: baths,
-      uom: "each",
-      unitCost: 3500,
-      totalCost: Math.round(baths * 3500),
-      confidence: "medium"
-    });
-
-    // Kitchen update for all properties
-    repairs.push({
-      id: `REPAIR-${property.id}-kitchen`,
-      sessionId: "",
-      category: "kitchen",
-      description: "Kitchen refresh - cabinets, counters, appliances",
-      qty: 1,
-      uom: "complete",
-      unitCost: age >= 40 ? 18000 : 12000,
-      totalCost: age >= 40 ? 18000 : 12000,
-      confidence: "medium"
-    });
-
-    return repairs;
   };
 
   // Sync ?propertyId=X from URL → selection once properties have loaded.
@@ -1229,205 +1013,14 @@ export default function UnderwritingPage() {
   useEffect(() => {
     if (selectedPropertyId) {
       fetchComps();
-      // Generate seed repairs based on property
-      const selectedProp = properties.find(p => p.id === selectedPropertyId);
-      if (selectedProp) {
-        const seedRepairs = generateSeedRepairs(selectedProp);
-        setRepairItems(seedRepairs);
-      } else {
-        setRepairItems([]);
-      }
+      // Repair items start empty — Flippers add real line items via the
+      // Add Item dialog. No synthetic age/distress-based fabrication.
+      setRepairItems([]);
       setArvAdjustment(0);
       setRepairsAdjustment(0);
     }
   }, [selectedPropertyId, properties]);
 
-  // Generate seed comps based on property characteristics
-  const generateSeedComps = (property: Property): Comp[] => {
-    // Specific comps for 1234 Oak Street (prop-001) - Jacksonville, FL
-    if (property.id === "prop-001") {
-      return [
-        {
-          id: "comp-oak-1",
-          address: "792 Oak Street",
-          soldDate: "2025-12-14",
-          soldPrice: 281644,
-          beds: 3,
-          baths: 2,
-          sqft: 1520,
-          yearBuilt: 1962,
-          distance: 0.18,
-          pricePerSqft: 185,
-          similarity: 94,
-          selected: true,
-          weight: 0.25,
-        },
-        {
-          id: "comp-oak-2",
-          address: "1456 Riverside Avenue",
-          soldDate: "2025-11-28",
-          soldPrice: 295000,
-          beds: 3,
-          baths: 2,
-          sqft: 1580,
-          yearBuilt: 1968,
-          distance: 0.24,
-          pricePerSqft: 187,
-          similarity: 91,
-          selected: true,
-          weight: 0.22,
-        },
-        {
-          id: "comp-oak-3",
-          address: "910 Elm Court",
-          soldDate: "2025-11-15",
-          soldPrice: 268500,
-          beds: 3,
-          baths: 2,
-          sqft: 1380,
-          yearBuilt: 1970,
-          distance: 0.31,
-          pricePerSqft: 195,
-          similarity: 87,
-          selected: true,
-          weight: 0.20,
-        },
-        {
-          id: "comp-oak-4",
-          address: "2105 Willow Lane",
-          soldDate: "2025-10-22",
-          soldPrice: 305000,
-          beds: 4,
-          baths: 2,
-          sqft: 1650,
-          yearBuilt: 1958,
-          distance: 0.42,
-          pricePerSqft: 185,
-          similarity: 82,
-          selected: true,
-          weight: 0.18,
-        },
-        {
-          id: "comp-oak-5",
-          address: "833 Pine Street",
-          soldDate: "2025-10-08",
-          soldPrice: 252000,
-          beds: 3,
-          baths: 1.5,
-          sqft: 1320,
-          yearBuilt: 1972,
-          distance: 0.55,
-          pricePerSqft: 191,
-          similarity: 76,
-          selected: false,
-          weight: 0.15,
-        },
-        {
-          id: "comp-oak-6",
-          address: "1678 Cedar Boulevard",
-          soldDate: "2025-09-30",
-          soldPrice: 318500,
-          beds: 4,
-          baths: 2.5,
-          sqft: 1780,
-          yearBuilt: 1960,
-          distance: 0.68,
-          pricePerSqft: 179,
-          similarity: 71,
-          selected: false,
-          weight: 0.10,
-        },
-      ];
-    }
-
-    const basePrice = property.estimatedValue || 250000;
-    const baseSqft = property.squareFeet || 1500;
-    const baseBeds = property.bedrooms || 3;
-    const baseBaths = property.bathrooms || 2;
-    const baseYear = property.yearBuilt || 1975;
-    const pricePerSqft = Math.round(basePrice / baseSqft);
-
-    // Generate 5 realistic comps with variations
-    const comps: Comp[] = [
-      {
-        id: `comp-${property.id}-1`,
-        address: `${Math.floor(Math.random() * 900) + 100} ${property.address.split(' ').slice(1).join(' ')}`,
-        soldDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-        soldPrice: Math.round(basePrice * (0.95 + Math.random() * 0.1)),
-        beds: baseBeds,
-        baths: baseBaths,
-        sqft: Math.round(baseSqft * (0.95 + Math.random() * 0.1)),
-        yearBuilt: baseYear + Math.floor(Math.random() * 6) - 3,
-        distance: 0.1 + Math.random() * 0.2,
-        pricePerSqft: pricePerSqft + Math.floor(Math.random() * 20) - 10,
-        similarity: 92 + Math.floor(Math.random() * 6),
-        selected: true,
-        weight: 0.3,
-      },
-      {
-        id: `comp-${property.id}-2`,
-        address: `${Math.floor(Math.random() * 900) + 100} Oak Street`,
-        soldDate: new Date(Date.now() - 45 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-        soldPrice: Math.round(basePrice * (0.92 + Math.random() * 0.15)),
-        beds: baseBeds,
-        baths: baseBaths,
-        sqft: Math.round(baseSqft * (0.9 + Math.random() * 0.15)),
-        yearBuilt: baseYear + Math.floor(Math.random() * 8) - 4,
-        distance: 0.2 + Math.random() * 0.3,
-        pricePerSqft: pricePerSqft + Math.floor(Math.random() * 30) - 15,
-        similarity: 85 + Math.floor(Math.random() * 8),
-        selected: true,
-        weight: 0.25,
-      },
-      {
-        id: `comp-${property.id}-3`,
-        address: `${Math.floor(Math.random() * 900) + 100} Pine Avenue`,
-        soldDate: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-        soldPrice: Math.round(basePrice * (0.88 + Math.random() * 0.2)),
-        beds: baseBeds + (Math.random() > 0.5 ? 1 : 0),
-        baths: baseBaths,
-        sqft: Math.round(baseSqft * (0.85 + Math.random() * 0.25)),
-        yearBuilt: baseYear + Math.floor(Math.random() * 10) - 5,
-        distance: 0.3 + Math.random() * 0.4,
-        pricePerSqft: pricePerSqft + Math.floor(Math.random() * 40) - 20,
-        similarity: 78 + Math.floor(Math.random() * 10),
-        selected: true,
-        weight: 0.25,
-      },
-      {
-        id: `comp-${property.id}-4`,
-        address: `${Math.floor(Math.random() * 900) + 100} Elm Court`,
-        soldDate: new Date(Date.now() - 75 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-        soldPrice: Math.round(basePrice * (0.85 + Math.random() * 0.25)),
-        beds: baseBeds - (Math.random() > 0.7 ? 1 : 0),
-        baths: baseBaths - (Math.random() > 0.8 ? 0.5 : 0),
-        sqft: Math.round(baseSqft * (0.8 + Math.random() * 0.3)),
-        yearBuilt: baseYear + Math.floor(Math.random() * 12) - 6,
-        distance: 0.4 + Math.random() * 0.5,
-        pricePerSqft: pricePerSqft + Math.floor(Math.random() * 50) - 25,
-        similarity: 70 + Math.floor(Math.random() * 12),
-        selected: false,
-        weight: 0.2,
-      },
-      {
-        id: `comp-${property.id}-5`,
-        address: `${Math.floor(Math.random() * 900) + 100} Maple Drive`,
-        soldDate: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-        soldPrice: Math.round(basePrice * (0.8 + Math.random() * 0.35)),
-        beds: baseBeds + (Math.random() > 0.6 ? 1 : -1),
-        baths: baseBaths + (Math.random() > 0.5 ? 0.5 : 0),
-        sqft: Math.round(baseSqft * (0.75 + Math.random() * 0.4)),
-        yearBuilt: baseYear + Math.floor(Math.random() * 15) - 8,
-        distance: 0.5 + Math.random() * 0.6,
-        pricePerSqft: pricePerSqft + Math.floor(Math.random() * 60) - 30,
-        similarity: 65 + Math.floor(Math.random() * 15),
-        selected: false,
-        weight: 0,
-      },
-    ];
-
-    return comps.sort((a, b) => b.similarity - a.similarity);
-  };
 
   const fetchComps = async () => {
     if (!selectedPropertyId) return;
@@ -1452,27 +1045,17 @@ export default function UnderwritingPage() {
       const response = await fetch(`/api/comps?${params.toString()}`);
       if (response.ok) {
         const data = await response.json();
-        if (data.comps && data.comps.length > 0) {
-          setApiComps(data.comps);
-          setSelectedComps(data.comps.filter((c: Comp) => c.selected).map((c: Comp) => c.id));
-        } else {
-          // Fallback to generated seed comps
-          const seedComps = generateSeedComps(selectedProperty);
-          setApiComps(seedComps);
-          setSelectedComps(seedComps.filter(c => c.selected).map(c => c.id));
-        }
+        const comps: Comp[] = (data.comps ?? []) as Comp[];
+        setApiComps(comps);
+        setSelectedComps(comps.filter((c) => c.selected).map((c) => c.id));
       } else {
-        // Fallback to generated seed comps
-        const seedComps = generateSeedComps(selectedProperty);
-        setApiComps(seedComps);
-        setSelectedComps(seedComps.filter(c => c.selected).map(c => c.id));
+        setApiComps([]);
+        setSelectedComps([]);
       }
     } catch (error) {
       console.error('Error fetching comps:', error);
-      // Fallback to generated seed comps
-      const seedComps = generateSeedComps(selectedProperty);
-      setApiComps(seedComps);
-      setSelectedComps(seedComps.filter(c => c.selected).map(c => c.id));
+      setApiComps([]);
+      setSelectedComps([]);
     } finally {
       setLoadingComps(false);
     }
@@ -2123,15 +1706,13 @@ export default function UnderwritingPage() {
                           ))}
                         </div>
                       ) : apiComps.length === 0 ? (
-                        <div className="text-center py-8">
-                          <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-gray-100 dark:bg-muted flex items-center justify-center">
-                            <BarChart3 className="h-6 w-6 text-gray-400" />
-                          </div>
-                          <p className="text-gray-500 dark:text-gray-400">No comparable properties found</p>
-                          <p className="text-sm text-gray-400 dark:text-gray-500 mt-1">
-                            Using AVM estimate: {formatCurrency(selectedProperty.estimatedValue || 0)}
-                          </p>
-                        </div>
+                        <CompsEmptyState
+                          icon={<Search className="h-10 w-10" />}
+                          title="No comparable sales found"
+                          description="Broaden the search radius, relax bed/bath/sqft filters, or check a wider time window. Real comps in this area will appear here as they come back from the API."
+                          actionLabel="Back to Leads"
+                          actionHref="/app/leads"
+                        />
                       ) : (
                         <div className="grid grid-cols-2 gap-3">
                           {apiComps.map(comp => (

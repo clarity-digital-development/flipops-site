@@ -10,9 +10,10 @@ import {
 import { LeadListPanel } from "@/components/leads/lead-list-panel";
 import { LeadsMap } from "@/components/leads/leads-map";
 import { LeadDetailSheet } from "@/components/leads/lead-detail-sheet";
-import { seedProperties, type Property } from "./seed-data";
+import { type Property } from "./seed-data";
 import { trackLeadEvent, trackLeadsViewed } from "@/lib/behavior/client";
-import { Gavel } from "lucide-react";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Gavel, Home } from "lucide-react";
 
 // ---------------------------------------------------------------------------
 // Leads page — map-first redesign.
@@ -42,25 +43,25 @@ export default function LeadsPage() {
   // Surfaces the "real money this view represents" headline for demos.
 
   // ------------------------------------------------------------------------
-  // Fetch properties — falls back to seed data so the demo always has content.
+  // Fetch properties — strictly real data. When the API returns zero rows
+  // or errors, the UI surfaces an EmptyState instead of fabricated seed data.
   // ------------------------------------------------------------------------
   const fetchProperties = useCallback(async () => {
     try {
       setLoading(true);
       const res = await fetch("/api/properties");
       if (!res.ok) {
-        setProperties(seedProperties);
+        setProperties([]);
         return;
       }
       const data = await res.json();
       const list: Property[] = data.properties ?? [];
-      const finalList = list.length > 0 ? list : seedProperties;
-      setProperties(finalList);
+      setProperties(list);
       // Behavioral: leads that appeared in the user's session are "viewed."
       // (Deduped per session inside the helper.)
-      trackLeadsViewed(finalList);
+      trackLeadsViewed(list);
     } catch {
-      setProperties(seedProperties);
+      setProperties([]);
     } finally {
       setLoading(false);
     }
@@ -375,12 +376,22 @@ export default function LeadsPage() {
       {/* Two-pane main: list (40%) | map (60%) */}
       <div className="flex-1 flex min-h-0 overflow-hidden">
         <div className="w-full sm:w-2/5 lg:w-[38%] border-r border-border overflow-hidden flex flex-col bg-card">
-          <LeadListPanel
-            leads={filtered}
-            selectedLeadId={selectedId}
-            onSelectLead={handleSelect}
-            loading={loading}
-          />
+          {!loading && properties.length === 0 ? (
+            <EmptyState
+              icon={<Home className="h-10 w-10" />}
+              title="No leads yet"
+              description="Pull tax-delinquent, pre-foreclosure, and auction leads by ZIP to start surfacing real distress signals for your flip pipeline."
+              actionLabel="Pull leads by ZIP"
+              actionHref="/app/leads"
+            />
+          ) : (
+            <LeadListPanel
+              leads={filtered}
+              selectedLeadId={selectedId}
+              onSelectLead={handleSelect}
+              loading={loading}
+            />
+          )}
         </div>
         <div className="hidden sm:block flex-1 relative">
           <LeadsMap

@@ -83,7 +83,6 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { format, differenceInDays } from "date-fns";
 import {
-  seedRenovations,
   calculateRenovationStats,
   TRADE_CONFIG,
   type SeedRenovation,
@@ -91,6 +90,7 @@ import {
   type SeedChangeOrder,
   type SeedScopeNode,
 } from "./seed-data";
+import { EmptyState } from "@/components/ui/empty-state";
 
 // ============================================================================
 // TYPES
@@ -838,50 +838,40 @@ export default function RenovationsPage() {
   const [bidNotes, setBidNotes] = useState("");
   const [submittingBid, setSubmittingBid] = useState(false);
 
-  // Fetch renovations - use seed data for demo, combine with API data
+  // Fetch renovations from API — no seed fallback, only real data.
   useEffect(() => {
     const fetchRenovations = async () => {
       try {
         const response = await fetch('/api/renovations');
         if (response.ok) {
           const data = await response.json();
-          if (data.renovations && data.renovations.length > 0) {
-            // Map API data to match seed structure
-            const mapped = data.renovations.map((r: any) => ({
-              ...r,
-              city: r.property?.city || r.region?.split(", ")[0] || "Unknown",
-              state: r.property?.state || r.region?.split(", ")[1] || "FL",
-              budgetLedger: r.budgetLedger ? {
-                baseline: r.maxExposureUsd,
-                committed: JSON.parse(r.budgetLedger.committed || "{}").total || 0,
-                actuals: JSON.parse(r.budgetLedger.actuals || "{}").total || 0,
-                contingencyRemaining: r.budgetLedger.contingencyRemaining || 0,
-              } : undefined,
-              scopeNodes: r.scopeNodes || [],
-              bids: r.bids || [],
-              changeOrders: r.changeOrders || [],
-            }));
-            // Combine API data with seed data for demo purposes
-            // Mark API data with isDemo: false, seed data with isDemo: true
-            const apiWithFlag = mapped.map((r: any) => ({ ...r, isDemo: false }));
-            const seedWithFlag = seedRenovations.map(r => ({ ...r, isDemo: true }));
-            setRenovations([...apiWithFlag, ...seedWithFlag]);
-          } else {
-            setRenovations(seedRenovations);
-          }
+          const mapped = (data.renovations || []).map((r: any) => ({
+            ...r,
+            city: r.property?.city || r.region?.split(", ")[0] || "Unknown",
+            state: r.property?.state || r.region?.split(", ")[1] || "FL",
+            budgetLedger: r.budgetLedger ? {
+              baseline: r.maxExposureUsd,
+              committed: JSON.parse(r.budgetLedger.committed || "{}").total || 0,
+              actuals: JSON.parse(r.budgetLedger.actuals || "{}").total || 0,
+              contingencyRemaining: r.budgetLedger.contingencyRemaining || 0,
+            } : undefined,
+            scopeNodes: r.scopeNodes || [],
+            bids: r.bids || [],
+            changeOrders: r.changeOrders || [],
+          }));
+          setRenovations(mapped);
         } else {
-          setRenovations(seedRenovations);
+          setRenovations([]);
         }
       } catch (error) {
         console.error('Error fetching renovations:', error);
-        setRenovations(seedRenovations);
+        setRenovations([]);
       } finally {
         setIsLoading(false);
       }
     };
 
-    const timer = setTimeout(fetchRenovations, 500);
-    return () => clearTimeout(timer);
+    fetchRenovations();
   }, []);
 
   const formatCurrency = (amount: number) => {
@@ -1291,24 +1281,15 @@ export default function RenovationsPage() {
               </div>
             )
           ) : filteredRenovations.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-16 text-center">
-              <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-orange-100 to-amber-100 dark:from-orange-900/30 dark:to-amber-900/30 flex items-center justify-center mb-4">
-                <Hammer className="h-8 w-8 text-orange-600 dark:text-orange-400" />
-              </div>
-              <h3 className="text-lg font-semibold mb-2">No renovations found</h3>
-              <p className="text-muted-foreground max-w-md mb-6">
-                {searchQuery || statusFilter !== "all"
-                  ? "Try adjusting your filters to see more projects"
-                  : "Start a renovation from a closed contract to begin tracking progress"
-                }
-              </p>
-              <Button asChild>
-                <Link href="/app/contracts">
-                  <Plus className="h-4 w-4 mr-2" />
-                  View Contracts
-                </Link>
-              </Button>
-            </div>
+            <EmptyState
+              icon={<Hammer className="h-10 w-10" />}
+              title={searchQuery || statusFilter !== "all" ? "No renovations match your filters" : "No renovations yet"}
+              description={searchQuery || statusFilter !== "all"
+                ? "Try clearing your search or status filter to see more projects."
+                : "Renovations are created from closed contracts. Close a contract to start tracking rehab scope, budget, and bids."}
+              actionLabel="View Closed Contracts"
+              actionHref="/app/contracts?status=closed"
+            />
           ) : viewMode === "kanban" ? (
             <div className="flex gap-3 overflow-x-auto pb-2">
               {PIPELINE_STAGES.map((stage) => {

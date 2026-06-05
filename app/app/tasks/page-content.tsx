@@ -82,13 +82,8 @@ import {
 import { useToast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
 import { useUser } from "@clerk/nextjs";
-import {
-  tasksSeedData,
-  type Task,
-  type TaskActivity,
-  type TaskComment,
-  type TaskSubtask
-} from "./seed-data";
+import { EmptyState as SharedEmptyState } from "@/components/ui/empty-state";
+import type { Task, TaskActivity, TaskComment, TaskSubtask } from "./seed-data";
 
 // ============================================================================
 // TYPES
@@ -969,25 +964,43 @@ function StatsSkeleton() {
 // ============================================================================
 
 function EmptyState({ filter }: { filter: StatusFilter }) {
-  const messages: Record<StatusFilter, { title: string; desc: string }> = {
-    all: { title: "No tasks yet", desc: "Create your first task to get started" },
-    open: { title: "No open tasks", desc: "All caught up! Create a new task or check other statuses" },
-    "in-progress": { title: "Nothing in progress", desc: "Start working on a task to see it here" },
-    completed: { title: "No completed tasks", desc: "Complete some tasks to see them here" },
-    blocked: { title: "Nothing blocked", desc: "Great! No tasks are currently blocked" },
-    overdue: { title: "No overdue tasks", desc: "Excellent! You're on top of your deadlines" },
+  const copy: Record<StatusFilter, { title: string; description: string }> = {
+    all: {
+      title: "No tasks yet",
+      description: "Tasks auto-create when you skip-trace a lead or take action on a property. Head to Leads to start working a property and your first task will land here.",
+    },
+    open: {
+      title: "No open tasks",
+      description: "All caught up. New tasks land here when you skip-trace a lead or move a property forward.",
+    },
+    "in-progress": {
+      title: "Nothing in progress",
+      description: "Open a task and mark it in progress to see it here.",
+    },
+    completed: {
+      title: "No completed tasks",
+      description: "Finish a task and it will show up here.",
+    },
+    blocked: {
+      title: "Nothing blocked",
+      description: "No tasks are waiting on something right now.",
+    },
+    overdue: {
+      title: "No overdue tasks",
+      description: "You are on top of every deadline. Nice.",
+    },
   };
 
-  const { title, desc } = messages[filter];
+  const { title, description } = copy[filter];
 
   return (
-    <div className="flex flex-col items-center justify-center h-full min-h-[360px] py-16 px-4">
-      <div className="h-16 w-16 rounded-2xl bg-gradient-to-br from-zinc-100 to-zinc-200 dark:from-zinc-800 dark:to-zinc-900 flex items-center justify-center mb-4">
-        <ListChecks className="h-8 w-8 text-zinc-400" />
-      </div>
-      <h3 className="text-lg font-semibold text-foreground">{title}</h3>
-      <p className="text-sm text-muted-foreground mt-1 text-center max-w-[270px]">{desc}</p>
-    </div>
+    <SharedEmptyState
+      icon={<ListChecks className="h-10 w-10" />}
+      title={title}
+      description={description}
+      actionLabel="Browse Leads"
+      actionHref="/app/leads"
+    />
   );
 }
 
@@ -1061,17 +1074,34 @@ export default function TasksPageContent() {
   });
   const [creating, setCreating] = useState(false);
 
-  // Load seed data (simulating API call)
+  // Load real tasks from API
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setTasks(tasksSeedData.tasks);
-      setSubtasks(tasksSeedData.subtasks);
-      setActivities(tasksSeedData.activities);
-      setComments(tasksSeedData.comments);
-      setLoading(false);
-    }, 800);
-
-    return () => clearTimeout(timer);
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/tasks", { cache: "no-store" });
+        if (!res.ok) throw new Error(`Failed to load tasks: ${res.status}`);
+        const data = await res.json();
+        if (cancelled) return;
+        setTasks(Array.isArray(data?.tasks) ? data.tasks : []);
+        setSubtasks(Array.isArray(data?.subtasks) ? data.subtasks : []);
+        setActivities(Array.isArray(data?.activities) ? data.activities : []);
+        setComments(Array.isArray(data?.comments) ? data.comments : []);
+      } catch (err) {
+        if (!cancelled) {
+          console.error("Failed to load tasks", err);
+          setTasks([]);
+          setSubtasks([]);
+          setActivities([]);
+          setComments([]);
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   // Filtered tasks
@@ -1098,38 +1128,57 @@ export default function TasksPageContent() {
     return true;
   });
 
-  // Metrics
-  const metrics = {
-    overdue: tasks.filter(t => t.status === "overdue" ||
-      (t.status !== "completed" && new Date(t.dueAt) < new Date())).length,
-    urgent: tasks.filter(t => t.priority === "urgent" && t.status !== "completed").length,
-    dueToday: tasks.filter(t => {
+  // Metrics derived from real tasks only
+  const metrics = (() => {
+    const overdue = tasks.filter(t => t.status === "overdue" ||
+      (t.status !== "completed" && new Date(t.dueAt) < new Date())).length;
+    const urgent = tasks.filter(t => t.priority === "urgent" && t.status !== "completed").length;
+    const dueToday = tasks.filter(t => {
       const due = new Date(t.dueAt);
       const now = new Date();
       return due.toDateString() === now.toDateString() && t.status !== "completed";
-    }).length,
-    completed: tasks.filter(t => t.status === "completed").length,
-    slaCompliance: tasksSeedData.analytics.slaCompliance.overall,
-  };
+    }).length;
+    const completed = tasks.filter(t => t.status === "completed").length;
+    const withSla = tasks.filter(t => t.slaStatus);
+    const onTrack = withSla.filter(t => t.slaStatus === "on-track").length;
+    const slaCompliance = withSla.length > 0 ? Math.round((onTrack / withSla.length) * 100) : 0;
+    return { overdue, urgent, dueToday, completed, slaCompliance };
+  })();
 
   // Handlers
-  const handleToggleComplete = useCallback((taskId: string) => {
-    setTasks(prev => prev.map(t => {
-      if (t.id === taskId) {
-        const newStatus = t.status === "completed" ? "open" : "completed";
-        toast({
-          title: newStatus === "completed" ? "Task completed" : "Task reopened",
-          description: t.title,
-        });
-        return {
-          ...t,
-          status: newStatus,
-          completedAt: newStatus === "completed" ? new Date().toISOString() : undefined
-        };
-      }
-      return t;
-    }));
-  }, [toast]);
+  const handleToggleComplete = useCallback(async (taskId: string) => {
+    const current = tasks.find(t => t.id === taskId);
+    if (!current) return;
+    const newStatus: Task["status"] = current.status === "completed" ? "open" : "completed";
+    const completedAt = newStatus === "completed" ? new Date().toISOString() : null;
+
+    // Optimistic update
+    setTasks(prev => prev.map(t => t.id === taskId
+      ? { ...t, status: newStatus, completedAt: completedAt ?? undefined }
+      : t));
+
+    try {
+      const res = await fetch(`/api/tasks/${taskId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: newStatus, completedAt }),
+      });
+      if (!res.ok) throw new Error(`Failed to update task: ${res.status}`);
+      toast({
+        title: newStatus === "completed" ? "Task completed" : "Task reopened",
+        description: current.title,
+      });
+    } catch (err) {
+      console.error("Failed to toggle task", err);
+      // Roll back
+      setTasks(prev => prev.map(t => t.id === taskId ? current : t));
+      toast({
+        title: "Could not update task",
+        description: current.title,
+        variant: "destructive",
+      });
+    }
+  }, [tasks, toast]);
 
   const handleToggleSubtask = useCallback((subtaskId: string) => {
     setSubtasks(prev => prev.map(s => {
@@ -1170,25 +1219,22 @@ export default function TasksPageContent() {
     }
 
     setCreating(true);
+    try {
+      const res = await fetch("/api/tasks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: newTask.title,
+          description: newTask.description || undefined,
+          type: newTask.type,
+          priority: newTask.priority,
+          dueAt: new Date(newTask.dueDate).toISOString(),
+        }),
+      });
+      if (!res.ok) throw new Error(`Failed to create task: ${res.status}`);
+      const created: Task = await res.json();
 
-    // Simulate API call
-    setTimeout(() => {
-      const task: Task = {
-        id: `TASK-${Date.now()}`,
-        title: newTask.title,
-        description: newTask.description || undefined,
-        type: newTask.type,
-        priority: newTask.priority,
-        status: "open",
-        assigneeId: user?.id || "USER-001",
-        assigneeName: user?.fullName || "You",
-        assigneeRole: "acquisitions",
-        dueAt: new Date(newTask.dueDate).toISOString(),
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      };
-
-      setTasks(prev => [task, ...prev]);
+      setTasks(prev => [created, ...prev]);
       setCreateDialogOpen(false);
       setNewTask({
         type: "call",
@@ -1197,13 +1243,20 @@ export default function TasksPageContent() {
         dueDate: "",
         priority: "normal",
       });
-      setCreating(false);
-
       toast({
         title: "Task created",
-        description: task.title,
+        description: created.title,
       });
-    }, 500);
+    } catch (err) {
+      console.error("Failed to create task", err);
+      toast({
+        title: "Could not create task",
+        description: "Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setCreating(false);
+    }
   };
 
   const openTaskDetail = (task: Task) => {
