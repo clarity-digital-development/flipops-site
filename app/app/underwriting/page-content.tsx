@@ -660,7 +660,7 @@ function NetSheetSummary({
           <div className="text-center">
             <div className="flex items-center justify-center gap-1 text-[10px] uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1">
               <Target className="h-3 w-3" />
-              MAO (70%)
+              MAO (Waterfall)
             </div>
             <div className="text-xl font-bold text-gray-900 dark:text-white tabular-nums">
               <AnimatedNumber value={mao} prefix="$" />

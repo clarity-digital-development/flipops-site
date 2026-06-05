@@ -100,6 +100,10 @@ function formatPercent(value: number): string {
   return `${Math.abs(value).toFixed(1)}%`;
 }
 
+function formatMultiplier(value: number): string {
+  return `${Math.abs(value).toFixed(1)}x`;
+}
+
 // ============================================================================
 // CUSTOM TOOLTIP COMPONENT
 // ============================================================================
@@ -154,14 +158,16 @@ function StatChip({
   label: string;
   value: number;
   trend?: number;
-  format?: "number" | "currency" | "percent";
+  format?: "number" | "currency" | "percent" | "multiplier";
   highlight?: boolean;
 }) {
   const formattedValue = format === "currency"
     ? formatCurrency(value)
     : format === "percent"
       ? formatPercent(value)
-      : formatNumber(value);
+      : format === "multiplier"
+        ? formatMultiplier(value)
+        : formatNumber(value);
 
   const TrendIcon = trend && trend > 0 ? TrendingUp : TrendingDown;
   const trendColor = trend && trend > 0 ? "text-emerald-600" : "text-red-600";
@@ -601,7 +607,7 @@ export default function AnalyticsPage() {
               <StatChip icon={FileText} label="Contracts" value={kpis.contracts} trend={15} />
               <StatChip icon={Trophy} label="Closed" value={kpis.closedDeals} trend={22} />
               <StatChip icon={DollarSign} label="Net Profit" value={kpis.netProfit} format="currency" trend={24} highlight />
-              <StatChip icon={Zap} label="ROMI" value={kpis.romi} format="percent" trend={15} />
+              <StatChip icon={Zap} label="ROMI" value={kpis.romi} format="multiplier" trend={15} />
               <StatChip icon={Activity} label="Conversion" value={kpis.conversionRate * 100} format="percent" trend={8} />
             </>
           )}

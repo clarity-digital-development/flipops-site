@@ -19,15 +19,13 @@ FlipOps is a real estate investment automation platform built with Next.js 16, R
 ```
 app/                    # Next.js App Router
   app/                  # Authenticated app pages (/app/*)
-    campaigns/          # Campaigns page and seed data
+    dialer/             # Dialer page (Telnyx + Oppenheimer inbound AI — replaced Campaigns)
     offers/             # Offers page and seed data
     vendors/            # Vendors page with network system
       page.tsx          # Main vendors UI (USE_DEMO_DATA toggle)
       seed-data.ts      # Demo vendor data (12 vendors)
     components/         # Shared app components
-      campaign-detail.tsx  # Campaign detail view component
   api/                  # API routes
-    campaigns/          # Campaign CRUD endpoints
     offers/             # Offer CRUD endpoints
     vendors/            # Vendor network API
       my/               # User's vendor network
@@ -39,7 +37,6 @@ app/                    # Next.js App Router
   (marketing)/          # Public marketing pages
 components/             # React components
   ui/                   # Base UI components (shadcn/ui style)
-  campaigns/            # Campaign-specific components (wizard, etc.)
 lib/                    # Core business logic
   prisma.ts             # Prisma client singleton (IMPORTANT: use this, don't create new instances)
   reapi/                # RealEstateAPI integration
@@ -57,7 +54,6 @@ scripts/                # Utility scripts
   refresh-platform-vendors.ts # Refresh stale vendor data
   setup-user-vendor-network.ts # Link vendors to user accounts
 docs/                   # Documentation
-  CAMPAIGNS.md          # Campaigns system documentation
   OFFERS_CONTRACTS.md   # Offers & contracts documentation
   development/          # Dev guides (DECISIONS.md, UI-DECISIONS.md, TESTS.md, etc.)
   guardrails/           # G1-G4 implementation docs
@@ -288,7 +284,7 @@ Complete schema covering:
   - `VendorCategory` enum - 28 trade types (GENERAL_CONTRACTOR, ROOFER, PLUMBER, etc.)
 
 #### UI Pages (app/app/)
-17 authenticated pages: Dashboard, Leads, Tasks, Contracts, Renovations, Rentals, Offers, Underwriting, Campaigns, Inbox, Documents (with folder navigation, 3 view modes, template library), Analytics, Settings, Vendors (with network system), Buyers, Onboarding
+17 authenticated pages: Dashboard, Leads, Tasks, Contracts, Renovations, Rentals, Offers, Underwriting, Dialer, Inbox, Documents (with folder navigation, 3 view modes, template library), Analytics, Settings, Vendors (with network system), Buyers, Onboarding
 
 #### Demo Data System
 For pre-beta preview, non-admin users see demo data:
@@ -440,63 +436,6 @@ Completely redesigned with "Editorial Precision" aesthetic:
 - **Footer Removed** - No footer in app layout (info available on homepage/onboarding)
 - **Viewport Fitting** - Main content uses `h-[calc(100dvh-4rem)] overflow-hidden`
 - **Internal Scrolling** - Pages use ScrollArea with `min-h-0` flex children
-
-#### Campaigns (`app/app/campaigns/page.tsx`)
-Completely redesigned with "Command Center Elegance" aesthetic:
-- **Card-Based Layout** - Visual campaign cards instead of table, with hover lift effects
-- **Status Bar Indicators** - Color-coded gradient bars at top of each card (emerald=running, amber=paused, blue=draft)
-- **Animated Progress Rings** - SVG circular progress indicator with smooth transitions
-- **Sparkline Charts** - Mini trend visualizations for reply rate performance
-- **Metrics Grid** - Sent/Replies/Deals displayed with icons and tabular-nums
-- **Channel Badges** - Color-coded icons for SMS/Email/Voicemail/Letter
-- **Status Pulse Animation** - Pulsing dot for active/running campaigns
-- **Premium Stat Cards** - Gradient backgrounds with trend indicators and ROI display
-- **Grid/List Toggle** - Switch between card grid and list views
-- **Skeleton Loading** - Proper loading state with card skeletons
-- **Empty State** - Sparkles icon with helpful CTA when no campaigns
-
-New components: `Sparkline`, `ProgressRing`, `StatusIndicator`, `ChannelBadges`, `CampaignCard`, `StatCard`
-
-#### Campaign Detail View (`app/app/components/campaign-detail.tsx`)
-Detailed campaign analytics view when clicking a campaign card:
-- **Header Section** - Campaign name, status badge, action buttons (Pause/Resume, Edit, Export)
-- **Key Metrics Bar** - 7 compact stat chips (Audience, Sent, Delivered%, Replies, Positive, Contracts, Total Cost)
-- **Progress Bar** - Inline progress indicator with percentage
-- **5 Tabbed Views**:
-  - **Overview Tab** - Step Funnel + Channel Performance + Sentiment Analysis
-  - **Analytics Tab** - Geographic Performance table, A/B Test Results (if enabled)
-  - **Deliveries Tab** - Individual message delivery log with lead info, status, sentiment
-  - **Audience Tab** - Filter badges, audience size, lead preview list
-  - **Settings Tab** - Compliance settings (DNC, consent, quiet hours), Throttle settings
-- **Step Funnel** - Vertical stacked progress bars showing delivery → replied → positive per step
-- **Channel Performance** - Visual cards per channel (SMS/Email/Voicemail) with gradient progress bars, reply rate, cost
-- **Sentiment Analysis** - 2x2 grid with Lucide icons (TrendingUp, Minus, TrendingDown, HelpCircle), stacked bar visualization
-- **Viewport-Fitting Layout** - Uses flex columns with `min-h-0` to fit content without external scrolling
-
-Campaign Data Structure:
-```typescript
-interface Campaign {
-  id: string;
-  name: string;
-  status: "running" | "paused" | "completed" | "draft";
-  objective: "inbound" | "reengage" | "disposition";
-  channels: string[]; // ["sms", "email", "voicemail", "letter"]
-  audience: { size: number; filters: string[] };
-  metrics: {
-    sends: number;
-    delivered: number;
-    replies: number;
-    positive: number;
-    contracts: number;
-    cost: number;
-    revenue?: number;
-  };
-  progress: number; // 0-100
-  abTest: boolean;
-  lastRun: Date | null;
-  createdAt: Date;
-}
-```
 
 #### Underwriting (`app/app/underwriting/page-content.tsx`)
 Completely redesigned with "Command Center Precision" aesthetic:
@@ -1040,13 +979,6 @@ See `docs/development/DECISIONS.md` for comprehensive documentation.
 - **Table Height**: `max-h-[495px]` shows ~9 rows before scrolling
 - **Status Bar**: Minimal footer with `py-0.5 text-[11px]`
 - **Seed Data**: 16 sample properties for demo/development fallback
-
-#### Campaigns Page Enhancements
-- **Sparkline Animation**: Visible by default, subtle gradient fill
-- **Progress Ring**: Animated fill with CSS keyframes
-- **Status Colors**: emerald=running, amber=paused, gray=completed, blue=draft
-- **Pulsing Indicator**: `animate-ping` for running campaigns
-- **View Toggle**: Grid vs list layout options
 
 ### Pre-existing TypeScript Errors (Not from redesign)
 
