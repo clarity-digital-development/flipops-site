@@ -1,0 +1,190 @@
+name: E2E - Leads Auction Promote
+
+# Weekly post-deploy canary that runs the Playwright leads-auction-promote spec
+# against a staging deploy. Manual workflow_dispatch supported for on-demand
+# runs. PR trigger is INTENTIONALLY omitted — the spec mutates the database
+# via the fixture (Parcel + Foreclosure + AuctionSummary upsert) and triggers
+# a POST to /api/properties/promote, so running on every PR would either burn
+# state in production or require a per-PR ephemeral DB.
+#
+# Required GitHub Actions configuration before this workflow does meaningful work:
+#   - vars.E2E_BASE_URL      = "https://flipops.io" (or staging URL)
+#   - secrets.E2E_DATABASE_URL = postgres URL of a NON-PROD database
+#   - secrets.SLACK_WEBHOOK_URL (optional) = for failure notification
+#
+# Without both vars.E2E_BASE_URL AND secrets.E2E_DATABASE_URL, the preflight
+# job skips the workflow cleanly with a warning. This is by design — the
+# workflow ships now, the secrets get added when staging exists.
+
+on:
+  schedule:
+    - cron: '0 10 * * 1'
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: 'Override E2E_BASE_URL for this run (optional)'
+        required: false
+        type: string
+
+concurrency:
+  group: e2e-leads-auction-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  preflight:
+    name: Preflight - resolve E2E_BASE_URL + check E2E_DATABASE_URL
+    runs-on: ubuntu-latest
+    outputs:
+      has_base_url: ${{ steps.check.outputs.has_base_url }}
+      has_db_url: ${{ steps.check.outputs.has_db_url }}
+      base_url: ${{ steps.check.outputs.base_url }}
+    steps:
+      - id: check
+        env:
+          REPO_BASE_URL: ${{ vars.E2E_BASE_URL }}
+          INPUT_BASE_URL: ${{ inputs.base_url }}
+          DB_URL_PRESENT: ${{ secrets.E2E_DATABASE_URL != '' }}
+        run: |
+          # Precedence: workflow_dispatch input > repo variable > none.
+          RESOLVED="${INPUT_BASE_URL:-${REPO_BASE_URL:-}}"
+          if [ -z "$RESOLVED" ]; then
+            echo "::warning::E2E_BASE_URL is not configured (set vars.E2E_BASE_URL or pass workflow_dispatch input). Skipping run."
+            echo "has_base_url=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "Resolved E2E_BASE_URL=$RESOLVED"
+            echo "has_base_url=true" >> "$GITHUB_OUTPUT"
+            echo "base_url=$RESOLVED" >> "$GITHUB_OUTPUT"
+          fi
+          if [ "$DB_URL_PRESENT" = "true" ]; then
+            echo "has_db_url=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::secrets.E2E_DATABASE_URL is not configured. The fixture cannot seed without a DB. Skipping run."
+            echo "has_db_url=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  e2e:
+    name: Playwright - leads auction promote
+    needs: preflight
+    if: needs.preflight.outputs.has_base_url == 'true' && needs.preflight.outputs.has_db_url == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      E2E_BASE_URL: ${{ needs.preflight.outputs.base_url }}
+      # The fixture writes Parcel/Foreclosure/AuctionSummary via Prisma's
+      # singleton, which reads DATABASE_URL from the runtime env. Operators
+      # MUST point E2E_DATABASE_URL at a non-prod database — the fixture
+      # itself has a prod-shaped-URL guard but the secret should never be a
+      # production connection string in the first place.
+      DATABASE_URL: ${{ secrets.E2E_DATABASE_URL }}
+      # Explicit opt-in for the fixture's DB-seed guard.
+      E2E_ALLOW_DB_SEED: '1'
+      CI: 'true'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: package-lock.json
+
+      - name: Install npm dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Resolve installed Playwright version
+        id: pw
+        run: |
+          VERSION=$(node -p "require('@playwright/test/package.json').version")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Playwright version: $VERSION"
+
+      # Strict cache key — no restore-keys fallback. A Playwright version bump
+      # cleanly misses the cache and triggers a full --with-deps install rather
+      # than a partial restore that leaves a stale Chromium ABI in place.
+      - name: Cache Playwright browsers
+        id: pw-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-${{ runner.os }}-${{ steps.pw.outputs.version }}
+
+      - name: Install Playwright Chromium (with system deps)
+        if: steps.pw-cache.outputs.cache-hit != 'true'
+        run: |
+          for i in 1 2 3; do
+            if npx playwright install --with-deps chromium; then
+              exit 0
+            fi
+            echo "Playwright install attempt $i failed, retrying in 10s..."
+            sleep 10
+          done
+          echo "::error::Playwright install failed after 3 attempts"
+          exit 1
+
+      - name: Install Chromium system deps only (cache hit)
+        if: steps.pw-cache.outputs.cache-hit == 'true'
+        run: |
+          for i in 1 2 3; do
+            if npx playwright install-deps chromium; then
+              exit 0
+            fi
+            echo "Playwright install-deps attempt $i failed, retrying in 10s..."
+            sleep 10
+          done
+          echo "::error::Playwright install-deps failed after 3 attempts"
+          exit 1
+
+      # Pre-flight health probe. /api/health is in middleware.ts public route
+      # list, so no auth needed. Wait up to 90s for Railway to be ready —
+      # absorbs deploy windows (railway.toml health timeout is 100s).
+      - name: Wait for target deploy to be healthy
+        run: |
+          echo "Probing $E2E_BASE_URL/api/health ..."
+          for i in $(seq 1 18); do
+            CODE=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 10 "$E2E_BASE_URL/api/health" || echo '000')
+            if [ "$CODE" = "200" ]; then
+              echo "Health check OK on attempt $i (HTTP $CODE)"
+              exit 0
+            fi
+            echo "Attempt $i: HTTP $CODE — retrying in 5s"
+            sleep 5
+          done
+          echo "::warning::Health check never returned 200 after 90s — proceeding anyway and letting Playwright report the real failure."
+
+      - name: Run Playwright e2e (leads auction promote)
+        run: npx playwright test tests/e2e/leads-auction-promote.spec.ts --reporter=list,html
+
+      - name: Upload Playwright HTML report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-${{ github.run_id }}-${{ github.run_attempt }}
+          path: playwright-report
+          retention-days: 7
+          if-no-files-found: ignore
+
+      - name: Upload Playwright traces and screenshots
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-traces-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            test-results/**/trace.zip
+            test-results/**/*.png
+            test-results/**/*.webm
+          retention-days: 7
+          if-no-files-found: ignore
+
+      - name: Notify Slack on failure
+        if: failure() && env.SLACK_WEBHOOK_URL != ''
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: |
+          curl -X POST -H 'Content-type: application/json' \
+            --data "{\"text\":\"E2E leads-auction-promote failed on ${{ github.event_name }} against ${E2E_BASE_URL}. See run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\"}" \
+            "$SLACK_WEBHOOK_URL"
