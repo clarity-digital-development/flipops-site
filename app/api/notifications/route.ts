@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
-import { auth } from '@clerk/nextjs/server';
 
 // Schema for notification data
 const NotificationSchema = z.object({
@@ -102,21 +101,20 @@ export async function POST(req: NextRequest) {
 }
 
 // GET endpoint to retrieve recent notifications
-// Accepts EITHER an API key (for cron/webhook callers) OR a Clerk session
-// (for browser callers from the Dashboard widget). Mutating endpoints
-// (POST/PATCH) below remain API-key-only.
+// API-key-only. The Notification model has no userId field, so allowing
+// Clerk session auth here would expose all users' notifications (IDOR).
+// The Dashboard widget will show empty until a userId column + migration
+// ships in a follow-up phase.
 export async function GET(req: NextRequest) {
   try {
     const apiKey = req.headers.get('x-api-key') || req.headers.get('authorization')?.replace('Bearer ', '');
     const expectedApiKey = process.env.FO_API_KEY || process.env.FLIPOPS_API_KEY;
-    const apiKeyValid = expectedApiKey && apiKey === expectedApiKey;
 
-    if (!apiKeyValid) {
-      // Fall back to Clerk session auth for browser callers.
-      const { userId: clerkId } = await auth();
-      if (!clerkId) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-      }
+    if (!expectedApiKey || apiKey !== expectedApiKey) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      );
     }
 
     // Get query parameters

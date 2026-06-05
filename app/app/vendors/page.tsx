@@ -87,8 +87,11 @@ import {
   projects as demoProjects,
 } from "./seed-data";
 
-// Toggle this to switch between demo data and API data
-const USE_DEMO_DATA = true;
+// Use real API data — seed data is no longer used.
+// Per the platform UX walkthrough (2026-06-04), the seed-data fallback was
+// hard-locking every user to 12 AZ contractors regardless of their actual
+// vendor network. /api/vendors/my returns the user's real vendors.
+const USE_DEMO_DATA = false;
 
 // ============================================================================
 // TRADE CONFIGURATION (matches VendorCategory enum)
