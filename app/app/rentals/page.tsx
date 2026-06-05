@@ -748,11 +748,15 @@ function FinancialSummary({ rental }: { rental: Rental }) {
 function RentalDetailSheet({
   rental,
   open,
-  onClose
+  onClose,
+  onRequestEdit,
+  onRequestPayment,
 }: {
   rental: Rental | null;
   open: boolean;
   onClose: () => void;
+  onRequestEdit?: (rental: Rental) => void;
+  onRequestPayment?: (rental: Rental) => void;
 }) {
   const { toast } = useToast();
 
@@ -765,27 +769,24 @@ function RentalDetailSheet({
   const showRenewalOption = rental.status === "leased" && daysUntilExpiration !== null && daysUntilExpiration <= 60 && daysUntilExpiration >= 0;
 
   const handleEdit = () => {
-    toast({
-      title: "Edit Property",
-      description: `Opening editor for ${rental.address}...`,
-    });
-    // In a real app, this would open an edit modal or navigate to edit page
+    // Wired in the parent via an onRequestEdit prop — opens the edit sheet.
+    onRequestEdit?.(rental);
   };
 
   const handleRecordPayment = () => {
-    toast({
-      title: "Payment Recorded",
-      description: `Payment dialog would open for ${rental.address}`,
-    });
-    // In a real app, this would open a payment recording modal
+    // Wired in the parent via an onRequestPayment prop — opens the payment dialog.
+    onRequestPayment?.(rental);
   };
 
   const handleSendRenewal = () => {
+    // Phase 8: Documents backend ships in Phase 6 — this surface is
+    // explicitly deferred until then. Toast "coming soon" instead of
+    // pretending the contract was sent.
+    // TODO: wire to /api/documents/templates/renewal once Phase 6 lands.
     toast({
-      title: "Renewal Contract Sent",
-      description: `Lease renewal contract sent to ${rental.tenants.map(t => t.name).join(", ")}`,
+      title: "Renewal contract coming soon",
+      description: `Renewal docs ship with the Documents backend (Phase 6). Lease for ${rental.address} flagged with ${daysUntilExpiration} days remaining.`,
     });
-    // In a real app, this would trigger an email/document workflow
   };
 
   return (
@@ -1153,9 +1154,11 @@ export default function RentalsPage() {
               Manage properties, track cash flow, and monitor tenants
             </p>
           </div>
-          <Button>
-            <Plus className="h-4 w-4 mr-2" />
-            Add Property
+          <Button asChild title="Rentals are created from closed contracts. Close a contract to start tracking rent.">
+            <Link href="/app/contracts">
+              <Plus className="h-4 w-4 mr-2" />
+              Add Property
+            </Link>
           </Button>
         </div>
       </div>

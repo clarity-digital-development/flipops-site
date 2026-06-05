@@ -31,6 +31,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { useToast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
 import { ThemeToggle } from "@/app/components/theme-toggle";
 import { ErrorBoundary } from "@/app/components/error-boundary";
@@ -187,6 +188,7 @@ export default function AppLayout({
 }) {
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const { toast } = useToast();
   const [quickAddLeadOpen, setQuickAddLeadOpen] = useState(false);
   const [investorType, setInvestorType] = useState<InvestorType>(null);
   const [sidebar, setSidebar] = useState<SidebarEntry[]>(baseSidebar);
@@ -370,24 +372,33 @@ export default function AppLayout({
             <Menu className="h-5 w-5" />
           </Button>
 
-          {/* Search */}
-          <div className="flex-1 flex items-center gap-4 min-w-0">
-            <div className="relative w-full max-w-md">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-              <Input
-                type="search"
-                placeholder="Search..."
-                className="pl-10 h-9 bg-gray-100 dark:bg-gray-800 border-gray-300 dark:border-gray-700 text-gray-900 dark:text-white placeholder:text-gray-500 dark:placeholder:text-gray-400 text-sm"
-              />
-            </div>
-          </div>
+          {/* Search — hidden until command palette ships (Phase 8) */}
+          {/* TODO: re-enable when command palette ships. Visible non-functional
+              search is worse than no search. Keep the spacer so the right-side
+              actions stay flush with the right edge. */}
+          <div className="flex-1 min-w-0" />
 
           {/* Actions */}
           <div className="flex items-center gap-2 sm:gap-3">
             <ThemeToggle />
-            <Button variant="ghost" size="icon" className="relative">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="relative"
+              aria-label="Notifications"
+              onClick={() => {
+                // Phase 8: /api/notifications GET requires FO_API_KEY and is
+                // not user-scoped; surfacing recent notifications from the
+                // browser would either leak cross-tenant data or 401. Toast
+                // until a user-scoped query lands.
+                toast({
+                  title: "Notifications coming soon",
+                  description: "Recent activity will appear here once user-scoped notifications ship.",
+                });
+              }}
+            >
               <Bell className="h-5 w-5" />
-              <span className="absolute top-1 right-1 h-2 w-2 bg-blue-500 rounded-full" />
+              {/* Hardcoded unread dot removed — it was a lie. */}
             </Button>
             <Button
               variant="default"

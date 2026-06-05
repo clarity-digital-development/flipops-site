@@ -355,11 +355,15 @@ function TaskTableRow({
   task,
   onClick,
   onToggleComplete,
+  onEdit,
+  onDelete,
 }: {
   task: Task;
   subtasks: TaskSubtask[];
   onClick: () => void;
   onToggleComplete: () => void;
+  onEdit: () => void;
+  onDelete: () => void;
 }) {
   const isOverdue = task.status === "overdue" ||
     (task.status !== "completed" && new Date(task.dueAt) < new Date());
@@ -463,14 +467,14 @@ function TaskTableRow({
               <CheckCircle2 className="h-4 w-4 mr-2" />
               {task.status === "completed" ? "Mark Incomplete" : "Mark Complete"}
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={(e) => e.stopPropagation()}>
+            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onEdit(); }}>
               <Edit3 className="h-4 w-4 mr-2" />
               Edit
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem
               className="text-red-600 dark:text-red-400"
-              onClick={(e) => e.stopPropagation()}
+              onClick={(e) => { e.stopPropagation(); onDelete(); }}
             >
               <Trash2 className="h-4 w-4 mr-2" />
               Delete
@@ -490,11 +494,15 @@ function TaskGridCard({
   task,
   onClick,
   onToggleComplete,
+  onEdit,
+  onDelete,
 }: {
   task: Task;
   subtasks: TaskSubtask[];
   onClick: () => void;
   onToggleComplete: () => void;
+  onEdit: () => void;
+  onDelete: () => void;
 }) {
   const isOverdue = task.status === "overdue" ||
     (task.status !== "completed" && new Date(task.dueAt) < new Date());
@@ -525,9 +533,16 @@ function TaskGridCard({
                 <CheckCircle2 className="h-4 w-4 mr-2" />
                 {task.status === "completed" ? "Mark Incomplete" : "Mark Complete"}
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={(e) => e.stopPropagation()}>
+              <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onEdit(); }}>
                 <Edit3 className="h-4 w-4 mr-2" />
                 Edit
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                className="text-red-600 dark:text-red-400"
+                onClick={(e) => { e.stopPropagation(); onDelete(); }}
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                Delete
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -1063,6 +1078,8 @@ export default function TasksPageContent() {
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [deleteConfirmTask, setDeleteConfirmTask] = useState<Task | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   // New task form
   const [newTask, setNewTask] = useState<TaskFormData>({
@@ -1264,6 +1281,40 @@ export default function TasksPageContent() {
     setSheetOpen(true);
   };
 
+  // Edit opens the detail sheet. The sheet today is read-mostly; this gets us
+  // a working surface immediately. A dedicated edit-mode flag can layer on
+  // top in a follow-up without touching consumers.
+  const handleEditTask = (task: Task) => {
+    setSelectedTask(task);
+    setSheetOpen(true);
+  };
+
+  const handleDeleteTask = async () => {
+    if (!deleteConfirmTask) return;
+    setDeleting(true);
+    const target = deleteConfirmTask;
+    try {
+      const res = await fetch(`/api/tasks/${target.id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error(`Failed to delete task: ${res.status}`);
+      setTasks((prev) => prev.filter((t) => t.id !== target.id));
+      if (selectedTask?.id === target.id) {
+        setSelectedTask(null);
+        setSheetOpen(false);
+      }
+      toast({ title: "Task deleted", description: target.title });
+      setDeleteConfirmTask(null);
+    } catch (err) {
+      console.error("Failed to delete task", err);
+      toast({
+        title: "Could not delete task",
+        description: target.title,
+        variant: "destructive",
+      });
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   const selectedTaskSubtasks = subtasks.filter(s => s.taskId === selectedTask?.id);
   const selectedTaskActivities = activities.filter(a => a.taskId === selectedTask?.id);
   const selectedTaskComments = comments.filter(c => c.taskId === selectedTask?.id);
@@ -1414,6 +1465,8 @@ export default function TasksPageContent() {
                       subtasks={subtasks.filter(s => s.taskId === task.id)}
                       onClick={() => openTaskDetail(task)}
                       onToggleComplete={() => handleToggleComplete(task.id)}
+                      onEdit={() => handleEditTask(task)}
+                      onDelete={() => setDeleteConfirmTask(task)}
                     />
                   ))}
                 </TableBody>
@@ -1429,6 +1482,8 @@ export default function TasksPageContent() {
                     subtasks={subtasks.filter(s => s.taskId === task.id)}
                     onClick={() => openTaskDetail(task)}
                     onToggleComplete={() => handleToggleComplete(task.id)}
+                    onEdit={() => handleEditTask(task)}
+                    onDelete={() => setDeleteConfirmTask(task)}
                   />
                 ))}
               </div>
@@ -1449,6 +1504,26 @@ export default function TasksPageContent() {
         onToggleSubtask={handleToggleSubtask}
         onAddComment={(content) => selectedTask && handleAddComment(selectedTask.id, content)}
       />
+
+      {/* Delete Confirm Dialog */}
+      <Dialog open={!!deleteConfirmTask} onOpenChange={(o) => !o && setDeleteConfirmTask(null)}>
+        <DialogContent className="sm:max-w-[432px]">
+          <DialogHeader>
+            <DialogTitle>Delete task?</DialogTitle>
+            <DialogDescription>
+              This permanently removes &quot;{deleteConfirmTask?.title}&quot; from your task list. This cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteConfirmTask(null)} disabled={deleting}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={handleDeleteTask} disabled={deleting}>
+              {deleting ? "Deleting..." : "Delete task"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Create Task Dialog */}
       <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>

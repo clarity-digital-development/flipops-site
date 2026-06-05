@@ -256,14 +256,19 @@ export default function LeadsPage() {
   };
 
   const handleSkipTrace = async (id: string) => {
-    // Phase 4 wires this to POST /api/batchdata/skip-trace.
+    // Phase 8: /api/properties/[id]/skip-trace exists but is a *writer* — it
+    // expects pre-fetched phones/emails from the BatchData provider AND
+    // requires FO_API_KEY (server-side only). The browser cannot trigger a
+    // fresh skip trace until the BatchData fetch path is reactivated and
+    // moved behind a Clerk-auth proxy route.
+    // TODO: wire when BatchData billing reactivated.
     const target = properties.find((p) => p.id === id);
     if (target) void trackLeadEvent("enriched", target, { kind: "skip_trace" });
     toast({
-      title: "Skip trace queued",
+      title: "Skip trace coming soon",
       description: target
-        ? `Owner contact lookup for ${target.address} will run once BatchData is live.`
-        : "Skip trace request queued.",
+        ? `Owner contact lookup for ${target.address} will run once BatchData billing is reactivated.`
+        : "Skip trace request will run once BatchData is live.",
     });
   };
 
@@ -278,8 +283,16 @@ export default function LeadsPage() {
     // Behavioral: saved/queued for outreach — positive signal.
     const lead = properties.find((p) => p.id === id);
     if (lead) void trackLeadEvent("saved", lead, { destination: "dialer" });
-    // Route to Oppenheimer (the AI dialer) with the lead pre-queued.
-    router.push(`/app/dialer?tab=oppenheimer&addLeadId=${encodeURIComponent(id)}`);
+    // Phase 8: /app/dialer consumes ?tab but NOT ?addLeadId — verified by
+    // grepping components/dialer/*. Dropping the dead param and showing a
+    // confirmation toast so users know the lead landed somewhere intentional.
+    router.push(`/app/dialer?tab=oppenheimer`);
+    toast({
+      title: "Lead sent to Dialer",
+      description: lead
+        ? `${lead.address} is ready to queue in Oppenheimer.`
+        : "Open the Oppenheimer tab to queue this lead.",
+    });
   };
 
   const handleLogContact = async (id: string) => {

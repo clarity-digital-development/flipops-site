@@ -838,6 +838,22 @@ export default function RenovationsPage() {
   const [bidNotes, setBidNotes] = useState("");
   const [submittingBid, setSubmittingBid] = useState(false);
 
+  // Add Scope Item dialog (Phase 8)
+  const [addScopeDialogOpen, setAddScopeDialogOpen] = useState(false);
+  const [scopeTrade, setScopeTrade] = useState("");
+  const [scopeTask, setScopeTask] = useState("");
+  const [scopeQuantity, setScopeQuantity] = useState("1");
+  const [scopeUnit, setScopeUnit] = useState("lot");
+  const [submittingScope, setSubmittingScope] = useState(false);
+
+  // Submit Change Order dialog (Phase 8)
+  const [submitCODialogOpen, setSubmitCODialogOpen] = useState(false);
+  const [coTrade, setCoTrade] = useState("");
+  const [coDeltaUsd, setCoDeltaUsd] = useState("");
+  const [coImpactDays, setCoImpactDays] = useState("0");
+  const [coReason, setCoReason] = useState("");
+  const [submittingCO, setSubmittingCO] = useState(false);
+
   // Fetch renovations from API — no seed fallback, only real data.
   useEffect(() => {
     const fetchRenovations = async () => {
@@ -1053,6 +1069,125 @@ export default function RenovationsPage() {
       fetchVendorsByTrade(trade);
     } else {
       setVendors([]);
+    }
+  };
+
+  // Submit a new scope item (Phase 8)
+  const handleSubmitScopeItem = async () => {
+    if (!selectedRenovation || !scopeTrade || !scopeTask || !scopeQuantity) {
+      toast.error("Trade, task, and quantity are required");
+      return;
+    }
+    setSubmittingScope(true);
+    try {
+      const response = await fetch("/api/scope-items", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          dealId: selectedRenovation.id,
+          trade: scopeTrade,
+          task: scopeTask,
+          quantity: parseFloat(scopeQuantity),
+          unit: scopeUnit || "lot",
+        }),
+      });
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({} as any));
+        throw new Error(err.error || `Failed (${response.status})`);
+      }
+      const data = await response.json();
+      toast.success("Scope item added");
+      setAddScopeDialogOpen(false);
+      setScopeTrade("");
+      setScopeTask("");
+      setScopeQuantity("1");
+      setScopeUnit("lot");
+      // Splice it into the selected renovation so the Scope tab updates.
+      const newScope: any = data.scopeItem;
+      setRenovations((prev) =>
+        prev.map((r) =>
+          r.id === selectedRenovation.id
+            ? {
+                ...r,
+                scopeNodes: [...r.scopeNodes, newScope],
+                _count: { ...r._count, scopeNodes: r._count.scopeNodes + 1 },
+              }
+            : r,
+        ),
+      );
+      setSelectedRenovation((prev) =>
+        prev
+          ? {
+              ...prev,
+              scopeNodes: [...prev.scopeNodes, newScope],
+              _count: { ...prev._count, scopeNodes: prev._count.scopeNodes + 1 },
+            }
+          : null,
+      );
+    } catch (err) {
+      console.error("Error adding scope item:", err);
+      toast.error(err instanceof Error ? err.message : "Failed to add scope item");
+    } finally {
+      setSubmittingScope(false);
+    }
+  };
+
+  // Submit a new change order (Phase 8)
+  const handleSubmitChangeOrder = async () => {
+    if (!selectedRenovation || !coTrade || !coDeltaUsd) {
+      toast.error("Trade and delta amount are required");
+      return;
+    }
+    setSubmittingCO(true);
+    try {
+      const response = await fetch("/api/change-orders", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          dealId: selectedRenovation.id,
+          trade: coTrade,
+          deltaUsd: Math.round(parseFloat(coDeltaUsd)),
+          impactDays: Math.round(parseFloat(coImpactDays || "0")),
+          reason: coReason || undefined,
+        }),
+      });
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({} as any));
+        throw new Error(err.error || `Failed (${response.status})`);
+      }
+      const data = await response.json();
+      toast.success("Change order submitted");
+      setSubmitCODialogOpen(false);
+      setCoTrade("");
+      setCoDeltaUsd("");
+      setCoImpactDays("0");
+      setCoReason("");
+      const newCO: any = data.changeOrder;
+      setRenovations((prev) =>
+        prev.map((r) =>
+          r.id === selectedRenovation.id
+            ? {
+                ...r,
+                changeOrders: [...r.changeOrders, newCO],
+                _count: { ...r._count, changeOrders: r._count.changeOrders + 1 },
+              }
+            : r,
+        ),
+      );
+      setSelectedRenovation((prev) =>
+        prev
+          ? {
+              ...prev,
+              changeOrders: [...prev.changeOrders, newCO],
+              _count: { ...prev._count, changeOrders: prev._count.changeOrders + 1 },
+            }
+          : null,
+      );
+    } catch (err) {
+      console.error("Error submitting change order:", err);
+      toast.error(err instanceof Error ? err.message : "Failed to submit change order");
+    } finally {
+      setSubmittingCO(false);
     }
   };
 
@@ -1497,6 +1632,14 @@ export default function RenovationsPage() {
                       <h4 className="text-sm font-medium text-gray-500 dark:text-gray-400">
                         Scope Items ({selectedRenovation.scopeNodes.length})
                       </h4>
+                      <Button
+                        size="sm"
+                        onClick={() => setAddScopeDialogOpen(true)}
+                        className="gap-1"
+                      >
+                        <Plus className="h-3.5 w-3.5" />
+                        Add Scope Item
+                      </Button>
                     </div>
                     {selectedRenovation.scopeNodes.length === 0 ? (
                       <div className="text-center py-12">
@@ -1608,6 +1751,14 @@ export default function RenovationsPage() {
                       <h4 className="text-sm font-medium text-gray-500 dark:text-gray-400">
                         Change Orders ({selectedRenovation.changeOrders.length})
                       </h4>
+                      <Button
+                        size="sm"
+                        onClick={() => setSubmitCODialogOpen(true)}
+                        className="gap-1"
+                      >
+                        <Plus className="h-3.5 w-3.5" />
+                        Submit Change Order
+                      </Button>
                     </div>
                     {selectedRenovation.changeOrders.length === 0 ? (
                       <div className="text-center py-12">
@@ -1794,6 +1945,135 @@ export default function RenovationsPage() {
       </Dialog>
 
       {/* Request Bid Dialog */}
+      {/* Add Scope Item Dialog (Phase 8) */}
+      <Dialog open={addScopeDialogOpen} onOpenChange={setAddScopeDialogOpen}>
+        <DialogContent className="sm:max-w-[480px]">
+          <DialogHeader>
+            <DialogTitle>Add Scope Item</DialogTitle>
+            <DialogDescription>
+              Add a line item to the renovation scope. Linked to {selectedRenovation?.address ?? "this project"}.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label>Trade</Label>
+              <Select value={scopeTrade} onValueChange={setScopeTrade}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select trade" />
+                </SelectTrigger>
+                <SelectContent>
+                  {Object.entries(TRADE_CONFIG).map(([key, cfg]: [string, any]) => (
+                    <SelectItem key={key} value={key}>{cfg.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Task</Label>
+              <Input
+                placeholder="E.g., Replace 30yr architectural shingles"
+                value={scopeTask}
+                onChange={(e) => setScopeTask(e.target.value)}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label>Quantity</Label>
+                <Input
+                  type="number"
+                  min="0"
+                  step="0.1"
+                  value={scopeQuantity}
+                  onChange={(e) => setScopeQuantity(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Unit</Label>
+                <Input
+                  placeholder="sqft, lot, ea"
+                  value={scopeUnit}
+                  onChange={(e) => setScopeUnit(e.target.value)}
+                />
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAddScopeDialogOpen(false)} disabled={submittingScope}>
+              Cancel
+            </Button>
+            <Button onClick={handleSubmitScopeItem} disabled={submittingScope}>
+              {submittingScope ? "Adding..." : "Add scope item"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Submit Change Order Dialog (Phase 8) */}
+      <Dialog open={submitCODialogOpen} onOpenChange={setSubmitCODialogOpen}>
+        <DialogContent className="sm:max-w-[480px]">
+          <DialogHeader>
+            <DialogTitle>Submit Change Order</DialogTitle>
+            <DialogDescription>
+              Submit a cost change against {selectedRenovation?.address ?? "this project"}. The G4 guardrail will evaluate.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label>Trade</Label>
+              <Select value={coTrade} onValueChange={setCoTrade}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select trade" />
+                </SelectTrigger>
+                <SelectContent>
+                  {Object.entries(TRADE_CONFIG).map(([key, cfg]: [string, any]) => (
+                    <SelectItem key={key} value={key}>{cfg.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label>Delta ($)</Label>
+                <Input
+                  type="number"
+                  step="1"
+                  placeholder="e.g., 2500 or -800"
+                  value={coDeltaUsd}
+                  onChange={(e) => setCoDeltaUsd(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Schedule impact (days)</Label>
+                <Input
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={coImpactDays}
+                  onChange={(e) => setCoImpactDays(e.target.value)}
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Reason (optional)</Label>
+              <Textarea
+                placeholder="Discovered termite damage in joists during demo..."
+                value={coReason}
+                onChange={(e) => setCoReason(e.target.value)}
+                rows={3}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSubmitCODialogOpen(false)} disabled={submittingCO}>
+              Cancel
+            </Button>
+            <Button onClick={handleSubmitChangeOrder} disabled={submittingCO}>
+              {submittingCO ? "Submitting..." : "Submit change order"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={requestBidDialogOpen} onOpenChange={setRequestBidDialogOpen}>
         <DialogContent className="sm:max-w-[450px] bg-white dark:bg-card">
           <DialogHeader>
