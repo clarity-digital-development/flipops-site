@@ -2,6 +2,7 @@
 export const dynamic = 'force-dynamic';
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { PipelineBreadcrumb } from "@/components/shared/pipeline-breadcrumb";
 import {
   FileSignature,
@@ -656,6 +657,7 @@ function ContractCard({
 }
 
 export default function ContractsPage() {
+  const router = useRouter();
   const [isMounted, setIsMounted] = useState(false);
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
@@ -1010,14 +1012,24 @@ export default function ContractsPage() {
         throw new Error(errorData.error || "Failed to start renovation");
       }
 
+      const created = await response.json();
+      const newRenovationId: string | undefined = created?.renovation?.id ?? created?.id;
+
       toast({
         title: "Renovation Started",
-        description: "Renovation project successfully created.",
+        description: "Taking you to Renovations to set up scope and bids.",
       });
 
       fetchContracts();
       setRenovationDialogOpen(false);
       setSelectedContract(null);
+      // Pipeline handoff: navigate to /app/renovations highlighting the
+      // newly created project so the user can immediately set up scope.
+      if (newRenovationId) {
+        router.push(`/app/renovations?highlight=${newRenovationId}`);
+      } else {
+        router.push('/app/renovations');
+      }
     } catch (error) {
       console.error("Error starting renovation:", error);
       toast({
@@ -1073,14 +1085,23 @@ export default function ContractsPage() {
         throw new Error(errorData.error || "Failed to start rental");
       }
 
+      const created = await response.json();
+      const newRentalId: string | undefined = created?.rental?.id ?? created?.id;
+
       toast({
         title: "Rental Started",
-        description: "Rental property successfully created.",
+        description: "Taking you to Rentals.",
       });
 
       fetchContracts();
       setRentalDialogOpen(false);
       setSelectedContract(null);
+      // Pipeline handoff: navigate to /app/rentals.
+      if (newRentalId) {
+        router.push(`/app/rentals?highlight=${newRentalId}`);
+      } else {
+        router.push('/app/rentals');
+      }
     } catch (error) {
       console.error("Error starting rental:", error);
       toast({

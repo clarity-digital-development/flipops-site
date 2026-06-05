@@ -2,6 +2,7 @@
 export const dynamic = 'force-dynamic';
 
 import { useState, useEffect, useMemo } from "react";
+import { useRouter } from "next/navigation";
 import { PipelineBreadcrumb } from "@/components/shared/pipeline-breadcrumb";
 import {
   Search,
@@ -713,6 +714,7 @@ function OfferCardSkeleton() {
 // ============================================================================
 
 export default function OffersPage() {
+  const router = useRouter();
   const [offers, setOffers] = useState<Offer[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -878,27 +880,33 @@ export default function OffersPage() {
         }),
       });
 
-      if (response.ok) {
-        toast.success('Contract created successfully');
-        setCreateContractDialogOpen(false);
-        // Update local state
-        setOffers(prev => prev.map(o =>
-          o.id === selectedOffer.id
-            ? { ...o, contract: { id: `contract-${Date.now()}`, status: 'pending' } }
-            : o
-        ));
-      } else {
-        throw new Error('Failed to create contract');
+      if (!response.ok) {
+        throw new Error(`Failed to create contract: ${response.status}`);
       }
-    } catch (error) {
-      // Update local state anyway for demo
+
+      // Read the real contract id from the API response. Do NOT fabricate
+      // a `contract-${Date.now()}` id on failure (the pre-Phase-4 catch
+      // block did this, masking real errors as successes).
+      const data = await response.json();
+      const realContract = data?.contract;
+      if (!realContract?.id) {
+        throw new Error('Contract response missing id');
+      }
+
+      // Sync local state with the real contract row.
       setOffers(prev => prev.map(o =>
         o.id === selectedOffer.id
-          ? { ...o, contract: { id: `contract-${Date.now()}`, status: 'pending' } }
+          ? { ...o, contract: { id: realContract.id, status: realContract.status ?? 'pending' } }
           : o
       ));
-      toast.success('Contract created');
       setCreateContractDialogOpen(false);
+      toast.success('Contract created — taking you to Contracts');
+      // Pipeline handoff: navigate to /app/contracts highlighting the
+      // new row.
+      router.push(`/app/contracts?highlight=${realContract.id}`);
+    } catch (error) {
+      console.error('Failed to create contract:', error);
+      toast.error('Could not create contract. Please try again.');
     } finally {
       setCreatingContract(false);
     }

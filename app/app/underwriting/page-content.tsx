@@ -2,7 +2,7 @@
 export const dynamic = 'force-dynamic';
 
 import { useState, useEffect, useCallback } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { PipelineBreadcrumb, derivePipelineStage } from "@/components/shared/pipeline-breadcrumb";
 import {
   Search,
@@ -930,6 +930,7 @@ function EmptyState() {
 export default function UnderwritingPage() {
   const { isLoaded, user } = useUser();
   const searchParams = useSearchParams();
+  const router = useRouter();
   const urlPropertyId = searchParams?.get("propertyId") ?? null;
 
   // State management
@@ -1290,6 +1291,8 @@ export default function UnderwritingPage() {
       });
 
       if (response.ok) {
+        const created = await response.json();
+        const newOfferId: string | undefined = created?.offer?.id ?? created?.id;
         // Behavioral signal: offer_made is the strongest mid-funnel label
         // before contract_signed. Capture the full deal math at action time
         // so the model can learn "what ARV/repair/margin shape made this
@@ -1311,11 +1314,19 @@ export default function UnderwritingPage() {
             earnestMoney: offerEarnestMoney,
           });
         }
-        toast.success('Offer created successfully!');
+        toast.success('Offer created — taking you to Offers');
         setOfferDialogOpen(false);
         setOfferNotes("");
         setOfferContingencies(["inspection"]);
         setOfferTerms("cash");
+        // Pipeline handoff: navigate to /app/offers with the new offer
+        // highlighted. The Offers page reads ?highlight=X and scrolls/
+        // pulses that row.
+        if (newOfferId) {
+          router.push(`/app/offers?highlight=${newOfferId}`);
+        } else {
+          router.push('/app/offers');
+        }
       } else {
         throw new Error('Failed to create offer');
       }
