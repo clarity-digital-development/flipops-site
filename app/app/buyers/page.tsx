@@ -72,6 +72,13 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 
@@ -416,6 +423,10 @@ export default function BuyersPage() {
     });
   };
 
+  // View Assignment Sheet state (read-only)
+  const [showViewAssignmentSheet, setShowViewAssignmentSheet] = useState(false);
+  const [viewingContract, setViewingContract] = useState<ApiContract | null>(null);
+
   // Prevent hydration mismatch by ensuring client-side only rendering
   useEffect(() => {
     setMounted(true);
@@ -577,10 +588,27 @@ export default function BuyersPage() {
       matchesPerformance = dealCount === 0;
     }
 
-    // Document filter - no documents in API yet, so skip filtering
-    const matchesDocument = documentFilter === "all" ? true : true;
-    
-    return matchesSearch && matchesStatus && matchesScore && matchesMarket && 
+    // POF (Proof-of-Funds) filter. BuyerDocument is not yet persisted via the
+    // API, so we approximate verified-POF status as: (a) the buyer has a
+    // verified POF doc in the seed `documents` array, OR (b) the API buyer
+    // is flagged cashBuyer (cash buyers must furnish POF before sending deals
+    // in our flow). Once a BuyerDocument table lands, swap this to a real
+    // verified-doc lookup.
+    const seedPof = buyersSeedData.documents.some(
+      (d) => d.buyerId === buyer.id && d.type === "pof" && d.verified,
+    );
+    // Note: `cashBuyer` isn't on the current Prisma Buyer model — cast through
+    // unknown so we can read it from the API payload until the schema adds it.
+    // TODO: remove the cast when BuyerDocument + verification fields land.
+    const isPofVerified = seedPof || (apiBuyer as unknown as { cashBuyer?: boolean } | undefined)?.cashBuyer === true;
+    let matchesDocument = true;
+    if (documentFilter === "verified") {
+      matchesDocument = isPofVerified;
+    } else if (documentFilter === "unverified") {
+      matchesDocument = !isPofVerified;
+    }
+
+    return matchesSearch && matchesStatus && matchesScore && matchesMarket &&
            matchesPerformance && matchesDocument;
   });
 
@@ -813,11 +841,22 @@ export default function BuyersPage() {
     setShowViewBuyerDialog(true);
   };
 
-  // Open Assignment Dialog
-  const openAssignmentDialog = (contract: ApiContract) => {
+  // Open Assignment Dialog (optionally with a buyer pre-selected, e.g. from
+  // the Smart Matching "Send Deal" button).
+  const openAssignmentDialog = (contract: ApiContract, preselectedBuyerId?: string) => {
     setAssigningContract(contract);
-    resetAssignmentForm();
+    setAssignmentForm({
+      buyerId: preselectedBuyerId ?? "",
+      assignmentFee: "",
+      notes: "",
+    });
     setShowAssignmentDialog(true);
+  };
+
+  // Open read-only View Assignment Sheet for already-assigned contracts.
+  const openViewAssignmentSheet = (contract: ApiContract) => {
+    setViewingContract(contract);
+    setShowViewAssignmentSheet(true);
   };
 
   // Handle Contract Assignment
@@ -1881,7 +1920,8 @@ export default function BuyersPage() {
                                   <Button
                                     variant="outline"
                                     size="sm"
-                                    onClick={() => toast.info(`View assignment details for ${assignedBuyer?.name}`)}
+                                    onClick={() => contract && openViewAssignmentSheet(contract)}
+                                    disabled={!contract?.assignment}
                                   >
                                     <Eye className="h-4 w-4 mr-2" />
                                     View Assignment
@@ -2033,7 +2073,30 @@ export default function BuyersPage() {
                                             Email
                                           </Button>
                                         )}
-                                        <Button size="sm">
+                                        <Button
+                                          size="sm"
+                                          onClick={() => {
+                                            // Send Deal opens the existing
+                                            // assignment dialog with this
+                                            // buyer pre-selected against the
+                                            // currently-selected listing.
+                                            // (Mass-blast goes through the
+                                            // Blast Campaigns tab + the new
+                                            // /api/buyer-blasts pipe.)
+                                            if (!selectedListing) {
+                                              toast.error("No listing selected");
+                                              return;
+                                            }
+                                            const contract = apiContracts.find(
+                                              (c) => c.id === selectedListing.id,
+                                            );
+                                            if (!contract) {
+                                              toast.error("Contract not found for this listing");
+                                              return;
+                                            }
+                                            openAssignmentDialog(contract, match.buyerId);
+                                          }}
+                                        >
                                           <Send className="h-4 w-4 mr-2" />
                                           Send Deal
                                         </Button>
@@ -3116,6 +3179,122 @@ export default function BuyersPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* View Assignment Sheet (read-only details for already-assigned contracts) */}
+      <Sheet open={showViewAssignmentSheet} onOpenChange={setShowViewAssignmentSheet}>
+        <SheetContent className="sm:max-w-[480px]">
+          <SheetHeader>
+            <SheetTitle>Assignment Details</SheetTitle>
+            <SheetDescription>
+              Read-only snapshot of the contract assignment.
+            </SheetDescription>
+          </SheetHeader>
+
+          {viewingContract && viewingContract.assignment ? (
+            <div className="mt-6 space-y-5">
+              {/* Property */}
+              <div className="p-3 bg-muted/50 rounded-lg">
+                <p className="text-xs uppercase text-muted-foreground mb-1">Property</p>
+                <p className="font-medium">{viewingContract.property.address}</p>
+                <p className="text-sm text-muted-foreground">
+                  {viewingContract.property.city}, {viewingContract.property.state} {viewingContract.property.zip}
+                </p>
+              </div>
+
+              {/* Buyer */}
+              <div>
+                <p className="text-xs uppercase text-muted-foreground mb-1">Assigned To</p>
+                <div className="flex items-center gap-2">
+                  <Avatar className="h-8 w-8">
+                    <AvatarFallback className="text-xs">
+                      {viewingContract.assignment.buyer.name.split(" ").map((n) => n[0]).join("")}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div>
+                    <p className="font-medium text-sm">{viewingContract.assignment.buyer.name}</p>
+                    {viewingContract.assignment.buyer.company && (
+                      <p className="text-xs text-muted-foreground">{viewingContract.assignment.buyer.company}</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Assignment Fee */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-xs uppercase text-muted-foreground mb-1">Assignment Fee</p>
+                  <p className="text-lg font-semibold text-green-600 dark:text-green-400">
+                    ${viewingContract.assignment.assignmentFee.toLocaleString()}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs uppercase text-muted-foreground mb-1">Purchase Price</p>
+                  <p className="text-lg font-semibold">
+                    ${viewingContract.purchasePrice.toLocaleString()}
+                  </p>
+                </div>
+              </div>
+
+              {/* Status */}
+              <div>
+                <p className="text-xs uppercase text-muted-foreground mb-1">Status</p>
+                <Badge variant={
+                  viewingContract.assignment.status === "closed" ? "default" :
+                  viewingContract.assignment.status === "signed" ? "secondary" :
+                  "outline"
+                }>
+                  {viewingContract.assignment.status}
+                </Badge>
+              </div>
+
+              {/* Dates */}
+              <div className="space-y-2">
+                <p className="text-xs uppercase text-muted-foreground">Timeline</p>
+                <div className="text-sm space-y-1.5">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Contract created</span>
+                    <span>{new Date(viewingContract.createdAt).toLocaleDateString()}</span>
+                  </div>
+                  {viewingContract.signedAt && (
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Signed</span>
+                      <span>{new Date(viewingContract.signedAt).toLocaleDateString()}</span>
+                    </div>
+                  )}
+                  {viewingContract.escrowOpenedAt && (
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Escrow opened</span>
+                      <span>{new Date(viewingContract.escrowOpenedAt).toLocaleDateString()}</span>
+                    </div>
+                  )}
+                  {viewingContract.closingDate && (
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Closing scheduled</span>
+                      <span>{new Date(viewingContract.closingDate).toLocaleDateString()}</span>
+                    </div>
+                  )}
+                  {viewingContract.closedAt && (
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Closed</span>
+                      <span>{new Date(viewingContract.closedAt).toLocaleDateString()}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {viewingContract.assignment.id && (
+                <p className="text-[11px] text-muted-foreground pt-2 border-t">
+                  Assignment ID: <code>{viewingContract.assignment.id}</code>
+                </p>
+              )}
+            </div>
+          ) : (
+            <div className="mt-10 text-center text-sm text-muted-foreground">
+              No assignment data available.
+            </div>
+          )}
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }
