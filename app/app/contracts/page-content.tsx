@@ -722,26 +722,22 @@ export default function ContractsPage() {
       setLoading(true);
       const response = await fetch("/api/contracts");
       if (!response.ok) {
-        // API unavailable — fall back to seed data silently
-        setContracts(seedContracts);
-        setFilteredContracts(seedContracts);
+        // API unavailable — show empty state, NOT fake seed data.
+        // Cleanup D1: fake Texas contracts were leaking through on brand-new accounts.
+        setContracts([]);
+        setFilteredContracts([]);
         return;
       }
       const data = await response.json();
-      const contractsData = data.contracts || [];
-      // Use seed data if no real contracts exist
-      if (contractsData.length > 0) {
-        setContracts(contractsData);
-        setFilteredContracts(contractsData);
-      } else {
-        setContracts(seedContracts);
-        setFilteredContracts(seedContracts);
-      }
+      const contractsData: Contract[] = data.contracts || [];
+      // Show whatever the API returned — empty means empty (EmptyState handles it).
+      setContracts(contractsData);
+      setFilteredContracts(contractsData);
     } catch (error) {
       console.error("Error fetching contracts:", error);
-      // Use seed data as fallback on error
-      setContracts(seedContracts);
-      setFilteredContracts(seedContracts);
+      // Fail to empty — EmptyState will render with the "Go to Offers" CTA.
+      setContracts([]);
+      setFilteredContracts([]);
     } finally {
       setLoading(false);
     }
