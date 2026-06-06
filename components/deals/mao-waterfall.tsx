@@ -420,22 +420,44 @@ export function MAOWaterfall({
           <div className="px-4 pb-4 space-y-3">
             {/* Visual cost breakdown bar */}
             <div className="space-y-2">
-              <div className="flex h-3 rounded-full overflow-hidden bg-gray-100 dark:bg-gray-800">
-                {arv > 0 &&
-                  costBreakdown.map((item, i) => (
-                    <div
-                      key={i}
-                      className={cn(item.color, "transition-all duration-500")}
-                      style={{ width: `${(item.amount / arv) * 100}%` }}
-                      title={`${item.label}: ${formatCurrency(item.amount)}`}
-                    />
-                  ))}
-                <div
-                  className="bg-emerald-200 dark:bg-emerald-800"
-                  style={{ width: `${arv > 0 ? (mao / arv) * 100 : 0}%` }}
-                  title={`MAO: ${formatCurrency(mao)}`}
-                />
-              </div>
+              <TooltipProvider delayDuration={100}>
+                <div className="flex h-3 rounded-full overflow-hidden bg-gray-100 dark:bg-gray-800">
+                  {arv > 0 &&
+                    costBreakdown.map((item, i) => {
+                      const pct = (item.amount / arv) * 100;
+                      return (
+                        <Tooltip key={i}>
+                          <TooltipTrigger asChild>
+                            <div
+                              className={cn(item.color, "transition-all duration-500 cursor-help")}
+                              style={{ width: `${pct}%` }}
+                            />
+                          </TooltipTrigger>
+                          <TooltipContent side="top" className="text-xs">
+                            <div className="font-medium">{item.label}</div>
+                            <div className="font-mono tabular-nums">
+                              {formatCurrency(item.amount)} · {pct.toFixed(1)}% of ARV
+                            </div>
+                          </TooltipContent>
+                        </Tooltip>
+                      );
+                    })}
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <div
+                        className="bg-emerald-200 dark:bg-emerald-800 cursor-help"
+                        style={{ width: `${arv > 0 ? (mao / arv) * 100 : 0}%` }}
+                      />
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="text-xs">
+                      <div className="font-medium">MAO</div>
+                      <div className="font-mono tabular-nums">
+                        {formatCurrency(mao)} · {arv > 0 ? ((mao / arv) * 100).toFixed(1) : "0.0"}% of ARV
+                      </div>
+                    </TooltipContent>
+                  </Tooltip>
+                </div>
+              </TooltipProvider>
               <div className="flex flex-wrap gap-3 text-[10px]">
                 {costBreakdown.map((item, i) => (
                   <div key={i} className="flex items-center gap-1.5">
@@ -621,22 +643,44 @@ export function MAOWaterfallPanel({
 
       {/* Visual cost breakdown bar */}
       <div className="space-y-2">
-        <div className="flex h-3 rounded-full overflow-hidden bg-gray-100 dark:bg-gray-800">
-          {arv > 0 &&
-            costBreakdown.map((item, i) => (
-              <div
-                key={i}
-                className={cn(item.color, "transition-all duration-500")}
-                style={{ width: `${(item.amount / arv) * 100}%` }}
-                title={`${item.label}: ${formatCurrency(item.amount)}`}
-              />
-            ))}
-          <div
-            className="bg-emerald-200 dark:bg-emerald-800"
-            style={{ width: `${arv > 0 ? (mao / arv) * 100 : 0}%` }}
-            title={`MAO: ${formatCurrency(mao)}`}
-          />
-        </div>
+        <TooltipProvider delayDuration={100}>
+          <div className="flex h-3 rounded-full overflow-hidden bg-gray-100 dark:bg-gray-800">
+            {arv > 0 &&
+              costBreakdown.map((item, i) => {
+                const pct = (item.amount / arv) * 100;
+                return (
+                  <Tooltip key={i}>
+                    <TooltipTrigger asChild>
+                      <div
+                        className={cn(item.color, "transition-all duration-500 cursor-help")}
+                        style={{ width: `${pct}%` }}
+                      />
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="text-xs">
+                      <div className="font-medium">{item.label}</div>
+                      <div className="font-mono tabular-nums">
+                        {formatCurrency(item.amount)} · {pct.toFixed(1)}% of ARV
+                      </div>
+                    </TooltipContent>
+                  </Tooltip>
+                );
+              })}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div
+                  className="bg-emerald-200 dark:bg-emerald-800 cursor-help"
+                  style={{ width: `${arv > 0 ? (mao / arv) * 100 : 0}%` }}
+                />
+              </TooltipTrigger>
+              <TooltipContent side="top" className="text-xs">
+                <div className="font-medium">MAO</div>
+                <div className="font-mono tabular-nums">
+                  {formatCurrency(mao)} · {arv > 0 ? ((mao / arv) * 100).toFixed(1) : "0.0"}% of ARV
+                </div>
+              </TooltipContent>
+            </Tooltip>
+          </div>
+        </TooltipProvider>
         <div className="flex flex-wrap gap-3 text-[10px]">
           {costBreakdown.map((item, i) => (
             <div key={i} className="flex items-center gap-1.5">

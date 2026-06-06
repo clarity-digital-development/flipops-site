@@ -737,13 +737,15 @@ function ScenarioCard({
   purchasePrice,
   arv,
   repairs,
-  isRecommended
+  isRecommended,
+  recommendedReason
 }: {
   strategy: "wholesale" | "flip" | "rental";
   purchasePrice: number;
   arv: number;
   repairs: number;
   isRecommended?: boolean;
+  recommendedReason?: string;
 }) {
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', {
@@ -810,7 +812,7 @@ function ScenarioCard({
       )}
 
       <CardContent className="p-4">
-        <div className="flex items-center gap-2 mb-4">
+        <div className="flex items-center gap-2 mb-2">
           <div className={cn("p-2 rounded-lg bg-gradient-to-br text-white", config.color)}>
             {config.icon}
           </div>
@@ -819,6 +821,11 @@ function ScenarioCard({
             <p className="text-xs text-gray-500 dark:text-gray-400">{config.holdTime}</p>
           </div>
         </div>
+        {isRecommended && (
+          <p className="text-[11px] leading-snug text-emerald-700 dark:text-emerald-300 mb-3">
+            {recommendedReason ?? "Best projected return given current deal math."}
+          </p>
+        )}
 
         {strategy === "rental" && "cashFlow" in config && config.cashFlow !== undefined && config.capRate !== undefined ? (
           <div className="space-y-3">
@@ -1799,17 +1806,35 @@ export default function UnderwritingPage() {
                           </p>
                         </div>
 
-                        {/* Score badge */}
-                        {selectedProperty.score && (
-                          <div className={cn(
-                            "px-3 py-1.5 rounded-lg font-bold text-sm",
-                            selectedProperty.score >= 85 ? "bg-gradient-to-r from-red-500 to-orange-500 text-white" :
-                            selectedProperty.score >= 70 ? "bg-gradient-to-r from-amber-500 to-yellow-500 text-white" :
-                            "bg-gray-100 dark:bg-muted text-gray-600 dark:text-gray-400"
-                          )}>
-                            Score: {selectedProperty.score}
-                          </div>
-                        )}
+                        {/* Score badge + (demo only) Clear demo shortcut.
+                            The top banner button is easy to miss once the eye
+                            adapts — this second, contextual control keeps it
+                            within reach without duplicating noise for real
+                            deals. */}
+                        <div className="flex items-center gap-2">
+                          {selectedProperty.score && (
+                            <div className={cn(
+                              "px-3 py-1.5 rounded-lg font-bold text-sm",
+                              selectedProperty.score >= 85 ? "bg-gradient-to-r from-red-500 to-orange-500 text-white" :
+                              selectedProperty.score >= 70 ? "bg-gradient-to-r from-amber-500 to-yellow-500 text-white" :
+                              "bg-gray-100 dark:bg-muted text-gray-600 dark:text-gray-400"
+                            )}>
+                              Score: {selectedProperty.score}
+                            </div>
+                          )}
+                          {demoMode && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={handleClearDemo}
+                              title="Clear demo data"
+                              className="h-8 px-2 text-xs text-blue-600 hover:text-blue-800 hover:bg-blue-50 dark:text-blue-300 dark:hover:text-blue-100 dark:hover:bg-blue-900/40"
+                            >
+                              <Trash2 className="h-3.5 w-3.5 mr-1" />
+                              Clear demo
+                            </Button>
+                          )}
+                        </div>
                       </div>
 
                       {/* Pipeline stage — property is in Underwriting so show "analyzed" */}
@@ -2179,25 +2204,51 @@ export default function UnderwritingPage() {
                       </div>
 
                       <div className="grid grid-cols-3 gap-4">
-                        <ScenarioCard
-                          strategy="wholesale"
-                          purchasePrice={suggestedOffer}
-                          arv={adjustedARV}
-                          repairs={adjustedRepairs}
-                        />
-                        <ScenarioCard
-                          strategy="flip"
-                          purchasePrice={suggestedOffer}
-                          arv={adjustedARV}
-                          repairs={adjustedRepairs}
-                          isRecommended={adjustedRepairs > 0}
-                        />
-                        <ScenarioCard
-                          strategy="rental"
-                          purchasePrice={suggestedOffer}
-                          arv={adjustedARV}
-                          repairs={adjustedRepairs}
-                        />
+                        {(() => {
+                          // G3 fix #3 — compute a one-line rationale for the
+                          // Best Fit badge using the distress signals + repair
+                          // scope that already drive the recommendation.
+                          // Kept inline so we don't fragment scenario logic.
+                          const distressFlags = [
+                            selectedProperty?.foreclosure && "foreclosure",
+                            selectedProperty?.preForeclosure && "pre-foreclosure",
+                            selectedProperty?.taxDelinquent && "tax-delinquent",
+                            selectedProperty?.vacant && "vacancy",
+                          ].filter(Boolean) as string[];
+                          const distressPhrase =
+                            distressFlags.length >= 2
+                              ? `${distressFlags.slice(0, 2).join(" + ")} signals`
+                              : distressFlags[0]
+                              ? `${distressFlags[0]} signal`
+                              : "current distress signals";
+                          const flipReason = adjustedRepairs > 0
+                            ? `Highest projected ROI for a ${distressPhrase} deal with a defined repair scope.`
+                            : undefined;
+                          return (
+                            <>
+                              <ScenarioCard
+                                strategy="wholesale"
+                                purchasePrice={suggestedOffer}
+                                arv={adjustedARV}
+                                repairs={adjustedRepairs}
+                              />
+                              <ScenarioCard
+                                strategy="flip"
+                                purchasePrice={suggestedOffer}
+                                arv={adjustedARV}
+                                repairs={adjustedRepairs}
+                                isRecommended={adjustedRepairs > 0}
+                                recommendedReason={flipReason}
+                              />
+                              <ScenarioCard
+                                strategy="rental"
+                                purchasePrice={suggestedOffer}
+                                arv={adjustedARV}
+                                repairs={adjustedRepairs}
+                              />
+                            </>
+                          );
+                        })()}
                       </div>
                     </div>
                   </ScrollArea>
