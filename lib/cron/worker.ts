@@ -17,7 +17,7 @@
  *
  * Migrated to worker-bullmq (lib/cron/worker-bullmq-monitoring.ts):
  *   - data-refresh, pipeline-monitoring, contractor-performance,
- *     attom-discovery, skip-tracing
+ *     skip-tracing
  */
 
 import cron from 'node-cron';
@@ -27,7 +27,6 @@ import path from 'path';
 // Environment validation
 const REQUIRED_ENV_VARS = [
   'DATABASE_URL',
-  'ATTOM_API_KEY',
   'BATCHDATA_API_KEY',
 ];
 
@@ -81,7 +80,7 @@ const workflows: Record<string, WorkflowExecution> = {
     path: path.join(__dirname, 'guardrails', 'g4-change-order.ts'),
     executionCount: 0,
   },
-  // attom-discovery / skip-tracing migrated to worker-bullmq per Phase 6.
+  // skip-tracing migrated to worker-bullmq per Phase 6.
 };
 
 /**
@@ -210,7 +209,6 @@ function startWorker(): void {
   //   - data-refresh    (0 8 * * * UTC)
   //   - pipeline-monitoring (0 9 * * * UTC)
   //   - contractor-performance (0 10 * * * UTC)
-  //   - attom-discovery (0 6 * * * UTC)
   //   - skip-tracing    (0 7 * * 0 UTC)
   log('🔁 Monitoring + Discovery workflows migrated to worker-bullmq service.\n');
 

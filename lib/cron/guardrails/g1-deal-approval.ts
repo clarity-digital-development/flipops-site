@@ -3,8 +3,6 @@
  *
  * Schedule: Every 15 minutes
  * Purpose: Monitor for deals where P80 exceeds maxExposureUsd and send alerts
- *
- * Migrated from: n8n workflow "G1 - Deal Approval Alert"
  */
 
 import {

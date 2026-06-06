@@ -81,7 +81,7 @@ export default function TermsPage() {
             </h2>
             <p className="text-gray-700 dark:text-gray-300">
               While we strive to provide accurate information, FlipOps does not warrant or guarantee the accuracy, completeness,
-              or timeliness of property data obtained from third-party sources including ATTOM Data Solutions, BatchData, or other data providers.
+              or timeliness of property data obtained from third-party sources including BatchData, or other data providers.
             </p>
           </section>
 

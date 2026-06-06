@@ -66,8 +66,7 @@ export default function PrivacyPage() {
             </p>
             <ul className="list-disc pl-6 space-y-2 text-gray-700 dark:text-gray-300">
               <li><strong>Clerk:</strong> Authentication and user management</li>
-              <li><strong>ATTOM Data Solutions:</strong> Property data and valuation information</li>
-              <li><strong>BatchData:</strong> Skip tracing and contact information lookup</li>
+                            <li><strong>BatchData:</strong> Skip tracing and contact information lookup</li>
               <li><strong>Railway:</strong> Application hosting and infrastructure</li>
               <li><strong>Vercel (optional):</strong> Application deployment</li>
             </ul>

@@ -3,8 +3,6 @@
  *
  * Schedule: Every 15 minutes
  * Purpose: Monitor for budget variance and flag overruns
- *
- * Migrated from: n8n workflow "G3 - Invoice & Budget Guardian"
  */
 
 import {

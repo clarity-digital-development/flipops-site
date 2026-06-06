@@ -1,6 +1,6 @@
 # FlipOps TypeScript Cron Jobs
 
-This directory contains all TypeScript-based cron jobs that replace the n8n workflows.
+This directory contains all TypeScript-based cron jobs.
 
 ## Directory Structure
 
@@ -26,7 +26,6 @@ lib/cron/
 │   └── contractor-performance.ts
 │
 └── discovery/            # Property discovery & enrichment
-    ├── attom-property-discovery.ts
     └── skip-tracing-enrichment.ts
 ```
 
@@ -39,7 +38,6 @@ lib/cron/
 npm run cron:data-refresh
 npm run cron:g1
 npm run cron:g2
-npm run cron:attom
 npm run cron:skip-trace
 
 # Run all workflows (for testing)
@@ -141,7 +139,6 @@ await sleep(2000);  // Wait 2 seconds
 | G4 - Change Order | Every 15 min | Check change order impact |
 | Pipeline Monitoring | Daily at 8 AM | Track stalled deals |
 | Contractor Performance | Daily at 8 AM | Calculate reliability scores |
-| ATTOM Discovery | Daily at 2 AM | Discover & score properties |
 | Skip Tracing | Every 6 hours | Enrich high-score properties |
 
 ## Environment Variables
@@ -151,9 +148,6 @@ Required environment variables:
 ```bash
 # Database
 DATABASE_URL=postgresql://...
-
-# ATTOM API
-ATTOM_API_KEY=your_attom_key
 
 # BatchData API
 BATCHDATA_API_KEY=your_batchdata_key
@@ -173,18 +167,7 @@ DEBUG=true
 - [ ] G4 - Change Order
 - [ ] Pipeline Monitoring
 - [ ] Contractor Performance
-- [ ] ATTOM Property Discovery
 - [ ] Skip Tracing & Enrichment
-
-## Benefits Over n8n
-
-1. **Version Control** - All code in git with proper diff/blame
-2. **Type Safety** - TypeScript catches errors at compile time
-3. **Debugging** - Use VS Code debugger, not n8n execution logs
-4. **Testing** - Unit tests for business logic
-5. **Performance** - Direct Prisma access, no API overhead
-6. **Cost** - Saves ~$10/month (n8n Railway instance)
-7. **Reliability** - No Loop node issues, better error handling
 
 ## Testing Workflows
 
@@ -234,4 +217,3 @@ npm run prisma:generate
 3. Migrate remaining workflows
 4. Configure Railway cron jobs
 5. Monitor for 1 week
-6. Decommission n8n

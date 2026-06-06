@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 /**
- * API Key validation for external services (like n8n)
+ * API Key validation for external services
  */
 
 // Store API keys - in production, these should be in a database

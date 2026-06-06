@@ -204,7 +204,6 @@ Required variables (see `env.sample`):
 - `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` / `CLERK_SECRET_KEY` - Clerk auth
 - `FO_API_KEY` or `FLIPOPS_API_KEY` - Internal API authentication
 - `REAPI_API_KEY` - RealEstateAPI for property data (currently expired, plan to reactivate)
-- `ATTOM_API_KEY` - ATTOM API for property discovery (used by cron)
 - `BATCHDATA_API_KEY` - BatchData API for skip tracing ($0.20/record)
 - `GOOGLE_PLACES_API_KEY` - Google Places API (New) for vendor network sourcing
 
@@ -235,7 +234,6 @@ All 9 scheduled workflows are implemented and production-ready:
 | G4 - Change Order Alert | Every 15 min | ✅ Full |
 | Pipeline Monitoring | Daily 9:00 AM | ✅ Full |
 | Contractor Performance | Daily 10:00 AM | ✅ Full |
-| ATTOM Property Discovery | Daily 6:00 AM | ✅ Full |
 | Skip Tracing (BatchData) | Weekly Sunday 7:00 AM | ✅ Full |
 | Data Refresh Sync | Daily 8:00 AM | ✅ Full |
 
@@ -296,13 +294,7 @@ For pre-beta preview, non-admin users see demo data:
 
 ### ⚠️ NOTES / CONSIDERATIONS
 
-1. **ATTOM API Scope**
-   - Currently uses `/sale/snapshot` for property discovery + AVM
-   - Does NOT include foreclosure/preforeclosure data (requires Premium tier)
-   - Best used for: sales comps, AVM valuations, property characteristics
-   - REAPI (when reactivated) provides better distress signals
-
-2. **Properties Ingest Scoring**
+1. **Properties Ingest Scoring**
    - `/api/properties/ingest` is generic endpoint (manual imports)
    - REAPI path scores correctly with full distress algorithm
    - BatchData is skip-trace only (not property import)
@@ -312,7 +304,6 @@ For pre-beta preview, non-admin users see demo data:
 1. **REAPI Key Expired**
    - Property search on leads page fails
    - Plan: Reactivate when going live ($599/mo for 30K credits)
-   - Alternative: Switch to ATTOM (already have integration code)
 
 ### 📋 NOT STARTED (From Roadmap)
 
@@ -1056,7 +1047,6 @@ npm run cron:g4             # G4 - Change Order monitoring
 npm run cron:data-refresh   # Data Refresh & Sync
 npm run cron:pipeline       # Pipeline Monitoring
 npm run cron:contractors    # Contractor Performance
-npm run cron:attom          # ATTOM Property Discovery
 npm run cron:skip-trace     # Skip Tracing & Enrichment
 npm run cron:all            # Run all cron jobs sequentially
 ```

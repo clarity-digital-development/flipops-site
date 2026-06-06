@@ -917,7 +917,7 @@ function EmptyState({ onTryDemo }: { onTryDemo: () => void }) {
         No Properties to Analyze
       </h2>
       <p className="text-gray-500 dark:text-gray-400 max-w-md mb-6">
-        Properties will appear here once discovered by ATTOM or imported manually.
+        Properties will appear here once discovered or imported manually.
         Use the Leads page to add properties to your pipeline, or take the analyzer for a spin
         with a sample deal.
       </p>
@@ -1389,10 +1389,10 @@ export default function UnderwritingPage() {
   const calculateARV = useCallback(() => {
     const selected = apiComps.filter(c => selectedComps.includes(c.id));
     const subjectSqft = selectedProperty?.squareFeet || 0;
-    const attomAVM = selectedProperty?.estimatedValue || 0;
+    const avmEstimate = selectedProperty?.estimatedValue || 0;
 
     if (selected.length === 0 || subjectSqft === 0) {
-      return attomAVM;
+      return avmEstimate;
     }
 
     switch (arvMethod) {
@@ -1419,7 +1419,7 @@ export default function UnderwritingPage() {
         return avgPricePerSqft * subjectSqft;
       }
       default:
-        return attomAVM;
+        return avmEstimate;
     }
   }, [apiComps, selectedComps, selectedProperty, arvMethod]);
 

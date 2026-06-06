@@ -41,7 +41,7 @@ export async function GET(req: NextRequest) {
       },
     });
 
-    // Transform to match n8n workflow expectations
+    // Transform to the response shape expected by downstream consumers
     const formattedProperties = properties.map(prop => ({
       id: prop.id,
       type: 'property',

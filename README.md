@@ -37,7 +37,7 @@ flipops-site/
 ├── scripts/                # Utility scripts
 └── docs/                   # Documentation
     ├── guardrails/         # G1-G4 implementation docs
-    ├── integrations/       # ATTOM, Google Sheets
+    ├── integrations/       # Google Sheets
     ├── deployment/         # Deployment & onboarding guides
     └── development/        # Testing, decisions, dev guides
 ```

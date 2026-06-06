@@ -13,7 +13,7 @@ import { refreshCounty, listScrapeableCounties } from "@/lib/data-sources";
 //
 // Resolution order:
 //   1. If we have a registered scraper for the ZIP's county → scrape it (cheap)
-//   2. Else → signal the caller to fall back to BatchData/ATTOM API (per-call cost)
+//   2. Else → signal the caller to fall back to BatchData API (per-call cost)
 //
 // Body: { zip: string, category?: "tax_delinquency" | "assessment" }
 // ---------------------------------------------------------------------------
@@ -51,7 +51,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       ok: false,
       strategy: "api_fallback",
-      message: `No county mapping for ZIP ${zip}. Fall back to BatchData/ATTOM.`,
+      message: `No county mapping for ZIP ${zip}. Fall back to BatchData.`,
     });
   }
 
@@ -61,7 +61,7 @@ export async function POST(request: NextRequest) {
       ok: false,
       strategy: "api_fallback",
       county,
-      message: `${county.county}, ${county.state} (FIPS ${county.fips}) not yet onboarded for scraping. Fall back to BatchData/ATTOM.`,
+      message: `${county.county}, ${county.state} (FIPS ${county.fips}) not yet onboarded for scraping. Fall back to BatchData.`,
     });
   }
 

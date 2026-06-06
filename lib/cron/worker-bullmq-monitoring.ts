@@ -5,7 +5,6 @@ import type { Redis } from "ioredis";
 import { dataRefreshAndSync }           from "@/lib/cron/monitoring/data-refresh-sync";
 import { pipelineMonitoring }           from "@/lib/cron/monitoring/pipeline-monitoring";
 import { contractorPerformanceTracking } from "@/lib/cron/monitoring/contractor-performance";
-import { attomPropertyDiscovery }       from "@/lib/cron/discovery/attom-property-discovery";
 import { skipTracingEnrichment }        from "@/lib/cron/discovery/skip-tracing-enrichment";
 
 // ---------------------------------------------------------------------------
@@ -50,12 +49,6 @@ const JOBS: Record<string, JobConfig> = {
     cron:         "0 10 * * *",        // 10:00 AM UTC daily
     fn:           contractorPerformanceTracking,
     label:        "Contractor Performance Tracking",
-  },
-  "attom-discovery": {
-    schedulerId:  "attom-discovery",
-    cron:         "0 6 * * *",         // 6:00 AM UTC daily
-    fn:           attomPropertyDiscovery,
-    label:        "ATTOM Property Discovery",
   },
   "skip-tracing": {
     schedulerId:  "skip-tracing",
@@ -114,8 +107,8 @@ export async function setupMonitoringJobs(
       connection,
       concurrency: 1, // single concurrency — see note above
       stalledInterval: 60_000,
-      // Some discovery jobs run for 30+ min (ATTOM discovery, skip-tracing
-      // with 1s sleeps). Set lockDuration well above any expected wall-clock
+      // Some discovery jobs run for 30+ min (skip-tracing with 1s sleeps).
+      // Set lockDuration well above any expected wall-clock
       // to avoid spurious stalled-job reclaim.
       lockDuration: 60 * 60_000, // 1 hour
     },

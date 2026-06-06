@@ -186,7 +186,7 @@ export async function notifyPropertyImport(properties: any[], highScoreThreshold
   await sendNotification({
     type: NotificationType.BATCH_COMPLETE,
     title: `Import Complete: ${properties.length} Properties`,
-    message: `Successfully processed ${properties.length} properties from n8n workflow`,
+    message: `Successfully processed ${properties.length} properties`,
     data: {
       total_count: properties.length,
       high_score_count: highScoreProperties.length,

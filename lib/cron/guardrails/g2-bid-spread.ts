@@ -3,8 +3,6 @@
  *
  * Schedule: Every 15 minutes
  * Purpose: Monitor for deals where bid spread exceeds 15% threshold
- *
- * Migrated from: n8n workflow "G2 - Bid Spread Alert"
  */
 
 import {

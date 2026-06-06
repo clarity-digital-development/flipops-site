@@ -25,11 +25,11 @@ function validateServiceKey(req: NextRequest): boolean {
 }
 
 /**
- * Property ingest schema - accepts data from ATTOM, BatchData, or manual sources
+ * Property ingest schema - accepts data from BatchData, REAPI, or manual sources
  */
 const PropertyIngestSchema = z.object({
   userId: z.string().min(1, 'User ID is required'),
-  source: z.enum(['attom', 'batchdata', 'manual', 'google_sheets']),
+  source: z.enum(['batchdata', 'manual', 'google_sheets']),
   properties: z.array(z.object({
     // Required fields
     address: z.string(),

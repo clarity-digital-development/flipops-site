@@ -94,3 +94,8 @@ scripts/probe-artifacts/ocfl-reprobe-200.json
 # Local scraper working dir (HTML snapshots, downloaded CSVs, browser dumps).
 # Per-run output; large + ephemeral. Not for source control.
 tmp/
+
+# Historical SQLite exports and generated logs — large/ephemeral, not for source control.
+backups/
+dev.log
+build-output.log

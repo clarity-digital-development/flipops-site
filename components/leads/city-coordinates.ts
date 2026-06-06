@@ -1,5 +1,5 @@
 // Fallback city coordinates for leads that haven't been geocoded yet.
-// Real BatchData/ATTOM ingested records will carry lat/lng directly.
+// Real BatchData ingested records will carry lat/lng directly.
 // Covers Florida markets currently in the seed data; extend as new markets come online.
 
 export const CITY_COORDINATES: Record<string, { lat: number; lng: number }> = {

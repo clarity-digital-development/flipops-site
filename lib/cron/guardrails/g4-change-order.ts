@@ -3,8 +3,6 @@
  *
  * Schedule: Every 15 minutes
  * Purpose: Monitor change order impact on project scope/budget
- *
- * Migrated from: n8n workflow "G4 - Change Order Gatekeeper"
  */
 
 import {

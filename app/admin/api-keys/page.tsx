@@ -16,7 +16,7 @@ export default function ApiKeysPage() {
   const [apiKeys, setApiKeys] = useState<ApiKey[]>([
     {
       id: '1',
-      name: 'n8n Integration',
+      name: 'Default Integration',
       key: process.env.NEXT_PUBLIC_DEMO_MODE ? 'fo_live_10177805...860515dc2b3f' : 'fo_live_10177805c8d743e1a6e1860515dc2b3f',
       lastUsed: 'Never',
       created: new Date().toISOString().split('T')[0],

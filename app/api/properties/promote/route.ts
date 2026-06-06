@@ -150,8 +150,8 @@ export async function POST(request: NextRequest) {
     // source path (e.g. manual entry), we don't want to throw. Use upsert.
     // Parcel from FL DOR roll doesn't carry bedroom/bathroom counts — those
     // come from the per-county property appraiser SDF (separate ingest) or
-    // ATTOM/REAPI enrichment. Leave them null on promote; the user can
-    // enrich via skip-trace or ATTOM later.
+    // REAPI enrichment. Leave them null on promote; the user can
+    // enrich via skip-trace or REAPI later.
     const lastSaleDateStr = parcel?.lastSaleYear
       ? `${parcel.lastSaleYear}-01-01`
       : null;

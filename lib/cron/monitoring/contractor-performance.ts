@@ -3,8 +3,6 @@
  *
  * Schedule: Daily at 8 AM
  * Purpose: Calculate contractor reliability scores and send alerts for poor performers
- *
- * Migrated from: n8n workflow "Contractor Performance Tracking"
  */
 
 import {

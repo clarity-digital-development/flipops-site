@@ -918,8 +918,6 @@ model Notification {
   metadata    String?  // Flexible metadata including dedupe_hash (JSON string for SQLite)
   occurredAt  DateTime @default(now())
   createdAt   DateTime @default(now())
-  n8nExecId   String?  // n8n execution ID
-  n8nWorkflow String?  // n8n workflow name
   processed   Boolean  @default(false)
 
   @@index([type, occurredAt])
@@ -1443,7 +1441,7 @@ model Reservation {
 // =============================================================================
 // Replaces BatchData $0.30/call dependency for open beta. Property data is
 // scraped directly from county assessors, treasurers, recorders, and clerks.
-// API vendors (BatchData, ATTOM) become fallback for unscraped markets.
+// API vendors (BatchData) become fallback for unscraped markets.
 
 // Per-field provenance: which source provided this datum, when, and how fresh.
 // Lets us show "Source: Duval Tax Office (scraped 2h ago)" badges in the UI
@@ -1453,7 +1451,7 @@ model PropertyDataPoint {
   propertyId  String
   field       String   // "tax_delinquent" | "open_mortgage_balance" | "owner_name" | etc.
   value       String   @db.Text  // JSON-encoded — handles primitive + structured values
-  source      String   // "batchdata" | "attom" | "scraper:fl-duval-treasurer" | "manual"
+  source      String   // "batchdata" | "scraper:fl-duval-treasurer" | "manual"
   fetchedAt   DateTime @default(now())
   expiresAt   DateTime?
   confidence  Float?   // 0-1, lower for OCR-extracted or inferred fields

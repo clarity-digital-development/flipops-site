@@ -8,7 +8,7 @@ import { buildDuvalFlScraper } from "@/lib/scrapers/counties/fl-duval";
 //
 // Resolution priority for any data point:
 //   1. Recent (< staleness threshold) PropertyDataPoint row from a scraper
-//   2. Recent PropertyDataPoint row from a paid API (BatchData / ATTOM)
+//   2. Recent PropertyDataPoint row from a paid API (BatchData)
 //   3. Live scrape if we have a registered scraper for the county
 //   4. Live API call as last resort
 //   5. null if nothing produced data
@@ -43,7 +43,6 @@ const DEFAULT_FRESHNESS = 30 * 24 * 60 * 60 * 1000; // 30 days
 export type DataSourceTag =
   | `scraper:${string}`
   | "batchdata"
-  | "attom"
   | "manual"
   | "unknown";
 

@@ -3,8 +3,6 @@
  *
  * Schedule: Daily at 8 AM
  * Purpose: Track deals stalled at each gate and send daily summary
- *
- * Migrated from: n8n workflow "Pipeline Monitoring"
  */
 
 import {

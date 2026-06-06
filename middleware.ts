@@ -23,8 +23,8 @@ const isPublicRoute = createRouteMatcher([
   "/api/newsletter",             // Newsletter signup
   "/api/health",                 // Health check endpoint for Railway
   "/api/webhook(.*)",
-  "/api/webhooks/(.*)",          // All webhook endpoints including n8n
-  "/api/users",                  // Users endpoint for n8n workflows
+  "/api/webhooks/(.*)",          // All webhook endpoints
+  "/api/users",                  // Users endpoint
   "/api/properties/(.*)",        // Property scoring endpoints
   "/api/notifications(.*)",      // Notifications endpoint
   "/api/deals/approve",          // G1 endpoint

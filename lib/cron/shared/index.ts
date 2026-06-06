@@ -5,6 +5,5 @@
 
 export * from './notifications';
 export * from './user-queries';
-export * from './scoring';
 export * from './logger';
 export * from './utils';

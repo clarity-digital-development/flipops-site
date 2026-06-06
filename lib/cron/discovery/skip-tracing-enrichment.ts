@@ -3,8 +3,6 @@
  *
  * Schedule: Weekly (or as needed)
  * Purpose: Enrich high-scoring properties with contact information using BatchData API
- *
- * Migrated from: n8n workflow "Skip Tracing & Enrichment"
  */
 
 import {

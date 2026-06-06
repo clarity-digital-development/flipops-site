@@ -5,7 +5,7 @@ import { prisma } from '@/lib/prisma';
 // Schema for notification data
 const NotificationSchema = z.object({
   type: z.enum(['success', 'error', 'warning', 'info', 'webhook_success', 'webhook_error', 'batch_complete', 'g1.denied', 'g2.denied', 'g3.denied', 'g4.denied', 'property.alert']).optional().default('info'),
-  source: z.string().optional().default('n8n'),
+  source: z.string().optional().default('internal'),
   workflow: z.string().optional(),
   message: z.string().optional(),
   dealId: z.string().optional(),
@@ -61,7 +61,6 @@ export async function POST(req: NextRequest) {
         message: parsed.message || `${parsed.type} notification from ${parsed.source}`,
         metadata,
         occurredAt: parsed.timestamp ? new Date(parsed.timestamp) : new Date(),
-        n8nWorkflow: parsed.workflow || null,
         processed: false,
       },
     });
@@ -149,7 +148,6 @@ export async function GET(req: NextRequest) {
       message: n.message,
       metadata: n.metadata ? JSON.parse(n.metadata) : null,
       occurredAt: n.occurredAt.toISOString(),
-      workflow: n.n8nWorkflow,
       processed: n.processed,
     }));
 
