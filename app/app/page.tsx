@@ -1032,23 +1032,28 @@ export default function DashboardPage() {
             {greeting}
           </h1>
           <p className="text-muted-foreground mt-1">
-            {priorityItems.length > 0 ? (
-              <>
-                <span className="font-medium text-foreground">
-                  {priorityItems.length} item{priorityItems.length === 1 ? "" : "s"} need{priorityItems.length === 1 ? "s" : ""} your attention
-                </span>
-                <span className="mx-2">·</span>
-                <span>
-                  {stats?.newLeads7d ?? 0} new leads this week
-                </span>
-              </>
-            ) : (
-              <>
-                <span>You're all caught up.</span>
-                <span className="mx-2">·</span>
-                <span>{stats?.newLeads7d ?? 0} new leads this week</span>
-              </>
-            )}
+            {(() => {
+              const leadsThisWeek = stats?.newLeads7d ?? 0;
+              const leadsCopy =
+                leadsThisWeek === 0
+                  ? "No new leads this week"
+                  : `${leadsThisWeek} new lead${leadsThisWeek === 1 ? "" : "s"} this week`;
+              return priorityItems.length > 0 ? (
+                <>
+                  <span className="font-medium text-foreground">
+                    {priorityItems.length} item{priorityItems.length === 1 ? "" : "s"} need{priorityItems.length === 1 ? "s" : ""} your attention
+                  </span>
+                  <span className="mx-2">·</span>
+                  <span>{leadsCopy}</span>
+                </>
+              ) : (
+                <>
+                  <span>You're all caught up.</span>
+                  <span className="mx-2">·</span>
+                  <span>{leadsCopy}</span>
+                </>
+              );
+            })()}
             {investorType && (
               <Badge variant="secondary" className="ml-2 font-normal">
                 {getInvestorTypeDisplayName(investorType)}

@@ -163,17 +163,22 @@ const docTypeIcons: Record<Document['docType'], typeof FileText> = {
   Other: FileText,
 };
 
-// Stat chip component for metrics display
+// Stat chip component for metrics display.
+// `variant='platform'` signals platform-provided values (e.g. template library
+// counts) — rendered with a dashed, muted treatment so they don't read as
+// user-data zeros next to real metrics. Default 'data' keeps the solid look.
 function StatChip({
   icon: Icon,
   label,
   value,
-  color = 'gray'
+  color = 'gray',
+  variant = 'data',
 }: {
   icon: typeof FileText;
   label: string;
   value: string | number;
   color?: 'gray' | 'blue' | 'emerald' | 'amber' | 'purple';
+  variant?: 'data' | 'platform';
 }) {
   const colorClasses = {
     gray: 'text-gray-600 dark:text-gray-400',
@@ -183,11 +188,21 @@ function StatChip({
     purple: 'text-purple-600 dark:text-purple-400',
   };
 
+  const containerClasses =
+    variant === 'platform'
+      ? 'bg-transparent border-dashed border-gray-200 dark:border-gray-700/60'
+      : 'bg-gray-50 dark:bg-gray-800/50 border-gray-100 dark:border-gray-800';
+
+  const valueClasses =
+    variant === 'platform'
+      ? 'text-sm font-semibold tabular-nums text-muted-foreground'
+      : 'text-sm font-semibold tabular-nums';
+
   return (
-    <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-gray-50 dark:bg-gray-800/50 border border-gray-100 dark:border-gray-800">
-      <Icon className={cn("h-4 w-4", colorClasses[color])} />
+    <div className={cn('flex items-center gap-2 px-3 py-1.5 rounded-lg border', containerClasses)}>
+      <Icon className={cn('h-4 w-4', colorClasses[color], variant === 'platform' && 'opacity-70')} />
       <div className="flex items-baseline gap-1.5">
-        <span className="text-sm font-semibold tabular-nums">{value}</span>
+        <span className={valueClasses}>{value}</span>
         <span className="text-xs text-muted-foreground">{label}</span>
       </div>
     </div>
@@ -931,7 +946,7 @@ export default function DocumentsPage() {
                 <StatChip icon={Send} label="awaiting" value={metrics.byStatus.sent} color="blue" />
                 <StatChip icon={CheckCircle} label="signed" value={metrics.byStatus.signed} color="emerald" />
                 <StatChip icon={Clock} label="avg time" value={`${metrics.avgSigningTimeHours}h`} color="purple" />
-                <StatChip icon={Layers} label="templates" value={metrics.templatesActive} color="amber" />
+                <StatChip icon={Layers} label="templates available" value={metrics.templatesActive} color="amber" variant="platform" />
               </div>
             )}
           </div>
