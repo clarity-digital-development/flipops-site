@@ -98,12 +98,11 @@ import {
   type DocumentTemplate,
   type Folder as FolderType,
   type Packet,
-  getDocumentsByFolder,
   getTemplatesByCategory,
   getDocumentVersions,
-  calculateDocumentMetrics,
   LEAD_EXPORTS_FOLDER_ID,
 } from "./seed-data";
+import { EmptyState } from "@/components/ui/empty-state";
 
 type ViewMode = 'table' | 'kanban' | 'packets';
 type DocumentStatus = Document['status'];
@@ -331,9 +330,10 @@ export default function DocumentsPage() {
   const [filterDocType, setFilterDocType] = useState<Document['docType'] | 'all'>('all');
   const [filterFolder, setFilterFolder] = useState<string>('all');
   const [expandedFolders, setExpandedFolders] = useState<string[]>(['fld-1', 'fld-7']);
-  // Live documents from /api/documents. When the backend returns an empty list
-  // (typical pre-launch when no real documents have been created), we fall back
-  // to the seed-data file so the UI still demos correctly. Phase 6.
+  // Live documents from /api/documents. Per user directive Q4 ("only real,
+  // scraped data"), the Phase 6 fallback to seed-data has been removed: when
+  // the API returns an empty list, the UI renders a real <EmptyState/> instead
+  // of fabricated documents. `null` = not yet fetched, `[]` = fetched empty.
   const [liveDocuments, setLiveDocuments] = useState<Document[] | null>(null);
   const [newPacket, setNewPacket] = useState<Partial<Packet>>({
     packetType: 'Acquisition',
@@ -345,20 +345,25 @@ export default function DocumentsPage() {
     setMounted(true);
   }, []);
 
-  // Fetch live documents on mount. Silently falls back to seed-data on failure.
+  // Fetch live documents on mount. Always trusts the API response, including
+  // the empty-array case. No more silent seed-data fallback.
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
         const res = await fetch('/api/documents', { cache: 'no-store' });
-        if (!res.ok) return;
+        if (!res.ok) {
+          if (!cancelled) setLiveDocuments([]);
+          return;
+        }
         const json = await res.json();
         if (cancelled) return;
-        if (Array.isArray(json.documents) && json.documents.length > 0) {
-          setLiveDocuments(json.documents as Document[]);
-        }
+        setLiveDocuments(
+          Array.isArray(json.documents) ? (json.documents as Document[]) : [],
+        );
       } catch {
-        // Network error — keep seed-data fallback.
+        // Network error — render an empty state, never fabricated documents.
+        if (!cancelled) setLiveDocuments([]);
       }
     })();
     return () => {
@@ -366,10 +371,8 @@ export default function DocumentsPage() {
     };
   }, []);
 
-  const documentsSource: Document[] =
-    liveDocuments && liveDocuments.length > 0
-      ? liveDocuments
-      : documentsSeedData.documents;
+  // documentsSource = live whenever defined (even empty). Never seed.
+  const documentsSource: Document[] = liveDocuments ?? [];
 
   const isLeadExports = filterFolder === LEAD_EXPORTS_FOLDER_ID;
 
@@ -397,6 +400,12 @@ export default function DocumentsPage() {
     );
   };
 
+  // Folder badge counts must reflect the LIVE document list, not the seed file.
+  // Without this, an empty database still rendered "Awaiting Signature 2",
+  // "Drafts 2", "NDAs 1", "Lead Exports 5" — pulled from the seed array.
+  const liveDocCountByFolder = (folderId: string) =>
+    documentsSource.filter((d) => d.folderId === folderId).length;
+
   // Render folder tree
   const renderFolderTree = (parentId?: string, level = 0) => {
     const folders = documentsSeedData.folders.filter(f => f.parentFolderId === parentId);
@@ -405,7 +414,7 @@ export default function DocumentsPage() {
       const hasChildren = documentsSeedData.folders.some(f => f.parentFolderId === folder.id);
       const isExpanded = expandedFolders.includes(folder.id);
       const isSelected = selectedFolder?.id === folder.id;
-      const docCount = getDocumentsByFolder(folder.id).length;
+      const docCount = liveDocCountByFolder(folder.id);
 
       return (
         <div key={folder.id}>
@@ -462,9 +471,9 @@ export default function DocumentsPage() {
       const res = await fetch('/api/documents', { cache: 'no-store' });
       if (!res.ok) return;
       const json = await res.json();
-      if (Array.isArray(json.documents) && json.documents.length > 0) {
-        setLiveDocuments(json.documents as Document[]);
-      }
+      setLiveDocuments(
+        Array.isArray(json.documents) ? (json.documents as Document[]) : [],
+      );
     } catch {
       // ignore
     }
@@ -646,8 +655,37 @@ export default function DocumentsPage() {
     }
   };
 
-  // Calculate metrics
-  const metrics = calculateDocumentMetrics();
+  // Metrics are now derived from `documentsSource` (the live array) instead of
+  // the seed data — otherwise the sidebar Quick Access counts and the top
+  // StatChip row continued to display the fabricated seed-document totals even
+  // when no real documents existed.
+  const metrics = (() => {
+    const total = documentsSource.length;
+    const byStatus = {
+      draft: documentsSource.filter((d) => d.status === 'draft').length,
+      sent: documentsSource.filter((d) => d.status === 'sent').length,
+      signed: documentsSource.filter((d) => d.status === 'signed').length,
+      expired: documentsSource.filter((d) => d.status === 'expired').length,
+      void: documentsSource.filter((d) => d.status === 'void').length,
+    };
+    const signingDurations = documentsSource
+      .filter((d) => d.signedAt && d.createdAt)
+      .map(
+        (d) =>
+          (new Date(d.signedAt as unknown as string).getTime() -
+            new Date(d.createdAt as unknown as string).getTime()) /
+          (1000 * 60 * 60),
+      );
+    const avgSigningTimeHours = signingDurations.length
+      ? Math.round(
+          signingDurations.reduce((a, b) => a + b, 0) / signingDurations.length,
+        )
+      : 0;
+    const templatesActive = documentsSeedData.templates.filter(
+      (t) => t.isActive,
+    ).length;
+    return { total, byStatus, avgSigningTimeHours, templatesActive };
+  })();
 
   if (!mounted) {
     return (
@@ -763,14 +801,19 @@ export default function DocumentsPage() {
             </div>
           </ScrollArea>
 
-          {/* Storage indicator */}
-          <div className="shrink-0 p-3 border-t bg-gray-50/50 dark:bg-gray-800/50">
-            <div className="flex items-center justify-between text-xs text-muted-foreground mb-1.5">
-              <span>Storage</span>
-              <span className="tabular-nums">6.5/10 GB</span>
+          {/* Storage indicator — real-data only.
+              Previously hard-coded to "6.5/10 GB" (65%) regardless of state.
+              With no file storage backend wired up yet, the only honest value
+              is 0 GB used. Hidden entirely until at least one document exists. */}
+          {documentsSource.length > 0 && (
+            <div className="shrink-0 p-3 border-t bg-gray-50/50 dark:bg-gray-800/50">
+              <div className="flex items-center justify-between text-xs text-muted-foreground mb-1.5">
+                <span>Storage</span>
+                <span className="tabular-nums">0 / 10 GB</span>
+              </div>
+              <Progress value={0} className="h-1" />
             </div>
-            <Progress value={65} className="h-1" />
-          </div>
+          )}
         </div>
 
         {/* Main Content */}
@@ -911,7 +954,15 @@ export default function DocumentsPage() {
           <div className="flex-1 min-h-0 overflow-hidden">
             <ScrollArea className="h-full">
               <div className="p-4">
-                {viewMode === 'table' && (
+                {documentsSource.length === 0 ? (
+                  <EmptyState
+                    icon={<FileText className="h-10 w-10" />}
+                    title="No documents yet"
+                    description="Documents you generate (LOIs, contracts, NDAs) will appear here."
+                    actionLabel="New Document"
+                    onAction={() => setShowTemplateLibrary(true)}
+                  />
+                ) : viewMode === 'table' && (
                   <Table>
                     <TableHeader>
                       <TableRow>

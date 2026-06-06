@@ -57,6 +57,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { type Buyer, type BuyerPerformance, type BuyBox, type BuyerDocument, type DispoListing, buyersSeedData } from "./seed-data";
 import { exportToCSV, generateFilename, formatCurrencyForCSV, formatBooleanForCSV } from "@/lib/csv-export";
+import { EmptyState } from "@/components/ui/empty-state";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -520,14 +521,19 @@ export default function BuyersPage() {
     }
   };
 
-  // Convert API buyer to seed data format for compatibility
+  // Convert API buyer to seed data format for compatibility.
+  // Note: several legacy seed-data fields (blacklisted status, cashBuyer,
+  // dealsClosedCount, avgAssignmentFee, priceMin/Max, bedsMin, rehabLevel)
+  // are still referenced in scattered UI surfaces. We surface defaults here
+  // rather than typecheck-failing — the UI shows the empty/zero state for
+  // those panels until the API exposes those columns.
   const convertApiBuyer = (apiBuyer: ApiBuyer) => ({
     id: apiBuyer.id,
     name: apiBuyer.name,
     entity: apiBuyer.company || "Individual",
     type: "individual" as const,
-    status: apiBuyer.reliability === "reliable" ? "vip" as const :
-            apiBuyer.reliability === "unreliable" ? "inactive" as const : "active" as const,
+    status: (apiBuyer.reliability === "reliable" ? "vip" :
+            apiBuyer.reliability === "unreliable" ? "inactive" : "active") as "active" | "vip" | "inactive" | "blacklisted",
     markets: apiBuyer.targetMarkets || [],
     phone: apiBuyer.phone || "",
     email: apiBuyer.email || "",
@@ -537,12 +543,22 @@ export default function BuyersPage() {
     joinedDate: apiBuyer.createdAt,
     lastActive: apiBuyer.updatedAt,
     notes: apiBuyer.notes || undefined,
+    // Legacy-compat fields surfaced from the API; default zero/false until
+    // the schema exposes them on the Buyer model.
+    cashBuyer: apiBuyer.cashBuyer ?? false,
+    dealsClosedCount: apiBuyer.dealsClosed ?? 0,
+    avgAssignmentFee: 0,
+    priceMin: 0,
+    priceMax: 0,
+    bedsMin: 0,
+    rehabLevel: "any" as const,
   });
 
-  // Get the effective buyers list from API, fallback to seed data
-  const effectiveBuyers = apiBuyers.length > 0
-    ? apiBuyers.map(convertApiBuyer)
-    : buyersSeedData.buyers;
+  // Effective buyers list comes ONLY from the API. Per user directive Q4
+  // ("only real, scraped data"), the previous fallback to `buyersSeedData.buyers`
+  // — which surfaced 8 fabricated buyers as if they were real — has been removed.
+  // When there are no real buyers, the UI renders an <EmptyState/> instead.
+  const effectiveBuyers = apiBuyers.map(convertApiBuyer);
 
   // Get buyer data with performance metrics (empty until APIs are built)
   const getBuyerWithMetrics = (buyerId: string) => {
@@ -1206,8 +1222,18 @@ export default function BuyersPage() {
             <div className="p-4">
               {/* Overview Tab */}
               <TabsContent value="overview" className="mt-0">
+                {effectiveBuyers.length === 0 && apiBuyerOffers.length === 0 ? (
+                  <EmptyState
+                    icon={<Users className="h-10 w-10" />}
+                    title="No buyers yet"
+                    description="Add cash buyers to start matching deals."
+                    actionLabel="Add Buyer"
+                    onAction={() => { resetBuyerForm(); setShowAddBuyerDialog(true); }}
+                  />
+                ) : (
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  {/* Top Performers */}
+                  {/* Top Performers — hidden entirely when no buyers exist */}
+                  {effectiveBuyers.length > 0 && (
                   <Card className="h-fit">
                     <CardHeader>
                       <CardTitle>Top Performing Buyers</CardTitle>
@@ -1257,8 +1283,10 @@ export default function BuyersPage() {
                       </ScrollArea>
                     </CardContent>
                   </Card>
+                  )}
 
-                  {/* Recent Offers */}
+                  {/* Recent Offers — hidden entirely when no offers exist */}
+                  {apiBuyerOffers.length > 0 && (
                   <Card className="h-fit">
                     <CardHeader>
                       <CardTitle>Recent Offers</CardTitle>
@@ -1275,7 +1303,7 @@ export default function BuyersPage() {
                               <p className="text-sm text-muted-foreground">No recent offers</p>
                             </div>
                           ) : (
-                            apiBuyerOffers.slice(0, 10).map(offer => (
+                            apiBuyerOffers.slice(0, 10).map((offer: ApiBuyerOffer) => (
                               <div key={offer.id} className="p-3 border border-gray-200 dark:border-border rounded-lg hover:bg-gray-50 dark:hover:bg-muted/50 transition-colors">
                                 <div className="flex items-start justify-between gap-3">
                                   <div className="min-w-0 flex-1">
@@ -1333,7 +1361,9 @@ export default function BuyersPage() {
                       </ScrollArea>
                     </CardContent>
                   </Card>
+                  )}
                 </div>
+                )}
               </TabsContent>
 
               {/* Buyers Tab */}
@@ -1541,7 +1571,15 @@ export default function BuyersPage() {
                   )}
 
                   {/* Buyers Grid/List View */}
-                  {buyerViewMode === "grid" ? (
+                  {effectiveBuyers.length === 0 ? (
+                    <EmptyState
+                      icon={<Users className="h-10 w-10" />}
+                      title="No buyers yet"
+                      description="Add cash buyers to start matching deals."
+                      actionLabel="Add Buyer"
+                      onAction={() => { resetBuyerForm(); setShowAddBuyerDialog(true); }}
+                    />
+                  ) : buyerViewMode === "grid" ? (
                     <ScrollArea className="h-[495px]">
                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pr-4">
                         {filteredBuyers.map(buyer => {
