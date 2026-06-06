@@ -973,7 +973,14 @@ export default function OffersPage() {
             <StatChip label="Countered" value={stats.countered} icon={<MessageSquare className="h-4 w-4" />} color="amber" />
             <StatChip label="Won" value={stats.accepted} subValue={formatCurrency(stats.acceptedValue)} icon={<Check className="h-4 w-4" />} color="emerald" />
             <StatChip label="Needs Contract" value={stats.needsContract} icon={<AlertCircle className="h-4 w-4" />} color="rose" />
-            <StatChip label="Conversion" value={`${stats.conversionRate.toFixed(0)}%`} icon={<Target className="h-4 w-4" />} {...(stats.conversionRate > 0 ? { trend: { value: 8, positive: true } } : {})} color="purple" />
+            {/* Cleanup E2: trend prop omitted entirely — there is no prior-period
+                conversion baseline in calculateOfferStats(), so any value here
+                would be fabricated. D3 only suppressed the pill at 0%; the
+                moment conversionRate became non-zero (any accepted offer),
+                the hardcoded `{ value: 8, positive: true }` rendered a fake
+                '+8% emerald' trend. Render value only until a real
+                prevConversionRate is wired through /api/offers. */}
+            <StatChip label="Conversion" value={`${stats.conversionRate.toFixed(0)}%`} icon={<Target className="h-4 w-4" />} color="purple" />
           </div>
         </div>
 
