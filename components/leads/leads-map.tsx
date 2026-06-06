@@ -8,6 +8,7 @@ import Map, {
 } from "react-map-gl/mapbox";
 import "mapbox-gl/dist/mapbox-gl.css";
 import { useTheme } from "next-themes";
+import { MapPin } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { resolveCoordinates, jitterCoordinates } from "./city-coordinates";
 
@@ -106,15 +107,22 @@ export function LeadsMap({
     });
   }, [selectedLeadId, mappedLeads]);
 
-  if (!mapboxToken) {
+  if (!mapboxToken || mapboxToken.trim() === "") {
     return (
       <div
         className={cn(
-          "flex h-full w-full items-center justify-center bg-muted text-sm text-muted-foreground",
+          "flex h-full w-full flex-col items-center justify-center gap-3 bg-gradient-to-br from-muted/40 via-muted/60 to-muted/40 text-center",
           className,
         )}
+        aria-label="Map preview unavailable"
       >
-        Map unavailable: set NEXT_PUBLIC_MAPBOX_TOKEN in environment
+        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-background/80 shadow-sm ring-1 ring-border">
+          <MapPin className="h-6 w-6 text-muted-foreground" aria-hidden="true" />
+        </div>
+        <div className="space-y-1 px-6">
+          <p className="text-sm font-medium text-foreground">Map view coming soon</p>
+          <p className="text-xs text-muted-foreground">Properties shown in list view</p>
+        </div>
       </div>
     );
   }
