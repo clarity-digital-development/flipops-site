@@ -75,6 +75,7 @@ import Link from "next/link";
 import { exportToCSV, generateFilename, formatCurrencyForCSV, formatDateForCSV } from "@/lib/csv-export";
 import { cn } from "@/lib/utils";
 import { trackLeadEvent, type LeadEventType } from "@/lib/behavior/client";
+import { EmptyState } from "@/components/ui/empty-state";
 
 interface Contract {
   id: string;
@@ -1166,17 +1167,6 @@ export default function ContractsPage() {
     return <div>Loading...</div>;
   }
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
-          <p className="text-muted-foreground">Loading contracts...</p>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="h-full flex flex-col">
       {/* Header */}
@@ -1319,17 +1309,17 @@ export default function ContractsPage() {
           <Card className="h-full py-0 gap-0">
             <ScrollArea className="h-full">
               {filteredContracts.length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-[360px] gap-3">
-                  <FileSignature className="h-12 w-12 text-gray-400" />
-                  <div className="text-center">
-                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white">No contracts found</h3>
-                    <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                      {contracts.length === 0
-                        ? "Create contracts from accepted offers to get started."
-                        : "Try adjusting your filters."}
-                    </p>
-                  </div>
-                </div>
+                <EmptyState
+                  icon={<FileSignature className="h-10 w-10" />}
+                  title={contracts.length === 0 ? "No contracts yet" : "No contracts match your filters"}
+                  description={
+                    contracts.length === 0
+                      ? "Contracts are created from accepted offers. Accept an offer in the Offers workspace to generate your first contract."
+                      : "Try clearing your search or status filter to see more contracts."
+                  }
+                  actionLabel={contracts.length === 0 ? "Go to Offers" : undefined}
+                  actionHref={contracts.length === 0 ? "/app/offers" : undefined}
+                />
               ) : (
                 <Table>
                   <TableHeader>
