@@ -1,0 +1,212 @@
+[
+  {
+    "url": "https://webapps.hcso.tampa.fl.us/arrestinquiry",
+    "method": "GET",
+    "status": 200,
+    "ctype": "text/html; charset=utf-8",
+    "size": 14919
+  },
+  {
+    "url": "https://www.google.com/recaptcha/api.js",
+    "method": "GET",
+    "status": 200,
+    "ctype": "text/javascript; charset=utf-8",
+    "size": 1548
+  },
+  {
+    "url": "https://webapps.hcso.tampa.fl.us/arrestinquiry/lib/bootstrap/js/bootstrap.bundle.min.js",
+    "method": "GET",
+    "status": 200,
+    "ctype": "text/javascript",
+    "size": 80502
+  },
+  {
+    "url": "https://webapps.hcso.tampa.fl.us/arrestinquiry/js/site.js?v=aN5Cou4szNyRO8FP8BIf7pl5njTc8sV1-iGgeNuuliU",
+    "method": "GET",
+    "status": 200,
+    "ctype": "text/javascript",
+    "size": 252
+  },
+  {
+    "url": "https://webapps.hcso.tampa.fl.us/arrestinquiry/lib/jquery-easing/jquery.easing.min.js",
+    "method": "GET",
+    "status": 200,
+    "ctype": "text/javascript",
+    "size": 2532
+  },
+  {
+    "url": "https://webapps.hcso.tampa.fl.us/arrestinquiry/js/formeffects.js",
+    "method": "GET",
+    "status": 200,
+    "ctype": "text/javascript",
+    "size": 2017
+  },
+  {
+    "url": "https://webapps.hcso.tampa.fl.us/arrestinquiry/lib/jquery/jquery.min.js",
+    "method": "GET",
+    "status": 200,
+    "ctype": "text/javascript",
+    "size": 87535
+  },
+  {
+    "url": "https://webapps.hcso.tampa.fl.us/arrestinquiry/lib/jqueryui/jquery-ui.min.js",
+    "method": "GET",
+    "status": 200,
+    "ctype": "text/javascript",
+    "size": 255089
+  },
+  {
+    "url": "https://www.gstatic.com/recaptcha/releases/hsFBb1u5wWWWkWP4in1ua2cQ/recaptcha__en.js",
+    "method": "GET",
+    "status": 200,
+    "ctype": "text/javascript",
+    "size": 890544
+  },
+  {
+    "url": "https://www.gstatic.com/recaptcha/releases/hsFBb1u5wWWWkWP4in1ua2cQ/recaptcha__en.js",
+    "method": "GET",
+    "status": 200,
+    "ctype": "text/javascript",
+    "size": 890544
+  },
+  {
+    "url": "https://www.google.com/recaptcha/api2/anchor?ar=1&k=6LcK1HopAAAAAEZgVeXqiN2_4zp6cQwRRXfc3uKJ&co=aHR0cHM6Ly93ZWJhcHBzLmhjc28udGFtcGEuZmwudXM6NDQz&hl=en&v=hsFBb1u5wWWWkWP4in1ua2cQ&size=normal&anchor-ms=20000&execute-ms=30000&cb=hqg95aplsjq9",
+    "method": "GET",
+    "status": 200,
+    "ctype": "text/html; charset=utf-8",
+    "size": 54939
+  },
+  {
+    "url": "https://www.google.com/recaptcha/api2/webworker.js?hl=en&v=hsFBb1u5wWWWkWP4in1ua2cQ",
+    "method": "GET",
+    "status": 200,
+    "ctype": "text/javascript; charset=utf-8",
+    "size": 102
+  },
+  {
+    "url": "https://www.gstatic.com/recaptcha/releases/hsFBb1u5wWWWkWP4in1ua2cQ/recaptcha__en.js",
+    "method": "GET",
+    "status": 200,
+    "ctype": "text/javascript",
+    "size": 890544
+  },
+  {
+    "url": "https://www.gstatic.com/recaptcha/releases/hsFBb1u5wWWWkWP4in1ua2cQ/recaptcha__en.js",
+    "method": "GET",
+    "status": 200,
+    "ctype": "text/javascript",
+    "size": 890544
+  },
+  {
+    "url": "https://www.google.com/recaptcha/api2/bframe?hl=en&v=hsFBb1u5wWWWkWP4in1ua2cQ&k=6LcK1HopAAAAAEZgVeXqiN2_4zp6cQwRRXfc3uKJ&bft=0dAFcWeA7aJCCS14BKdcHgrlXN9ipBYyn5Bfw3jzLcO9u5HdVQ9abtdHcW4-e5MgkP9KJ-pcLUfON1PcG8bOnklPl2YfEWLH7ocw",
+    "method": "GET",
+    "status": 200,
+    "ctype": "text/html; charset=utf-8",
+    "size": 17035
+  },
+  {
+    "url": "https://webapps.hcso.tampa.fl.us/arrestinquiry/lib/jquery/jquery.min.js",
+    "method": "GET",
+    "status": 200,
+    "ctype": "text/javascript",
+    "size": 87535
+  },
+  {
+    "url": "https://webapps.hcso.tampa.fl.us/arrestinquiry/lib/jqueryui/jquery-ui.min.js",
+    "method": "GET",
+    "status": 200,
+    "ctype": "text/javascript",
+    "size": 255089
+  },
+  {
+    "url": "https://webapps.hcso.tampa.fl.us/arrestinquiry/lib/bootstrap/js/bootstrap.bundle.min.js",
+    "method": "GET",
+    "status": 200,
+    "ctype": "text/javascript",
+    "size": 80502
+  },
+  {
+    "url": "https://webapps.hcso.tampa.fl.us/arrestinquiry/lib/jquery-easing/jquery.easing.min.js",
+    "method": "GET",
+    "status": 200,
+    "ctype": "text/javascript",
+    "size": 2532
+  },
+  {
+    "url": "https://webapps.hcso.tampa.fl.us/arrestinquiry/js/site.js?v=aN5Cou4szNyRO8FP8BIf7pl5njTc8sV1-iGgeNuuliU",
+    "method": "GET",
+    "status": 200,
+    "ctype": "text/javascript",
+    "size": 252
+  },
+  {
+    "url": "https://webapps.hcso.tampa.fl.us/arrestinquiry/js/formeffects.js",
+    "method": "GET",
+    "status": 200,
+    "ctype": "text/javascript",
+    "size": 2017
+  },
+  {
+    "url": "https://www.google.com/recaptcha/api.js",
+    "method": "GET",
+    "status": 200,
+    "ctype": "text/javascript; charset=utf-8",
+    "size": 1548
+  },
+  {
+    "url": "https://webapps.hcso.tampa.fl.us/arrestinquiry",
+    "method": "POST",
+    "status": 200,
+    "ctype": "text/html; charset=utf-8",
+    "size": 15113
+  },
+  {
+    "url": "https://www.gstatic.com/recaptcha/releases/hsFBb1u5wWWWkWP4in1ua2cQ/recaptcha__en.js",
+    "method": "GET",
+    "status": 200,
+    "ctype": "text/javascript",
+    "size": 890544
+  },
+  {
+    "url": "https://www.google.com/recaptcha/api2/anchor?ar=1&k=6LcK1HopAAAAAEZgVeXqiN2_4zp6cQwRRXfc3uKJ&co=aHR0cHM6Ly93ZWJhcHBzLmhjc28udGFtcGEuZmwudXM6NDQz&hl=en&v=hsFBb1u5wWWWkWP4in1ua2cQ&size=normal&anchor-ms=20000&execute-ms=30000&cb=mo3qfl38noio",
+    "method": "GET",
+    "status": 200,
+    "ctype": "text/html; charset=utf-8",
+    "size": 54625
+  },
+  {
+    "url": "https://www.gstatic.com/recaptcha/releases/hsFBb1u5wWWWkWP4in1ua2cQ/recaptcha__en.js",
+    "method": "GET",
+    "status": 200,
+    "ctype": "text/javascript",
+    "size": 890544
+  },
+  {
+    "url": "https://www.google.com/recaptcha/api2/webworker.js?hl=en&v=hsFBb1u5wWWWkWP4in1ua2cQ",
+    "method": "GET",
+    "status": 200,
+    "ctype": "text/javascript; charset=utf-8",
+    "size": 102
+  },
+  {
+    "url": "https://www.gstatic.com/recaptcha/releases/hsFBb1u5wWWWkWP4in1ua2cQ/recaptcha__en.js",
+    "method": "GET",
+    "status": 200,
+    "ctype": "text/javascript",
+    "size": 890544
+  },
+  {
+    "url": "https://www.gstatic.com/recaptcha/releases/hsFBb1u5wWWWkWP4in1ua2cQ/recaptcha__en.js",
+    "method": "GET",
+    "status": 200,
+    "ctype": "text/javascript",
+    "size": 890544
+  },
+  {
+    "url": "https://www.google.com/recaptcha/api2/bframe?hl=en&v=hsFBb1u5wWWWkWP4in1ua2cQ&k=6LcK1HopAAAAAEZgVeXqiN2_4zp6cQwRRXfc3uKJ&bft=0dAFcWeA5VGvNws1uBuuuhzq5ARv12-qz3kposPfBZ4rJ4U4SoB4DYJAKrOvIccdXBJLFayx-VHBw9LkmSQ-9D-0GRJsJe_HmnxA",
+    "method": "GET",
+    "status": 200,
+    "ctype": "text/html; charset=utf-8",
+    "size": 17038
+  }
+]

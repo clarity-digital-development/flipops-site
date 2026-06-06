@@ -2,8 +2,11 @@
  * Inspect the ATTOM workflow nodes to see the structure
  */
 
-const N8N_BASE_URL = 'https://primary-production-8b46.up.railway.app/api/v1';
-const N8N_API_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI0M2IwYmI1YS1hNjI0LTQxYWMtOWU2Ny05OTMyZTI2YzlhOWEiLCJpc3MiOiJuOG4iLCJhdWQiOiJwdWJsaWMtYXBpIiwiaWF0IjoxNzYzNTg2MDQwLCJleHAiOjE3NjYxMjA0MDB9.ER-2js6nXztX2OqdJVQIqI1lg0PG_HBEJPjUBeaDxO8';
+const N8N_BASE_URL = process.env.N8N_BASE_URL ?? 'https://primary-production-8b46.up.railway.app/api/v1';
+const N8N_API_KEY = process.env.N8N_API_KEY;
+if (!N8N_API_KEY) {
+  throw new Error('N8N_API_KEY env var is required (set it in .env or pass inline)');
+}
 
 async function inspectNodes() {
   const workflowsResponse = await fetch(`${N8N_BASE_URL}/workflows`, {

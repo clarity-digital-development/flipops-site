@@ -3,8 +3,11 @@
  * Fetch the latest execution and examine actual data
  */
 
-const N8N_API_URL = 'https://primary-production-8b46.up.railway.app/api/v1';
-const N8N_API_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJmNWJiMWFmOC03Zjk5LTQ2YTAtYTViNC04MGI3YmRiNWU4YzYiLCJpc3MiOiJuOG4iLCJhdWQiOiJwdWJsaWMtYXBpIiwiaWF0IjoxNzYxNzkwNTYwLCJleHAiOjE3NjQzMDYwMDB9.RGB3tYsT8s64qNl0T22iXnXBtsiynD5D47OqbjjMP1w';
+const N8N_API_URL = process.env.N8N_API_URL ?? 'https://primary-production-8b46.up.railway.app/api/v1';
+const N8N_API_KEY = process.env.N8N_API_KEY;
+if (!N8N_API_KEY) {
+  throw new Error('N8N_API_KEY env var is required (set it in .env or pass inline)');
+}
 const WORKFLOW_ID = 'EkhrKhMhfRyu00go';
 
 async function getLatestExecution() {

@@ -89,3 +89,8 @@ scripts/.tmp-ocfl-getInmates.json
 scripts/.tmp-ocfl-raw.html
 scripts/probe-artifacts/ocfl-reprobe-200.json
 
+.gstack/
+
+# Local scraper working dir (HTML snapshots, downloaded CSVs, browser dumps).
+# Per-run output; large + ephemeral. Not for source control.
+tmp/

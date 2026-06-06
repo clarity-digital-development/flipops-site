@@ -1,4 +1,7 @@
-const ATTOM_API_KEY = '72403894efb4b2cfeb4b5b41f105a53a';
+const ATTOM_API_KEY = process.env.ATTOM_API_KEY;
+if (!ATTOM_API_KEY) {
+  throw new Error('ATTOM_API_KEY env var is required (set it in .env or pass inline)');
+}
 
 /**
  * Test ATTOM API to understand:

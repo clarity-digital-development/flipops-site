@@ -28,43 +28,46 @@ async function main() {
     inputs.forEach((inp) => console.log(`    `, inp.slice(0, 200)));
   });
 
-  // Find any anti-forgery / hidden inputs in the form
-  const allHidden = [...r2.html.matchAll(/<input[^>]*type="hidden"[^>]*>/gi)].map((m) => m[0]);
-  console.log("\n  All hidden inputs in page:");
-  allHidden.forEach((h) => console.log("    " + h.slice(0, 250)));
-
-  // Compute target date
+  // Compute target date — 5 days back (clerks post 1-2 day lag)
   const d = new Date();
   d.setDate(d.getDate() - 5);
   const targetDate = `${d.getMonth() + 1}/${d.getDate()}/${d.getFullYear()}`;
 
-  console.log(`\nStep 3: POST search with RecordDate=${targetDate}...`);
-  const r3 = await sess.postForm("https://or.duvalclerk.com/search/SearchTypeRecordDate?Length=6", {
+  console.log(`\nStep 3: POST search via /search/SearchResults with RecordDate=${targetDate}...`);
+  const r3 = await sess.postForm("https://or.duvalclerk.com/search/SearchResults", {
     RecordDate: targetDate,
   }, {
-    "X-Requested-With": "XMLHttpRequest", // ASP.NET MVC AsyncForm typically expects this
+    "X-Requested-With": "XMLHttpRequest",
     Referer: "https://or.duvalclerk.com/search/SearchTypeRecordDate",
   });
   console.log("  status:", r3.status, "html bytes:", r3.html.length);
-  console.log("  title:", (r3.html.match(/<title>([^<]+)<\/title>/) || ["", "?"])[1].trim().slice(0, 60));
+  console.log("  Body[0:300]:", r3.html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().slice(0, 300));
 
-  // Look at the response structure
-  const scripts = [...r3.html.matchAll(/<script[^>]*>([\s\S]*?)<\/script>/gi)].map((m) => m[1]);
-  console.log(`  Script blocks: ${scripts.length}`);
+  console.log(`\nStep 4: GET /Search/HasResults...`);
+  const r4 = await sess.get("https://or.duvalclerk.com/Search/HasResults");
+  console.log("  status:", r4.status, "body:", r4.html.slice(0, 200));
 
-  // Look for hints about how results are loaded
-  const ajaxHints = r3.html.match(/Sys\.Mvc[^"';]+|kendoGrid|\.ajax\(|getJSON|loadJSON|search\/\w+/gi) || [];
-  console.log(`  AJAX hints (first 8):`);
-  ajaxHints.slice(0, 8).forEach((h) => console.log(`    ${h.slice(0, 100)}`));
+  console.log(`\nStep 5: GET /Search/PartialGrid...`);
+  const r5 = await sess.get("https://or.duvalclerk.com/Search/PartialGrid", { Referer: "https://or.duvalclerk.com/search/SearchTypeRecordDate" });
+  console.log("  status:", r5.status, "html bytes:", r5.html.length);
 
-  // Look for any URLs referencing search results or grids
-  const interestingUrls = [...r3.html.matchAll(/(?:href|src|action|url|Url)\s*=\s*["']([^"']+search[^"']*)["']/gi)].map((m) => m[1]);
-  console.log(`  Search URLs in response (first 10):`);
-  interestingUrls.slice(0, 10).forEach((u) => console.log(`    ${u.slice(0, 120)}`));
+  // Inspect the grid response
+  const trs = [...r5.html.matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/gi)].map((m) => m[1]);
+  console.log(`  TR rows in PartialGrid: ${trs.length}`);
+  const substantive = trs.filter((t) => {
+    const text = t.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+    return text.length > 30 && /\d/.test(text);
+  });
+  console.log(`  Substantive rows: ${substantive.length}`);
+  substantive.slice(0, 5).forEach((s, i) => {
+    const text = s.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+    console.log(`    row[${i}]: ${text.slice(0, 250)}`);
+  });
 
-  // Sample body around any "result" or "grid" or "loading" indicator
-  const bodyText = r3.html.replace(/<script[\s\S]*?<\/script>/gi, "").replace(/<style[\s\S]*?<\/style>/gi, "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
-  console.log(`\n  Body text first 800 chars:\n  ${bodyText.slice(0, 800)}`);
+  if (substantive.length === 0) {
+    console.log(`\n  Body text first 500 of PartialGrid:`);
+    console.log(`  ${r5.html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().slice(0, 500)}`);
+  }
 }
 
 main().catch((e) => {
