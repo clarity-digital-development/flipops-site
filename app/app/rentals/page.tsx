@@ -1190,8 +1190,8 @@ export default function RentalsPage() {
             label="Cash Flow"
             value={formatCurrency(analytics.totalCashFlow, true)}
             icon={analytics.totalCashFlow >= 0 ? TrendingUp : TrendingDown}
-            trend={analytics.totalCashFlow >= 0 ? "up" : "down"}
-            color={analytics.totalCashFlow >= 0 ? "emerald" : "rose"}
+            {...(analytics.totalCashFlow !== 0 ? { trend: analytics.totalCashFlow > 0 ? "up" : "down" } : {})}
+            color={analytics.totalCashFlow > 0 ? "emerald" : analytics.totalCashFlow < 0 ? "rose" : "default"}
           />
           <StatChip
             label="Avg Cap Rate"

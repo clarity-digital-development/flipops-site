@@ -695,11 +695,7 @@ export default function InboxPage() {
               <EmptyState
                 icon={<MessageSquare className="h-8 w-8" />}
                 title="No conversations yet"
-                description={
-                  loadError
-                    ? "We couldn't load your inbox. Try refreshing."
-                    : "Conversations appear here when you contact a lead or a lead responds."
-                }
+                description="Messages from leads will appear here once you reach out."
                 actionLabel="Go to Leads"
                 actionHref="/app/leads"
                 compact
