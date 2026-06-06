@@ -1189,6 +1189,13 @@ export default function UnderwritingPage() {
   // State management
   const [properties, setProperties] = useState<Property[]>([]);
   const [loadingProperties, setLoadingProperties] = useState(true);
+  // Track whether the user has EVER had a non-empty property fetch this
+  // session. First-time users (no data yet) skip the skeleton entirely and
+  // see the EmptyState CTA on first paint — the ~1.5s skeleton flash was
+  // creating false 'data is loading' expectation. Returning users (who have
+  // had data before in this session) still get the skeleton on refetch as
+  // the expected loading affordance.
+  const [hasEverFetchedNonEmpty, setHasEverFetchedNonEmpty] = useState(false);
   const [selectedPropertyId, setSelectedPropertyId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [leftPanelCollapsed, setLeftPanelCollapsed] = useState(false);
@@ -1243,8 +1250,13 @@ export default function UnderwritingPage() {
         const data = await response.json();
         const list: Property[] = (data.properties ?? []) as Property[];
         setProperties(list);
-        if (list.length > 0 && !selectedPropertyId) {
-          setSelectedPropertyId(list[0].id);
+        if (list.length > 0) {
+          // Mark that this user has had data — subsequent refetches will
+          // render the skeleton during the loading window as expected.
+          setHasEverFetchedNonEmpty(true);
+          if (!selectedPropertyId) {
+            setSelectedPropertyId(list[0].id);
+          }
         }
       } else {
         setProperties([]);
@@ -1662,8 +1674,11 @@ export default function UnderwritingPage() {
     (property.ownerName && property.ownerName.toLowerCase().includes(searchQuery.toLowerCase()))
   );
 
-  // Loading state
-  if (loadingProperties) {
+  // Loading state — only show the skeleton if this user has previously had
+  // data this session. First-time zero-data users fall through to the
+  // EmptyState branch immediately to avoid the ~1.5s skeleton flash that
+  // falsely suggested data was about to load.
+  if (loadingProperties && hasEverFetchedNonEmpty) {
     return <UnderwritingSkeleton />;
   }
 
@@ -2255,9 +2270,12 @@ export default function UnderwritingPage() {
                 </TabsContent>
 
                 {/* MAO Tab */}
+                {/* H1 cleanup: pb-8 gives the ScrollArea bottom breathing room so the
+                    Adjust Assumptions panel — which is appended below the toggle on
+                    open — stays comfortably reachable at 1440x900 viewports. */}
                 <TabsContent value="mao" className="flex-1 min-h-0 m-0 p-0">
                   <ScrollArea className="h-full">
-                    <div className="p-4">
+                    <div className="p-4 pb-8">
                       <MAOWaterfallPanel
                         arv={adjustedARV}
                         repairs={adjustedRepairs}

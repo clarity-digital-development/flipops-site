@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import {
   ChevronDown,
@@ -599,6 +599,23 @@ export function MAOWaterfallPanel({
     ...initialAssumptions,
   });
 
+  // H1 cleanup: when the SettingsPanel toggles open, scroll it into view
+  // inside whatever ancestor scroll container is hosting the panel (the
+  // Underwriting tab's ScrollArea at 1440x900 hides the panel below the
+  // fold otherwise). requestAnimationFrame waits for the panel mount
+  // before scrolling so scrollIntoView targets the rendered element.
+  const settingsAnchorRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!showSettingsPanel) return;
+    const id = requestAnimationFrame(() => {
+      settingsAnchorRef.current?.scrollIntoView({
+        block: "nearest",
+        behavior: "smooth",
+      });
+    });
+    return () => cancelAnimationFrame(id);
+  }, [showSettingsPanel]);
+
   const handleAssumptionsChange = (newAssumptions: MAOAssumptions) => {
     setAssumptions(newAssumptions);
     onAssumptionsChange?.(newAssumptions);
@@ -775,7 +792,7 @@ export function MAOWaterfallPanel({
         </Button>
 
         {showSettingsPanel && (
-          <div className="mt-3">
+          <div ref={settingsAnchorRef} className="mt-3 scroll-mt-2">
             <SettingsPanel
               assumptions={assumptions}
               arv={arv}
