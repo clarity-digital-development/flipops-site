@@ -54,7 +54,9 @@ export function filterNavigationByInvestorType(
   navigation: NavigationItem[],
   investorType: InvestorType
 ): NavigationItem[] {
-  // Hybrid users see everything
+  // Hybrid users see everything. This is the ONLY place we accept an item
+  // because of the 'hybrid' literal — downstream we filter strictly by the
+  // user's persona membership. See comment on the filter predicate below.
   if (investorType === 'hybrid') {
     return navigation;
   }
@@ -71,8 +73,15 @@ export function filterNavigationByInvestorType(
       return !item.visibleTo; // Only items without restrictions
     }
 
-    // Check if user's investor type is in the visibleTo array
-    return item.visibleTo.includes(investorType) || item.visibleTo.includes('hybrid');
+    // Check if user's investor type is in the visibleTo array.
+    // NOTE: do NOT also accept items whose visibleTo contains 'hybrid' — that
+    // check is about whether the USER is hybrid (already handled by the early
+    // return above), not whether the item happens to allow hybrid viewers.
+    // Every persona-gated item lists 'hybrid' so hybrid users can see it, so
+    // an `|| item.visibleTo.includes('hybrid')` clause here would make the
+    // filter a no-op for every non-hybrid persona. This was the root cause of
+    // Sam round 1-4 "Buyers + Rentals visible in flipper sidebar" finding.
+    return item.visibleTo.includes(investorType);
   });
 }
 
@@ -95,7 +104,11 @@ export function filterSidebarByInvestorType(
       if (entry.visibleTo) {
         if (investorType === 'hybrid') return entry;
         if (!investorType) return null;
-        if (!entry.visibleTo.includes(investorType) && !entry.visibleTo.includes('hybrid')) return null;
+        // Only the user's persona membership matters here. The hybrid-user
+        // case is handled by the early return above; checking whether the
+        // item allows hybrid viewers would let any persona-gated item leak to
+        // every persona (same bug as in filterNavigationByInvestorType).
+        if (!entry.visibleTo.includes(investorType)) return null;
       }
       return entry;
     })
