@@ -995,21 +995,35 @@ export default function PropertyDetailPage({
         {loading ? (
           <PageSkeleton />
         ) : error ? (
-          <Card>
-            <CardContent className="py-12">
-              <EmptyState
-                icon={<Home className="h-8 w-8" />}
-                title={error.includes("Virtual") ? "Virtual lead" : "Property not available"}
-                description={
-                  error.includes("Virtual")
-                    ? "Promote this lead from /app/leads before viewing its detail page."
-                    : error
-                }
-                actionLabel="Back to leads"
-                actionHref="/app/leads"
-              />
-            </CardContent>
-          </Card>
+          (() => {
+            const isVirtual = error.includes("Virtual");
+            const isUnauthorized = /unauthorized/i.test(error);
+            const title = isVirtual
+              ? "Virtual lead"
+              : isUnauthorized
+                ? "Sign in to view this property"
+                : "Property not found";
+            const description = isVirtual
+              ? "Promote this lead from /app/leads before viewing its detail page."
+              : isUnauthorized
+                ? "Your session may have expired. Sign in again to view this property."
+                : "We couldn't find this property in your workspace. It may have been removed or never added.";
+            const actionLabel = isUnauthorized ? "Sign In" : "Back to Leads";
+            const actionHref = isUnauthorized ? "/sign-in" : "/app/leads";
+            return (
+              <Card>
+                <CardContent className="py-12">
+                  <EmptyState
+                    icon={<Home className="h-8 w-8" />}
+                    title={title}
+                    description={description}
+                    actionLabel={actionLabel}
+                    actionHref={actionHref}
+                  />
+                </CardContent>
+              </Card>
+            );
+          })()
         ) : data ? (
           <>
             <HeroSection property={data.property} />
