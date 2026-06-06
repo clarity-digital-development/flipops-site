@@ -36,6 +36,7 @@ import { cn } from "@/lib/utils";
 import { ThemeToggle } from "@/app/components/theme-toggle";
 import { ErrorBoundary } from "@/app/components/error-boundary";
 import {
+  DEFAULT_INVESTOR_TYPE,
   filterSidebarByInvestorType,
   isNavGroup,
   NAVIGATION_RULES,
@@ -190,8 +191,19 @@ export default function AppLayout({
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const { toast } = useToast();
   const [quickAddLeadOpen, setQuickAddLeadOpen] = useState(false);
-  const [investorType, setInvestorType] = useState<InvestorType>(null);
-  const [sidebar, setSidebar] = useState<SidebarEntry[]>(baseSidebar);
+  // Default to FLIPPER preset for anonymous + onboarding-incomplete users.
+  // - Anonymous: the pre-launch /app(.*) bypass means /api/user/profile returns
+  //   401 (requireUser throws); without this default the layout would render
+  //   the unfiltered baseSidebar, exposing Buyers (wholesaler) + Rentals
+  //   (landlord) surfaces to people who almost certainly aren't either.
+  // - Authenticated-but-investorType-null: same outcome — onboarding hasn't
+  //   chosen a persona yet, so present the primary persona (flipper) defaults
+  //   instead of every surface.
+  // Sam round 2+3 IA persona-mismatch fix.
+  const [investorType, setInvestorType] = useState<InvestorType>(DEFAULT_INVESTOR_TYPE);
+  const [sidebar, setSidebar] = useState<SidebarEntry[]>(() =>
+    filterSidebarByInvestorType(baseSidebar, DEFAULT_INVESTOR_TYPE)
+  );
   const [isMounted, setIsMounted] = useState(false);
   const [openGroups, setOpenGroups] = useState<Set<string>>(new Set());
 
@@ -200,23 +212,32 @@ export default function AppLayout({
     setIsMounted(true);
   }, []);
 
-  // Fetch user profile to get investor type
+  // Fetch user profile to get investor type. Anonymous sessions (the /app(.*)
+  // pre-launch bypass) and onboarding-incomplete users KEEP the DEFAULT preset
+  // already set above — we only override when the API returns an explicit
+  // non-null investorType.
   useEffect(() => {
     const fetchUserProfile = async () => {
       try {
         const response = await fetch('/api/user/profile');
-        if (response.ok) {
-          const data = await response.json();
-          const userInvestorType = data.user?.investorType as InvestorType;
-          setInvestorType(userInvestorType);
-
-          // Filter sidebar based on investor type
-          const filteredSidebar = filterSidebarByInvestorType(baseSidebar, userInvestorType);
-          setSidebar(filteredSidebar);
+        if (!response.ok) {
+          // 401 (anonymous) or 404 (no Prisma User row yet) — keep the default
+          // flipper preset. Do NOT fall back to unfiltered baseSidebar.
+          return;
         }
+        const data = await response.json();
+        const userInvestorType = data.user?.investorType as InvestorType;
+
+        // Authenticated user with no investorType set (onboarding incomplete)
+        // → keep the default flipper preset rather than exposing every persona.
+        const effectiveType: InvestorType = userInvestorType ?? DEFAULT_INVESTOR_TYPE;
+
+        setInvestorType(effectiveType);
+        setSidebar(filterSidebarByInvestorType(baseSidebar, effectiveType));
       } catch (error) {
+        // Network error — keep the default preset already in state. Logging
+        // baseSidebar here was the root cause of the Sam round 2+3 finding.
         console.error('Error fetching user profile:', error);
-        setSidebar(baseSidebar);
       }
     };
 

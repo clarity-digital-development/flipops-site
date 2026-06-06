@@ -10,6 +10,18 @@
 
 export type InvestorType = 'wholesaler' | 'flipper' | 'buy_and_hold' | 'hybrid' | null;
 
+/**
+ * Default persona used when the viewer is anonymous (the pre-launch /app(.*)
+ * Clerk bypass) OR is authenticated but has not yet completed onboarding
+ * (investorType === null). Flipper is the primary target persona for FlipOps,
+ * so defaulting here hides wholesaler-only (Buyers) and landlord-only (Rentals)
+ * surfaces from anyone who has not explicitly declared otherwise.
+ *
+ * Single source of truth — consumed by app/app/layout.tsx. Do not hard-code the
+ * string 'flipper' elsewhere; import this constant instead.
+ */
+export const DEFAULT_INVESTOR_TYPE: InvestorType = 'flipper';
+
 export interface NavigationItem {
   name: string;
   href: string;
