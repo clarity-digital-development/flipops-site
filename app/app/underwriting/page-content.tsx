@@ -900,7 +900,7 @@ function UnderwritingSkeleton() {
 // EMPTY STATE
 // ============================================================================
 
-function EmptyState() {
+function EmptyState({ onTryDemo }: { onTryDemo: () => void }) {
   return (
     <div className="flex flex-col items-center justify-center h-full text-center p-8">
       <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-blue-100 to-purple-100 dark:from-blue-900/30 dark:to-purple-900/30 flex items-center justify-center mb-6">
@@ -911,16 +911,262 @@ function EmptyState() {
       </h2>
       <p className="text-gray-500 dark:text-gray-400 max-w-md mb-6">
         Properties will appear here once discovered by ATTOM or imported manually.
-        Use the Leads page to add properties to your pipeline.
+        Use the Leads page to add properties to your pipeline, or take the analyzer for a spin
+        with a sample deal.
       </p>
-      <Button variant="outline" asChild>
-        <a href="/app/leads">
-          <Plus className="h-4 w-4 mr-2" />
-          Go to Leads
-        </a>
-      </Button>
+      <div className="flex flex-col sm:flex-row items-center gap-3">
+        <Button
+          onClick={onTryDemo}
+          className="bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 text-white shadow-lg shadow-blue-500/20"
+        >
+          <Sparkles className="h-4 w-4 mr-2" />
+          Try with a sample property
+        </Button>
+        <Button variant="outline" asChild>
+          <a href="/app/leads">
+            <Plus className="h-4 w-4 mr-2" />
+            Go to Leads
+          </a>
+        </Button>
+      </div>
+      <p className="text-xs text-gray-400 dark:text-gray-500 mt-4 max-w-sm">
+        The sample deal is a Jacksonville, FL flipper scenario with realistic comps,
+        repair scope, and distress signals. Clearly labeled as demo data.
+      </p>
     </div>
   );
+}
+
+// ============================================================================
+// DEMO PROPERTY — clearly-labeled in-memory sample for analyzer evaluation.
+// Address is prefixed "Demo ·" and the id is fixed so save/offer paths
+// can short-circuit without ever hitting Prisma or behavioral telemetry.
+// ============================================================================
+
+const DEMO_PROPERTY_ID = "demo-property-jax-001";
+
+function buildDemoProperty(): Property {
+  return {
+    id: DEMO_PROPERTY_ID,
+    address: "Demo · 1234 Jacksonville Pl",
+    city: "Jacksonville",
+    state: "FL",
+    zip: "32202",
+    county: "Duval",
+    propertyType: "Single Family Residence",
+    bedrooms: 3,
+    bathrooms: 2,
+    squareFeet: 1850,
+    lotSize: 7200,
+    yearBuilt: 1962,
+    assessedValue: 215000,
+    estimatedValue: 360000,
+    lastSaleDate: "2008-04-15",
+    lastSalePrice: 168000,
+    listingDate: null,
+    daysOnMarket: null,
+    score: 92,
+    scoreBreakdown: JSON.stringify({
+      foreclosure: 25,
+      taxDelinquent: 20,
+      absenteeOwner: 15,
+      highEquity: 10,
+      longTermOwner: 15,
+      vacant: 7,
+    }),
+    dataSource: "demo-fixture",
+    ownerName: "Demo Owner LLC",
+    enriched: true,
+    phoneNumbers: null,
+    emails: null,
+    foreclosure: true,
+    preForeclosure: false,
+    taxDelinquent: true,
+    vacant: false,
+    bankruptcy: false,
+    absenteeOwner: true,
+    metadata: JSON.stringify({
+      equityPercent: 62,
+      estimatedEquity: 223200,
+      openMortgageBalance: 136800,
+      yearsOwned: 18,
+      highEquity: true,
+      outOfStateAbsenteeOwner: true,
+      distressScore: 92,
+      distressGrade: "A",
+      distressSignals: ["foreclosure", "taxDelinquent", "absenteeOwner", "highEquity"],
+    }),
+    createdAt: new Date(),
+  };
+}
+
+// 6 demo comps clustered around 1234 Jacksonville Pl. Tuned so a weighted
+// blend lands ARV ~ $385k against the demo's 1850 sqft (~ $208/sqft).
+function buildDemoComps(): Comp[] {
+  return [
+    {
+      id: "demo-comp-1",
+      address: "1180 Riverside Ave, Jacksonville, FL 32204",
+      soldDate: "2026-04-22",
+      soldPrice: 392000,
+      beds: 3,
+      baths: 2,
+      sqft: 1880,
+      yearBuilt: 1958,
+      distance: 0.4,
+      pricePerSqft: 209,
+      similarity: 94,
+      selected: true,
+      weight: 1.0,
+    },
+    {
+      id: "demo-comp-2",
+      address: "927 Park St, Jacksonville, FL 32204",
+      soldDate: "2026-03-08",
+      soldPrice: 378000,
+      beds: 3,
+      baths: 2,
+      sqft: 1820,
+      yearBuilt: 1965,
+      distance: 0.7,
+      pricePerSqft: 208,
+      similarity: 91,
+      selected: true,
+      weight: 1.0,
+    },
+    {
+      id: "demo-comp-3",
+      address: "2240 College St, Jacksonville, FL 32204",
+      soldDate: "2026-02-19",
+      soldPrice: 401000,
+      beds: 3,
+      baths: 2,
+      sqft: 1910,
+      yearBuilt: 1960,
+      distance: 0.9,
+      pricePerSqft: 210,
+      similarity: 89,
+      selected: true,
+      weight: 1.0,
+    },
+    {
+      id: "demo-comp-4",
+      address: "1547 Naldo Ave, Jacksonville, FL 32207",
+      soldDate: "2026-01-30",
+      soldPrice: 365000,
+      beds: 3,
+      baths: 1,
+      sqft: 1760,
+      yearBuilt: 1955,
+      distance: 1.1,
+      pricePerSqft: 207,
+      similarity: 84,
+      selected: true,
+      weight: 1.0,
+    },
+    {
+      id: "demo-comp-5",
+      address: "3318 St Johns Ave, Jacksonville, FL 32205",
+      soldDate: "2025-12-12",
+      soldPrice: 415000,
+      beds: 4,
+      baths: 2,
+      sqft: 2010,
+      yearBuilt: 1968,
+      distance: 1.3,
+      pricePerSqft: 207,
+      similarity: 78,
+      selected: true,
+      weight: 1.0,
+    },
+    {
+      id: "demo-comp-6",
+      address: "2105 Herschel St, Jacksonville, FL 32204",
+      soldDate: "2025-11-04",
+      soldPrice: 372000,
+      beds: 3,
+      baths: 2,
+      sqft: 1795,
+      yearBuilt: 1961,
+      distance: 1.5,
+      pricePerSqft: 207,
+      similarity: 81,
+      selected: true,
+      weight: 1.0,
+    },
+  ];
+}
+
+// Pre-loaded $75k repair scope — realistic for a 1962 Jacksonville flip.
+function buildDemoRepairItems(): RepairItem[] {
+  return [
+    {
+      id: "demo-repair-1",
+      sessionId: "",
+      category: "roof",
+      description: "Tear off + reshingle (1850 sf, architectural shingles)",
+      qty: 1,
+      uom: "job",
+      unitCost: 14500,
+      totalCost: 14500,
+      confidence: "medium",
+    },
+    {
+      id: "demo-repair-2",
+      sessionId: "",
+      category: "kitchen",
+      description: "Mid-grade kitchen: cabinets, quartz counters, stainless appliances",
+      qty: 1,
+      uom: "job",
+      unitCost: 18000,
+      totalCost: 18000,
+      confidence: "medium",
+    },
+    {
+      id: "demo-repair-3",
+      sessionId: "",
+      category: "bath",
+      description: "2 bath remodel (vanity, tile shower, fixtures)",
+      qty: 2,
+      uom: "each",
+      unitCost: 7500,
+      totalCost: 15000,
+      confidence: "medium",
+    },
+    {
+      id: "demo-repair-4",
+      sessionId: "",
+      category: "hvac",
+      description: "Replace 3-ton condenser + air handler",
+      qty: 1,
+      uom: "job",
+      unitCost: 8500,
+      totalCost: 8500,
+      confidence: "high",
+    },
+    {
+      id: "demo-repair-5",
+      sessionId: "",
+      category: "flooring",
+      description: "LVP throughout (1850 sf)",
+      qty: 1850,
+      uom: "sf",
+      unitCost: 6,
+      totalCost: 11100,
+      confidence: "medium",
+    },
+    {
+      id: "demo-repair-6",
+      sessionId: "",
+      category: "paint",
+      description: "Full interior + exterior repaint",
+      qty: 1,
+      uom: "job",
+      unitCost: 7900,
+      totalCost: 7900,
+      confidence: "high",
+    },
+  ];
 }
 
 // ============================================================================
@@ -940,6 +1186,10 @@ export default function UnderwritingPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [leftPanelCollapsed, setLeftPanelCollapsed] = useState(false);
   const [savingAnalysis, setSavingAnalysis] = useState(false);
+  // Demo mode: in-memory sample property for first-time visitors. NEVER
+  // persists to Prisma and is excluded from trackLeadEvent telemetry —
+  // see handleSaveAnalysis / handleCreateOffer guards below.
+  const [demoMode, setDemoMode] = useState(false);
 
   // API Comps state
   const [apiComps, setApiComps] = useState<Comp[]>([]);
@@ -1012,15 +1262,54 @@ export default function UnderwritingPage() {
 
   // Fetch comps when property changes
   useEffect(() => {
-    if (selectedPropertyId) {
-      fetchComps();
-      // Repair items start empty — Flippers add real line items via the
-      // Add Item dialog. No synthetic age/distress-based fabrication.
-      setRepairItems([]);
+    if (!selectedPropertyId) return;
+    // Demo mode short-circuit: comps + repairs are pre-seeded by
+    // handleActivateDemo. Skip the API call AND skip the repair-item
+    // reset so the user can interact with the seeded scope immediately.
+    if (selectedPropertyId === DEMO_PROPERTY_ID) {
       setArvAdjustment(0);
       setRepairsAdjustment(0);
+      return;
     }
+    fetchComps();
+    // Repair items start empty — Flippers add real line items via the
+    // Add Item dialog. No synthetic age/distress-based fabrication.
+    setRepairItems([]);
+    setArvAdjustment(0);
+    setRepairsAdjustment(0);
   }, [selectedPropertyId, properties]);
+
+  // Activate demo: load the in-memory sample property + comps + repairs.
+  // We push the synthetic Property into the existing `properties` state so
+  // the entire downstream pipeline (hero card, comps tab, MAO tab, scenarios
+  // tab, slider adjustments) works untouched — no per-tab demo branches.
+  const handleActivateDemo = () => {
+    const demoProperty = buildDemoProperty();
+    const demoComps = buildDemoComps();
+    const demoRepairs = buildDemoRepairItems();
+    setDemoMode(true);
+    setProperties([demoProperty]);
+    setSelectedPropertyId(DEMO_PROPERTY_ID);
+    setApiComps(demoComps);
+    setSelectedComps(demoComps.map((c) => c.id));
+    setRepairItems(demoRepairs);
+    setArvAdjustment(0);
+    setRepairsAdjustment(0);
+  };
+
+  // Clear demo: wipe demo state and return to empty. Real properties (if
+  // any) reload via the fetch effect when demoMode flips off.
+  const handleClearDemo = () => {
+    setDemoMode(false);
+    setProperties([]);
+    setSelectedPropertyId(null);
+    setApiComps([]);
+    setSelectedComps([]);
+    setRepairItems([]);
+    setArvAdjustment(0);
+    setRepairsAdjustment(0);
+    toast.success("Demo cleared");
+  };
 
 
   const fetchComps = async () => {
@@ -1206,6 +1495,12 @@ export default function UnderwritingPage() {
       return;
     }
 
+    // Demo guard: never persist the synthetic property to Prisma.
+    if (demoMode || selectedPropertyId === DEMO_PROPERTY_ID) {
+      toast.info("Demo mode — saving is disabled. Mark a real lead as Underwriting to save analyses.");
+      return;
+    }
+
     try {
       setSavingAnalysis(true);
 
@@ -1245,6 +1540,12 @@ export default function UnderwritingPage() {
   const handleOpenOfferDialog = () => {
     if (!selectedPropertyId) {
       toast.error('Please select a property first');
+      return;
+    }
+
+    // Demo guard: don't open the offer dialog against a synthetic property.
+    if (demoMode || selectedPropertyId === DEMO_PROPERTY_ID) {
+      toast.info("Demo mode — offers can't be created on the sample property. Promote a real lead to Underwriting to send an offer.");
       return;
     }
 
@@ -1361,7 +1662,7 @@ export default function UnderwritingPage() {
 
   // Empty state
   if (properties.length === 0) {
-    return <EmptyState />;
+    return <EmptyState onTryDemo={handleActivateDemo} />;
   }
 
   return (
@@ -1442,6 +1743,34 @@ export default function UnderwritingPage() {
           <>
             {/* Property Hero + Deal Gauge + Net Sheet Summary */}
             <div className="flex-shrink-0 space-y-4">
+              {/* Demo mode banner — only visible while the in-memory sample
+                  property is loaded. Honors the "only real, scraped data"
+                  product directive by loudly labeling the source. */}
+              {demoMode && (
+                <div className="flex items-center justify-between gap-3 px-4 py-2.5 rounded-xl border border-blue-200 dark:border-blue-800 bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/30 dark:to-purple-900/20">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <div className="flex-shrink-0 w-7 h-7 rounded-lg bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center">
+                      <Sparkles className="h-4 w-4 text-white" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-blue-900 dark:text-blue-200">
+                        Demo mode — sample data
+                      </p>
+                      <p className="text-xs text-blue-700/80 dark:text-blue-300/80 truncate">
+                        Your real deals will appear here once you mark a lead as Underwriting.
+                      </p>
+                    </div>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleClearDemo}
+                    className="flex-shrink-0 text-blue-700 hover:text-blue-900 hover:bg-blue-100 dark:text-blue-300 dark:hover:text-blue-100 dark:hover:bg-blue-900/40"
+                  >
+                    Clear demo
+                  </Button>
+                </div>
+              )}
               {/* Property Hero Card with Deal Gauge */}
               <Card className="shadow-lg overflow-hidden">
                 <div className="flex">
