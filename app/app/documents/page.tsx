@@ -406,9 +406,39 @@ export default function DocumentsPage() {
   const liveDocCountByFolder = (folderId: string) =>
     documentsSource.filter((d) => d.folderId === folderId).length;
 
-  // Render folder tree
+  // Cleanup D4: derive the visible folder list from the LIVE document set.
+  // Before this, the sidebar always rendered the hardcoded seed tree
+  // (DEAL-001, DEAL-002, NDAs, Templates, Archive, Lead Exports) even when
+  // zero real documents existed — the badge counts were 0 but the folder
+  // chrome itself was fake. Now: a folder is only included if at least one
+  // live document references it (or one of its descendants does, so nesting
+  // remains intact). Seed-data is used purely as a metadata lookup
+  // (name / parentFolderId) — never as the source of truth for existence.
+  const visibleFolderIds = (() => {
+    const directIds = new Set(
+      documentsSource
+        .map((d) => d.folderId)
+        .filter((id): id is string => Boolean(id))
+    );
+    const all = new Set<string>(directIds);
+    // Walk each direct folder up its parent chain so ancestors render too.
+    for (const id of directIds) {
+      let cursor: string | undefined = id;
+      while (cursor) {
+        const node = documentsSeedData.folders.find((f) => f.id === cursor);
+        if (!node) break;
+        all.add(node.id);
+        cursor = node.parentFolderId;
+      }
+    }
+    return all;
+  })();
+
+  // Render folder tree (live-derived)
   const renderFolderTree = (parentId?: string, level = 0) => {
-    const folders = documentsSeedData.folders.filter(f => f.parentFolderId === parentId);
+    const folders = documentsSeedData.folders.filter(
+      (f) => f.parentFolderId === parentId && visibleFolderIds.has(f.id)
+    );
 
     return folders.map(folder => {
       const hasChildren = documentsSeedData.folders.some(f => f.parentFolderId === folder.id);
@@ -797,7 +827,18 @@ export default function DocumentsPage() {
                   {documentsSource.length}
                 </span>
               </div>
-              {renderFolderTree()}
+              {/* Cleanup D4: when no live documents reference any folder,
+                  show a muted empty-state hint instead of the phantom
+                  hardcoded tree (DEAL-001 / DEAL-002 / NDAs / Templates /
+                  Archive / Lead Exports). Real folders appear here as soon
+                  as a real document is filed against one. */}
+              {visibleFolderIds.size === 0 ? (
+                <div className="px-2 py-2 text-xs text-muted-foreground italic">
+                  Folders appear here as you create documents.
+                </div>
+              ) : (
+                renderFolderTree()
+              )}
             </div>
           </ScrollArea>
 
