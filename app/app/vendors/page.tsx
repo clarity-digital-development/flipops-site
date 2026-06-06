@@ -1322,7 +1322,9 @@ export default function VendorsPage() {
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-2xl font-bold tracking-tight text-foreground">Vendors</h1>
-              <p className="text-sm text-muted-foreground">Manage your contractor and vendor network</p>
+              <p className="text-sm text-muted-foreground mt-0.5">
+                Your trusted bench of contractors, inspectors, and trades — ranked by reliability and ready to bid.
+              </p>
             </div>
             <Button onClick={() => setShowAddVendorModal(true)}>
               <Plus className="h-4 w-4 mr-2" />

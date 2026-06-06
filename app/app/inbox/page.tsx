@@ -333,16 +333,16 @@ export default function InboxPage() {
   };
   // TODO(phase 6): real cadence enrollment via Nylas + Telnyx sequencing.
   const handleEnrollInCadence = () =>
-    toast("Coming soon", { description: "Cadence enrollment lands in the next phase." });
+    toast("Cadences ship with Nylas + Telnyx", { description: "Sequenced email + SMS outreach drops in Phase 6, when the Conversation model goes live." });
   // TODO(phase 6): real read-state requires a Conversation/Message model.
   const handleMarkUnread = () =>
-    toast("Coming soon", { description: "Read state tracking is on the way." });
+    toast("Read state ships with the Conversation model", { description: "Mark unread, mark read, and inbox zero land together in Phase 6." });
   // TODO(phase 6): starring requires a per-user thread metadata table.
   const handleStar = () =>
-    toast("Coming soon", { description: "Starring conversations is on the way." });
+    toast("Starring ships with thread metadata", { description: "Per-user pins and stars land in Phase 6 alongside read state." });
   // TODO(phase 6): archive requires soft-delete flag on the synthesized thread source.
   const handleArchive = () =>
-    toast("Coming soon", { description: "Archive lands with the conversation model." });
+    toast("Archive ships with the Conversation model", { description: "Soft-delete + bulk archive land in Phase 6 with the message store." });
 
   const sendMessage = () => {
     if ((!messageBody.trim() && attachments.length === 0) || !selectedThread) return;
@@ -571,7 +571,27 @@ export default function InboxPage() {
   };
 
   return (
-    <div className="flex h-full gap-4">
+    <div className="flex h-full flex-col gap-4">
+      {/* Header — matches Tasks gold-standard shape */}
+      <div className="shrink-0 flex items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-foreground">Inbox</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            Every SMS, voicemail, and email thread with your leads — sorted by what needs you first.
+          </p>
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleRefresh}
+          disabled={refreshing}
+        >
+          <RefreshCw className={cn("h-4 w-4 mr-2", refreshing && "animate-spin")} />
+          Refresh
+        </Button>
+      </div>
+
+      <div className="flex flex-1 min-h-0 gap-4">
       {/* Left Panel - Thread List */}
       <div className="w-[306px] flex flex-col rounded-2xl border border-gray-200/80 dark:border-border bg-white dark:bg-card shadow-sm flex-shrink-0 min-h-0 overflow-hidden">
         {/* Search Header */}
@@ -1167,6 +1187,7 @@ export default function InboxPage() {
         } : null}
         onOfferGenerated={handleOfferGenerated}
       />
+      </div>
     </div>
   );
 }

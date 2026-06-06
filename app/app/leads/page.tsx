@@ -13,7 +13,8 @@ import { LeadDetailSheet } from "@/components/leads/lead-detail-sheet";
 import { type Property } from "./seed-data";
 import { trackLeadEvent, trackLeadsViewed } from "@/lib/behavior/client";
 import { EmptyState } from "@/components/ui/empty-state";
-import { Gavel, Home } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Gavel, Home, Search } from "lucide-react";
 
 // ---------------------------------------------------------------------------
 // Leads page — map-first redesign.
@@ -340,6 +341,22 @@ export default function LeadsPage() {
 
   return (
     <div className="h-full flex flex-col overflow-hidden bg-background rounded-lg border border-border">
+      {/* Header — matches Tasks gold-standard shape (title + subtitle + primary action) */}
+      <div className="shrink-0 border-b border-border px-6 py-4">
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight text-foreground">Leads</h1>
+            <p className="text-sm text-muted-foreground mt-0.5">
+              Surface distressed properties, score motivation, and promote the ones worth your time.
+            </p>
+          </div>
+          <Button onClick={handleZipSearch} disabled={zip.length !== 5}>
+            <Search className="h-4 w-4 mr-2" />
+            Pull Leads by ZIP
+          </Button>
+        </div>
+      </div>
+
       <LeadFilterBar
         zip={zip}
         onZipChange={setZip}
