@@ -219,38 +219,42 @@ export default function LeadsPage() {
 
   const handleZipSearch = () => {
     if (!zip || zip.length !== 5) return;
-    // Resolve ZIP → county scraper. If we can scrape it, pull from county
-    // records (cheap). Otherwise the route signals an API fallback.
+    // Pull every parcel in this ZIP from the FL Parcel table (10.8M rows, all
+    // 67 counties). Non-FL ZIPs are denied server-side with a humane message.
     void (async () => {
       try {
         const res = await fetch("/api/leads/pull-by-zip", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ zip, category: "tax_delinquency" }),
+          body: JSON.stringify({ zip }),
         });
         const data = await res.json();
-        if (data.strategy === "scraper" && data.ok) {
+        if (!res.ok) {
           toast({
-            title: `Pulled ${data.recordsScraped ?? 0} leads`,
-            description: `${data.county?.county ?? zip} county records refreshed. Reloading...`,
-          });
-          fetchProperties();
-        } else if (data.strategy === "api_fallback") {
-          toast({
-            title: "Filtered to ZIP",
-            description: `${zip} isn't onboarded for direct county scraping yet — showing ${filtered.length} existing leads. (Scraper coverage expands per market.)`,
-          });
-        } else {
-          toast({
-            title: "Pull failed",
-            description: data.message ?? "Try again shortly.",
+            title: "Can't pull that ZIP yet",
+            description:
+              typeof data?.error === "string"
+                ? data.error
+                : "Try a Florida ZIP for now — national coverage is coming.",
             variant: "destructive",
           });
+          return;
         }
+        const list: Property[] = data.properties ?? [];
+        setProperties(list);
+        trackLeadsViewed(list);
+        toast({
+          title: `Pulled ${data.count ?? list.length} leads in ${zip}`,
+          description:
+            list.length === 0
+              ? "No parcels indexed for that ZIP yet."
+              : `Showing the top ${list.length} scored parcels in ${zip}.`,
+        });
       } catch {
         toast({
-          title: "Filtered to ZIP",
-          description: `Showing ${filtered.length} existing leads in ${zip}.`,
+          title: "Pull failed",
+          description: "Network hiccup. Try again shortly.",
+          variant: "destructive",
         });
       }
     })();
