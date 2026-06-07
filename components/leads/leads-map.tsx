@@ -107,6 +107,39 @@ export function LeadsMap({
     });
   }, [selectedLeadId, mappedLeads]);
 
+  // Auto-fit bounds whenever the filtered lead set changes. The Map is
+  // uncontrolled (initialViewState only seeds the camera on first mount), so
+  // without this effect, narrowing the filter from Jacksonville-heavy to
+  // Miami-heavy leaves the camera framing the wrong metro. We skip refit
+  // when a lead is selected — flyTo above owns the camera in that case.
+  useEffect(() => {
+    if (!mapRef.current) return;
+    if (selectedLeadId) return;
+    if (mappedLeads.length === 0) return;
+    const lats = mappedLeads.map((l) => l.lat);
+    const lngs = mappedLeads.map((l) => l.lng);
+    const minLat = Math.min(...lats);
+    const maxLat = Math.max(...lats);
+    const minLng = Math.min(...lngs);
+    const maxLng = Math.max(...lngs);
+    // Single-point case: flyTo a sane zoom rather than degenerate bounds.
+    if (minLat === maxLat && minLng === maxLng) {
+      mapRef.current.flyTo({
+        center: [minLng, minLat],
+        zoom: 11,
+        duration: 600,
+      });
+      return;
+    }
+    mapRef.current.fitBounds(
+      [
+        [minLng, minLat],
+        [maxLng, maxLat],
+      ],
+      { padding: 60, duration: 600, maxZoom: 12 },
+    );
+  }, [mappedLeads, selectedLeadId]);
+
   if (!mapboxToken || mapboxToken.trim() === "") {
     return (
       <div
