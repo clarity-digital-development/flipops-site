@@ -524,12 +524,44 @@ export default function DocumentsPage() {
     }
   };
 
-  const handleSendDocument = (doc: Document) => {
-    // Deferred: no email provider (Resend / Postmark) configured yet.
-    toast({
-      title: "Coming soon",
-      description: `Email sending isn't wired up yet — ${doc.title} stays as a draft.`,
-    });
+  // Tracks per-document "sending" state so the Send button can't double-fire
+  // while the DocuSign envelope POST is in flight.
+  const [sendingDocIds, setSendingDocIds] = useState<string[]>([]);
+
+  const handleSendDocument = async (doc: Document) => {
+    if (sendingDocIds.includes(doc.id)) return;
+    setSendingDocIds((prev) => [...prev, doc.id]);
+    try {
+      const res = await fetch(`/api/documents/${doc.id}/envelope`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast({
+          title: "Could not send for signing",
+          description: json?.error || `Server returned ${res.status}`,
+          variant: "destructive",
+        });
+        return;
+      }
+      toast({
+        title: "Sent for signing",
+        description: json?.signerEmail
+          ? `${doc.title} sent to ${json.signerEmail} via DocuSign.`
+          : `${doc.title} sent via DocuSign.`,
+      });
+      await refetchDocuments();
+    } catch (e) {
+      toast({
+        title: "Could not send for signing",
+        description: e instanceof Error ? e.message : "Network error",
+        variant: "destructive",
+      });
+    } finally {
+      setSendingDocIds((prev) => prev.filter((id) => id !== doc.id));
+    }
   };
 
   const handleDownloadDocument = (doc: Document) => {
