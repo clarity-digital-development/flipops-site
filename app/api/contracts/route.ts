@@ -290,6 +290,46 @@ export async function GET() {
       });
     }
 
+    // Join most-recent DealAnalysis per (userId, propertyId) for ARV + repair display
+    // on the Buyers Listings tab. Owner scoping: user contracts -> user.id,
+    // demo contracts -> demoUser.id. Map key: `${ownerUserId}:${propertyId}`.
+    const dealLookupPairs: Array<{ ownerUserId: string; propertyId: string }> = [];
+    if (user) {
+      for (const c of contracts) {
+        dealLookupPairs.push({ ownerUserId: user.id, propertyId: c.propertyId });
+      }
+    }
+    if (demoContracts.length > 0) {
+      const demoOwnerId = demoContracts[0].userId; // all demo rows share demoUser.id
+      for (const c of demoContracts) {
+        dealLookupPairs.push({ ownerUserId: demoOwnerId, propertyId: c.propertyId });
+      }
+    }
+
+    const dealLookup = new Map<string, { arv: number; estimatedRepairCost: number }>();
+    if (dealLookupPairs.length > 0) {
+      const uniqueUserIds = Array.from(new Set(dealLookupPairs.map((p) => p.ownerUserId)));
+      const uniquePropertyIds = Array.from(new Set(dealLookupPairs.map((p) => p.propertyId)));
+      const analyses = await prisma.dealAnalysis.findMany({
+        where: {
+          userId: { in: uniqueUserIds },
+          propertyId: { in: uniquePropertyIds },
+        },
+        select: { userId: true, propertyId: true, arv: true, repairTotal: true, createdAt: true },
+        orderBy: { createdAt: 'desc' },
+      });
+      // findMany is ordered desc by createdAt, so the first hit per key wins (most recent).
+      for (const a of analyses) {
+        const key = `${a.userId}:${a.propertyId}`;
+        if (!dealLookup.has(key)) {
+          dealLookup.set(key, { arv: a.arv, estimatedRepairCost: a.repairTotal });
+        }
+      }
+    }
+
+    const resolveDeal = (ownerUserId: string, propertyId: string) =>
+      dealLookup.get(`${ownerUserId}:${propertyId}`) ?? null;
+
     // Combine user contracts with demo contracts (demo contracts marked with isDemo flag)
     const allContracts = [
       ...contracts.map((contract) => ({
@@ -321,6 +361,7 @@ export async function GET() {
         assignment: contract.assignment,
         renovation: contract.renovation,
         rental: contract.rental,
+        deal: user ? resolveDeal(user.id, contract.propertyId) : null,
         isDemo: false,
       })),
       ...demoContracts.map((contract) => ({
@@ -352,6 +393,7 @@ export async function GET() {
         assignment: contract.assignment,
         renovation: contract.renovation,
         rental: contract.rental,
+        deal: resolveDeal(contract.userId, contract.propertyId),
         isDemo: true,
       })),
     ];

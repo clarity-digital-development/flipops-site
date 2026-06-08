@@ -112,6 +112,43 @@ export async function GET() {
       },
     });
 
+    // ------------------------------------------------------------------
+    // Period-over-period trends. Mirrors the Sprint 1 L2 pattern used in
+    // /api/analytics: pctDelta(curr, prev) returns null when either side is
+    // missing or prev=0 so the UI hides the trend pill instead of rendering
+    // a fake "0% change" or Infinity.
+    //
+    // tasksCompleted gets a PoP signal by comparing today's completions to
+    // yesterday's completions (counted between the two startOfDay markers).
+    // tasksOverdue is a point-in-time snapshot, not a window, so its trend
+    // is intentionally null — historical-overdue counts would require an
+    // audit log we don't keep yet.
+    // ------------------------------------------------------------------
+    const startOfYesterday = new Date(startOfToday);
+    startOfYesterday.setDate(startOfYesterday.getDate() - 1);
+    const tasksCompletedYesterday = await prisma.task.count({
+      where: {
+        userId,
+        completed: true,
+        completedAt: { gte: startOfYesterday, lt: startOfToday },
+      },
+    });
+
+    const pctDelta = (curr: number | null, prev: number | null): number | null => {
+      if (curr === null || prev === null) return null;
+      if (prev === 0) return null;
+      return parseFloat((((curr - prev) / prev) * 100).toFixed(1));
+    };
+
+    const trends = {
+      newLeads24h: pctDelta(newLeads24h, newLeadsPrevious24h),
+      newLeads7d: pctDelta(newLeads7d, newLeadsPrevious7d),
+      propertiesContacted: pctDelta(propertiesContacted, propertiesContactedPrevious),
+      propertiesSkipTraced: pctDelta(propertiesSkipTraced, propertiesSkipTracedPrevious),
+      tasksCompleted: pctDelta(tasksCompleted, tasksCompletedYesterday),
+      tasksOverdue: null, // point-in-time snapshot — no honest PoP available
+    };
+
     return NextResponse.json({
       stats: {
         newLeads24h,
@@ -125,6 +162,7 @@ export async function GET() {
         tasksOverdue,
         tasksCompleted,
       },
+      trends,
     });
   } catch (error) {
     console.error('Error fetching dashboard stats:', error);

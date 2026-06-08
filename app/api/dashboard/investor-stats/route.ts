@@ -26,6 +26,22 @@ export async function GET() {
 
     const investorType = user.investorType || 'hybrid'; // Default to hybrid if not set
     const stats: any = {};
+    const trends: any = {};
+
+    // Period-over-period helpers — mirrors the /api/analytics Sprint 1 L2
+    // pattern. Window = last 30 days, prior window = 30 days before that.
+    const now = new Date();
+    const dateFrom = new Date(now);
+    dateFrom.setDate(dateFrom.getDate() - 30);
+    const prevDateFrom = new Date(dateFrom);
+    prevDateFrom.setDate(prevDateFrom.getDate() - 30);
+    const prevDateTo = new Date(dateFrom);
+
+    const pctDelta = (curr: number | null, prev: number | null): number | null => {
+      if (curr === null || prev === null) return null;
+      if (prev === 0) return null;
+      return parseFloat((((curr - prev) / prev) * 100).toFixed(1));
+    };
 
     // Wholesaler stats
     if (investorType === 'wholesaler' || investorType === 'hybrid') {
@@ -53,6 +69,63 @@ export async function GET() {
         completedAssignments,
         totalRevenue: totalRevenue._sum.assignmentFee || 0,
         avgAssignmentFee: avgAssignmentFee._avg.assignmentFee || 0,
+      };
+
+      // Prior-period wholesaler signals. Cumulative counts (`totalBuyers`,
+      // `activeAssignments`) don't get a window — only completions and
+      // revenue earned within the window do.
+      const [prevCompletedAssignments, prevTotalRevenueAgg, prevBuyersCreated] = await Promise.all([
+        prisma.contractAssignment.count({
+          where: {
+            contract: { userId: dbUserId },
+            status: 'completed',
+            updatedAt: { gte: prevDateFrom, lt: prevDateTo },
+          },
+        }),
+        prisma.contractAssignment.aggregate({
+          where: {
+            contract: { userId: dbUserId },
+            status: 'completed',
+            feeReceived: true,
+            updatedAt: { gte: prevDateFrom, lt: prevDateTo },
+          },
+          _sum: { assignmentFee: true },
+        }),
+        prisma.buyer.count({
+          where: {
+            userId: dbUserId,
+            createdAt: { gte: prevDateFrom, lt: prevDateTo },
+          },
+        }),
+      ]);
+      const [currCompletedAssignments, currTotalRevenueAgg, currBuyersCreated] = await Promise.all([
+        prisma.contractAssignment.count({
+          where: {
+            contract: { userId: dbUserId },
+            status: 'completed',
+            updatedAt: { gte: dateFrom },
+          },
+        }),
+        prisma.contractAssignment.aggregate({
+          where: {
+            contract: { userId: dbUserId },
+            status: 'completed',
+            feeReceived: true,
+            updatedAt: { gte: dateFrom },
+          },
+          _sum: { assignmentFee: true },
+        }),
+        prisma.buyer.count({
+          where: { userId: dbUserId, createdAt: { gte: dateFrom } },
+        }),
+      ]);
+
+      trends.wholesaler = {
+        totalBuyers: pctDelta(currBuyersCreated, prevBuyersCreated),
+        activeAssignments: null, // point-in-time snapshot
+        completedAssignments: pctDelta(currCompletedAssignments, prevCompletedAssignments),
+        totalRevenue: pctDelta(currTotalRevenueAgg._sum.assignmentFee || 0, prevTotalRevenueAgg._sum.assignmentFee || 0),
+        avgAssignmentFee: null, // lifetime average — no clean PoP
       };
     }
 
@@ -88,6 +161,120 @@ export async function GET() {
         completedRenovations,
         totalBudget: totalBudget._sum.rehabBudget || 0,
         avgROI: calculatedAvgROI,
+      };
+
+      // Prior-period flipper signals. `totalRenovations` and `activeRenovations`
+      // are point-in-time; window-comparing them is misleading. We do compare:
+      //   - completedRenovations completed within the window (updatedAt-based)
+      //   - rehabBudget committed to projects whose contract was created in window
+      //   - avgROI of projects completed within each window
+      const [
+        currCompletedFlips,
+        prevCompletedFlips,
+        currBudgetCommitted,
+        prevBudgetCommitted,
+        currRoiSet,
+        prevRoiSet,
+        currRenovationsStarted,
+        prevRenovationsStarted,
+      ] = await Promise.all([
+        prisma.dealSpec.count({
+          where: {
+            userId: dbUserId,
+            propertyId: { not: null },
+            contractId: { not: null },
+            status: 'completed',
+            updatedAt: { gte: dateFrom },
+          },
+        }),
+        prisma.dealSpec.count({
+          where: {
+            userId: dbUserId,
+            propertyId: { not: null },
+            contractId: { not: null },
+            status: 'completed',
+            updatedAt: { gte: prevDateFrom, lt: prevDateTo },
+          },
+        }),
+        prisma.dealSpec.aggregate({
+          where: {
+            userId: dbUserId,
+            propertyId: { not: null },
+            contractId: { not: null },
+            status: { in: ['planning', 'active'] },
+            createdAt: { gte: dateFrom },
+          },
+          _sum: { rehabBudget: true },
+        }),
+        prisma.dealSpec.aggregate({
+          where: {
+            userId: dbUserId,
+            propertyId: { not: null },
+            contractId: { not: null },
+            status: { in: ['planning', 'active'] },
+            createdAt: { gte: prevDateFrom, lt: prevDateTo },
+          },
+          _sum: { rehabBudget: true },
+        }),
+        prisma.dealSpec.findMany({
+          where: {
+            userId: dbUserId,
+            propertyId: { not: null },
+            contractId: { not: null },
+            status: 'completed',
+            arv: { not: null },
+            purchasePrice: { not: null },
+            rehabBudget: { not: null },
+            updatedAt: { gte: dateFrom },
+          },
+          select: { arv: true, purchasePrice: true, rehabBudget: true },
+        }),
+        prisma.dealSpec.findMany({
+          where: {
+            userId: dbUserId,
+            propertyId: { not: null },
+            contractId: { not: null },
+            status: 'completed',
+            arv: { not: null },
+            purchasePrice: { not: null },
+            rehabBudget: { not: null },
+            updatedAt: { gte: prevDateFrom, lt: prevDateTo },
+          },
+          select: { arv: true, purchasePrice: true, rehabBudget: true },
+        }),
+        prisma.dealSpec.count({
+          where: {
+            userId: dbUserId,
+            propertyId: { not: null },
+            contractId: { not: null },
+            createdAt: { gte: dateFrom },
+          },
+        }),
+        prisma.dealSpec.count({
+          where: {
+            userId: dbUserId,
+            propertyId: { not: null },
+            contractId: { not: null },
+            createdAt: { gte: prevDateFrom, lt: prevDateTo },
+          },
+        }),
+      ]);
+
+      const roiOf = (projects: { arv: number | null; purchasePrice: number | null; rehabBudget: number | null }[]) => {
+        if (!projects.length) return null;
+        const sum = projects.reduce((acc, p) => {
+          const cost = (p.purchasePrice || 0) + (p.rehabBudget || 0);
+          return acc + (cost > 0 ? (((p.arv || 0) - cost) / cost) * 100 : 0);
+        }, 0);
+        return sum / projects.length;
+      };
+
+      trends.flipper = {
+        totalRenovations: pctDelta(currRenovationsStarted, prevRenovationsStarted),
+        activeRenovations: null, // point-in-time snapshot
+        completedRenovations: pctDelta(currCompletedFlips, prevCompletedFlips),
+        totalBudget: pctDelta(currBudgetCommitted._sum.rehabBudget || 0, prevBudgetCommitted._sum.rehabBudget || 0),
+        avgROI: pctDelta(roiOf(currRoiSet), roiOf(prevRoiSet)),
       };
     }
 

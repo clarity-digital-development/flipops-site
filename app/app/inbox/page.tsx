@@ -117,7 +117,90 @@ type ApiThread = Omit<Thread, "lastMessageTime"> & {
   messages: ApiMessage[];
 };
 
-async function fetchThreads(): Promise<Array<Thread & { messages: Message[] }>> {
+// Nylas message envelope (subset we care about). The full shape is in
+// lib/nylas.ts EmailMessage but Nylas v3 returns date in *seconds*, not ms.
+type NylasParticipant = { name?: string; email: string };
+type NylasMessageRaw = {
+  id: string;
+  threadId?: string;
+  thread_id?: string;
+  subject?: string;
+  from?: NylasParticipant[];
+  to?: NylasParticipant[];
+  date?: number; // unix seconds per Nylas v3
+  body?: string;
+  snippet?: string;
+  unread?: boolean;
+};
+
+// Transform Nylas messages -> existing Thread+Message UI shape. We group by
+// threadId so each Nylas thread becomes one row. The legacy `/api/threads`
+// path returns the same shape; this lets the rest of the page stay unchanged.
+function nylasMessagesToThreads(
+  messages: NylasMessageRaw[],
+  myEmailHint?: string,
+): Array<Thread & { messages: Message[] }> {
+  const byThread = new Map<string, NylasMessageRaw[]>();
+  for (const m of messages) {
+    const tid = m.threadId ?? m.thread_id ?? m.id;
+    const bucket = byThread.get(tid);
+    if (bucket) bucket.push(m);
+    else byThread.set(tid, [m]);
+  }
+
+  const threads: Array<Thread & { messages: Message[] }> = [];
+  for (const [tid, msgs] of byThread.entries()) {
+    const sorted = [...msgs].sort((a, b) => (a.date ?? 0) - (b.date ?? 0));
+    const last = sorted[sorted.length - 1];
+    // "Lead" identity for the row: the non-me participant on the most recent
+    // message. Nylas v3 dates arrive as unix seconds.
+    const counterpart =
+      (last.from?.find((p) => p.email !== myEmailHint) ?? last.from?.[0]) ??
+      (last.to?.find((p) => p.email !== myEmailHint) ?? last.to?.[0]);
+    const leadName = counterpart?.name?.trim() || counterpart?.email || "Unknown";
+    const leadEmail = counterpart?.email ?? "";
+    const lastMs = (last.date ?? Math.floor(Date.now() / 1000)) * 1000;
+
+    const mapped: Message[] = sorted.map((m, i) => {
+      const isInbound = !!m.from?.some((p) => p.email !== myEmailHint);
+      return {
+        id: m.id ?? `nylas-${tid}-${i}`,
+        threadId: tid,
+        direction: isInbound ? "in" : "out",
+        channel: "email",
+        body: m.snippet || m.body?.replace(/<[^>]+>/g, " ").slice(0, 800) || "",
+        status: m.unread ? "sent" : "delivered",
+        timestamp: new Date((m.date ?? 0) * 1000),
+        sender: isInbound ? leadName.split(" ")[0] : "You",
+      };
+    });
+
+    threads.push({
+      id: `nylas-thread-${tid}`,
+      leadId: leadEmail || tid,
+      leadName,
+      leadAddress: leadEmail,
+      lastMessage: mapped[mapped.length - 1]?.body ?? "",
+      lastMessageTime: new Date(lastMs),
+      unreadCount: sorted.filter((m) => m.unread).length,
+      channels: ["email"],
+      sentiment: undefined,
+      score: 0,
+      stage: "New",
+      tags: [],
+      phoneNumbers: [],
+      emails: leadEmail ? [leadEmail] : [],
+      optInStatus: { sms: true, email: true },
+      messages: mapped,
+    });
+  }
+
+  // Most recent thread first
+  threads.sort((a, b) => b.lastMessageTime.getTime() - a.lastMessageTime.getTime());
+  return threads;
+}
+
+async function fetchLegacyThreads(): Promise<Array<Thread & { messages: Message[] }>> {
   const res = await fetch("/api/threads", { cache: "no-store" });
   if (!res.ok) {
     throw new Error(`GET /api/threads failed: ${res.status}`);
@@ -132,6 +215,36 @@ async function fetchThreads(): Promise<Array<Thread & { messages: Message[] }>> 
       timestamp: new Date(m.timestamp),
     })),
   }));
+}
+
+// Primary fetch: try Nylas via /api/email/messages first. If the user has not
+// connected an email account, /api/email/messages returns 400 with
+// { error: 'Email not connected' } — we treat that as a soft signal and fall
+// back to the legacy contactNotes-synthesized path at /api/threads. Returns
+// the threads and a `source` flag the header uses to render the "Connected
+// via Nylas" pill.
+async function fetchThreads(): Promise<{
+  threads: Array<Thread & { messages: Message[] }>;
+  source: "nylas" | "legacy";
+  connectedEmail?: string;
+}> {
+  try {
+    const [statusRes, messagesRes] = await Promise.all([
+      fetch("/api/email/status", { cache: "no-store" }),
+      fetch("/api/email/messages?limit=100", { cache: "no-store" }),
+    ]);
+    if (messagesRes.ok) {
+      const status = statusRes.ok ? await statusRes.json().catch(() => ({})) : {};
+      const body = (await messagesRes.json()) as { messages?: NylasMessageRaw[] };
+      const threads = nylasMessagesToThreads(body.messages ?? [], status?.email);
+      return { threads, source: "nylas", connectedEmail: status?.email };
+    }
+    // 400 = not connected, anything else = real error -> fall through
+  } catch (err) {
+    console.warn("[Inbox] Nylas path failed, falling back to /api/threads", err);
+  }
+  const legacy = await fetchLegacyThreads();
+  return { threads: legacy, source: "legacy" };
 }
 
 // generateMockMessages() removed — messages now come bundled with each Thread

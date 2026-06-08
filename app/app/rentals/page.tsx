@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import Link from "next/link";
 import {
   Home,
@@ -40,6 +40,8 @@ import { useToast } from "@/components/ui/use-toast";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -48,6 +50,14 @@ import {
   SheetContent,
   SheetTitle,
 } from "@/components/ui/sheet";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { VisuallyHidden } from "@radix-ui/react-visually-hidden";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -1041,26 +1051,28 @@ export default function RentalsPage() {
   const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
 
   // Fetch rentals — strictly real data, no seed fallback.
-  useEffect(() => {
-    const fetchRentals = async () => {
-      try {
-        setLoading(true);
-        const response = await fetch("/api/rentals");
-        if (!response.ok) throw new Error("Failed to fetch rentals");
-        const data = await response.json();
+  // Lifted out of useEffect so the edit + record-payment dialogs can
+  // call it on success to refresh the list without a full page reload.
+  const fetchRentals = useCallback(async (opts: { showLoading?: boolean } = { showLoading: true }) => {
+    try {
+      if (opts.showLoading) setLoading(true);
+      const response = await fetch("/api/rentals");
+      if (!response.ok) throw new Error("Failed to fetch rentals");
+      const data = await response.json();
 
-        const apiRentals = (data.rentals || []).map((r: any) => ({ ...r, isDemo: false }));
-        setRentals(apiRentals);
-      } catch (error) {
-        console.error("Error fetching rentals:", error);
-        setRentals([]);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchRentals();
+      const apiRentals = (data.rentals || []).map((r: any) => ({ ...r, isDemo: false }));
+      setRentals(apiRentals);
+    } catch (error) {
+      console.error("Error fetching rentals:", error);
+      if (opts.showLoading) setRentals([]);
+    } finally {
+      if (opts.showLoading) setLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    fetchRentals({ showLoading: true });
+  }, [fetchRentals]);
 
   // Filter rentals
   const filteredRentals = useMemo(() => {
@@ -1382,6 +1394,404 @@ export default function RentalsPage() {
           setPaymentDialogOpen(true);
         }}
       />
+
+      {/* Edit + Record-Payment Dialogs (Sprint 2 #5).
+          State + open flags were wired in Sprint 1 L1; the dialogs
+          themselves landed here. Without these, the detail-sheet
+          Edit and Record Payment buttons opened nothing. */}
+      <EditRentalDialog
+        rental={editRental}
+        open={editDialogOpen}
+        onClose={() => {
+          setEditDialogOpen(false);
+          setEditRental(null);
+        }}
+        onSaved={() => {
+          // Silent refresh — no skeleton flash on update.
+          fetchRentals({ showLoading: false });
+        }}
+      />
+      <RecordPaymentDialog
+        rental={paymentRental}
+        open={paymentDialogOpen}
+        onClose={() => {
+          setPaymentDialogOpen(false);
+          setPaymentRental(null);
+        }}
+        onSaved={() => {
+          // Silent refresh so the new payment shows in Recent Payments
+          // without re-running the loading skeleton.
+          fetchRentals({ showLoading: false });
+        }}
+      />
     </div>
+  );
+}
+
+// ============================================================================
+// EDIT RENTAL DIALOG
+// ----------------------------------------------------------------------------
+// PATCH /api/rentals/[id]. The backend route (app/api/rentals/[id]/route.ts)
+// only accepts rental-level fields (monthlyRent, deposit, status, financials,
+// etc.) — NOT property-level fields (address, beds, baths, sqft live on the
+// related `property` row, not on Rental). Address + bed/bath/sqft are shown
+// as disabled inputs so the boundary is explicit instead of silently dropped.
+// ============================================================================
+
+function EditRentalDialog({
+  rental,
+  open,
+  onClose,
+  onSaved,
+}: {
+  rental: Rental | null;
+  open: boolean;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const { toast } = useToast();
+  const [submitting, setSubmitting] = useState(false);
+
+  // Local form state — separate from the rental prop so the user can edit
+  // freely without mutating the parent list before save.
+  const [status, setStatus] = useState<Rental["status"]>("vacant");
+  const [monthlyRent, setMonthlyRent] = useState<string>("");
+  const [deposit, setDeposit] = useState<string>("");
+
+  // Re-seed local state whenever a new rental flows in (e.g. user opens
+  // Edit on rental A, closes, then opens on rental B).
+  useEffect(() => {
+    if (rental) {
+      setStatus(rental.status);
+      setMonthlyRent(rental.monthlyRent != null ? String(rental.monthlyRent) : "");
+      setDeposit(rental.deposit != null ? String(rental.deposit) : "");
+    }
+  }, [rental]);
+
+  if (!rental) return null;
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (submitting) return;
+
+    // Coerce numeric strings; empty → null so the backend stores null,
+    // not 0 (deposit can legitimately be unset).
+    const monthlyRentNum = monthlyRent.trim() === "" ? null : Number(monthlyRent);
+    const depositNum = deposit.trim() === "" ? null : Number(deposit);
+
+    if (monthlyRentNum != null && Number.isNaN(monthlyRentNum)) {
+      toast({ title: "Invalid rent", description: "Monthly rent must be a number.", variant: "destructive" });
+      return;
+    }
+    if (depositNum != null && Number.isNaN(depositNum)) {
+      toast({ title: "Invalid deposit", description: "Deposit must be a number.", variant: "destructive" });
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const res = await fetch(`/api/rentals/${rental.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          status,
+          monthlyRent: monthlyRentNum,
+          deposit: depositNum,
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || "Failed to update rental");
+      }
+      toast({
+        title: "Rental updated",
+        description: `${rental.address} — changes saved.`,
+      });
+      onSaved();
+      onClose();
+    } catch (err: any) {
+      toast({
+        title: "Update failed",
+        description: err?.message || "Could not save rental changes.",
+        variant: "destructive",
+      });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Edit Rental</DialogTitle>
+          <DialogDescription>
+            Update rent, deposit, and status. Address and property specs are read-only — those live on the property record.
+          </DialogDescription>
+        </DialogHeader>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Address (read-only — not on Rental, lives on property; PATCH doesn't accept it) */}
+          <div className="space-y-2">
+            <Label htmlFor="rental-edit-address">Address</Label>
+            <Input
+              id="rental-edit-address"
+              value={rental.address}
+              disabled
+              readOnly
+            />
+          </div>
+
+          {/* Beds / Baths / Sqft (read-only — same reason) */}
+          <div className="grid grid-cols-3 gap-3">
+            <div className="space-y-2">
+              <Label htmlFor="rental-edit-beds">Beds</Label>
+              <Input id="rental-edit-beds" type="number" value={rental.beds} disabled readOnly />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="rental-edit-baths">Baths</Label>
+              <Input id="rental-edit-baths" type="number" value={rental.baths} disabled readOnly />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="rental-edit-sqft">Sqft</Label>
+              <Input id="rental-edit-sqft" type="number" value={rental.sqft} disabled readOnly />
+            </div>
+          </div>
+
+          {/* Editable: status + monthly rent + deposit */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-2">
+              <Label htmlFor="rental-edit-status">Status</Label>
+              <Select value={status} onValueChange={(v) => setStatus(v as Rental["status"])}>
+                <SelectTrigger id="rental-edit-status">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="vacant">Vacant</SelectItem>
+                  <SelectItem value="leased">Leased</SelectItem>
+                  <SelectItem value="maintenance">Maintenance</SelectItem>
+                  <SelectItem value="listed">Listed</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="rental-edit-rent">Monthly Rent</Label>
+              <Input
+                id="rental-edit-rent"
+                type="number"
+                min={0}
+                step="any"
+                value={monthlyRent}
+                onChange={(e) => setMonthlyRent(e.target.value)}
+                placeholder="0"
+              />
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="rental-edit-deposit">Security Deposit</Label>
+            <Input
+              id="rental-edit-deposit"
+              type="number"
+              min={0}
+              step="any"
+              value={deposit}
+              onChange={(e) => setDeposit(e.target.value)}
+              placeholder="0"
+            />
+          </div>
+
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={onClose} disabled={submitting}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={submitting}>
+              {submitting ? "Saving…" : "Save Changes"}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ============================================================================
+// RECORD PAYMENT DIALOG
+// ----------------------------------------------------------------------------
+// POST /api/rentals/[id]/income. Body shape per app/api/rentals/[id]/income/route.ts:
+//   { amount: number, receivedDate: string (required),
+//     type?: string, description?: string, paymentMethod?: string,
+//     dueDate?: string, referenceNumber?: string }
+// Method select values (cash | check | ach | wire) are sent as `paymentMethod`.
+// Notes are sent as `description`. type defaults server-side to "rent".
+// ============================================================================
+
+type PaymentMethod = "cash" | "check" | "ach" | "wire";
+
+function RecordPaymentDialog({
+  rental,
+  open,
+  onClose,
+  onSaved,
+}: {
+  rental: Rental | null;
+  open: boolean;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const { toast } = useToast();
+  const [submitting, setSubmitting] = useState(false);
+
+  // toISOString slice → YYYY-MM-DD, which is the format <input type="date"> expects.
+  const today = new Date().toISOString().slice(0, 10);
+
+  const [amount, setAmount] = useState<string>("");
+  const [date, setDate] = useState<string>(today);
+  const [method, setMethod] = useState<PaymentMethod>("ach");
+  const [notes, setNotes] = useState<string>("");
+
+  // Re-seed on rental change. Default amount = current monthly rent so
+  // posting a standard rent payment is one click.
+  useEffect(() => {
+    if (rental) {
+      setAmount(rental.monthlyRent != null ? String(rental.monthlyRent) : "");
+      setDate(new Date().toISOString().slice(0, 10));
+      setMethod("ach");
+      setNotes("");
+    }
+  }, [rental]);
+
+  if (!rental) return null;
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (submitting) return;
+
+    const amountNum = Number(amount);
+    if (!amount.trim() || Number.isNaN(amountNum) || amountNum <= 0) {
+      toast({
+        title: "Invalid amount",
+        description: "Amount must be a positive number.",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (!date) {
+      toast({
+        title: "Date required",
+        description: "Pick the date the payment was received.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const res = await fetch(`/api/rentals/${rental.id}/income`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          amount: amountNum,
+          receivedDate: date,
+          paymentMethod: method,
+          description: notes.trim() || null,
+          // type defaults server-side to "rent" — leaving it out is correct.
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || "Failed to record payment");
+      }
+      toast({
+        title: "Payment recorded",
+        description: `${formatCurrency(amountNum)} logged for ${rental.address}.`,
+      });
+      onSaved();
+      onClose();
+    } catch (err: any) {
+      toast({
+        title: "Payment failed",
+        description: err?.message || "Could not record payment.",
+        variant: "destructive",
+      });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Record Payment</DialogTitle>
+          <DialogDescription>
+            Log a rent payment for {rental.address}.
+          </DialogDescription>
+        </DialogHeader>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="payment-amount">Amount</Label>
+            <Input
+              id="payment-amount"
+              type="number"
+              min={0}
+              step="any"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              placeholder="0.00"
+              required
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-2">
+              <Label htmlFor="payment-date">Date Received</Label>
+              <Input
+                id="payment-date"
+                type="date"
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="payment-method">Method</Label>
+              <Select value={method} onValueChange={(v) => setMethod(v as PaymentMethod)}>
+                <SelectTrigger id="payment-method">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="cash">Cash</SelectItem>
+                  <SelectItem value="check">Check</SelectItem>
+                  <SelectItem value="ach">ACH</SelectItem>
+                  <SelectItem value="wire">Wire</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="payment-notes">Notes</Label>
+            <Textarea
+              id="payment-notes"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="Optional — e.g. Check #1234, partial payment, late fee, etc."
+              rows={3}
+            />
+          </div>
+
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={onClose} disabled={submitting}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={submitting}>
+              {submitting ? "Recording…" : "Record Payment"}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }

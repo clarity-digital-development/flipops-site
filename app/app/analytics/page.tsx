@@ -45,8 +45,10 @@ import {
   ChevronRight,
   UserPlus,
   LayoutGrid,
-  LayoutList
+  LayoutList,
+  Receipt
 } from "lucide-react";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -351,6 +353,11 @@ export default function AnalyticsPage() {
   const [kpis, setKpis] = useState<KPIMetrics>(DEFAULT_KPIS);
   const [funnel, setFunnel] = useState<FunnelStage[]>(DEFAULT_FUNNEL);
   const [waterfall, setWaterfall] = useState(DEFAULT_WATERFALL);
+  // `hasCostData` mirrors the API flag — true when at least one Invoice row
+  // landed in the Rehab/Holding/Closing/Marketing/Other buckets for the
+  // selected period. When false we render an EmptyState instead of a chart
+  // built from inferred-from-grossProfit multipliers.
+  const [hasCostData, setHasCostData] = useState(false);
   const [trends, setTrends] = useState(DEFAULT_TRENDS);
   const [marketingMetrics, setMarketingMetrics] = useState<MarketingMetrics[]>(DEFAULT_MARKETING);
   const [teamMetrics, setTeamMetrics] = useState<TeamMetrics[]>(DEFAULT_TEAM);
@@ -398,6 +405,7 @@ export default function AnalyticsPage() {
         if (data.kpis) setKpis(data.kpis);
         if (data.funnel) setFunnel(data.funnel);
         if (data.waterfall) setWaterfall(data.waterfall);
+        setHasCostData(Boolean(data.hasCostData));
         // Weekly profit trend is now under `weeklyTrends` so it does not
         // collide with the new KPI-delta `trends` object.
         if (data.weeklyTrends) {
@@ -732,35 +740,50 @@ export default function AnalyticsPage() {
                       </Card>
                     </div>
 
-                    {/* Waterfall */}
+                    {/* Waterfall — real Invoice-backed cost breakdown.
+                        Hidden behind an EmptyState until at least one
+                        Invoice row lands in the bucketed categories, so we
+                        don't render a chart built from inferred multipliers
+                        of grossProfit (the old 17% / 3.5% / 4.7% pattern). */}
                     <Card className="overflow-hidden">
                       <CardHeader className="pb-2 pt-3">
                         <CardTitle className="text-sm font-medium">Profit Breakdown</CardTitle>
                       </CardHeader>
                       <CardContent>
-                        <ResponsiveContainer width="100%" height={240}>
-                          <BarChart data={waterfall} margin={{ bottom: 30 }} barCategoryGap="15%">
-                            <defs>
-                              <linearGradient id="profitBarGradient" x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="0%" stopColor="#10B981" stopOpacity={1} />
-                                <stop offset="100%" stopColor="#059669" stopOpacity={0.8} />
-                              </linearGradient>
-                              <linearGradient id="costBarGradient" x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="0%" stopColor="#93C5FD" stopOpacity={1} />
-                                <stop offset="100%" stopColor="#60A5FA" stopOpacity={0.8} />
-                              </linearGradient>
-                            </defs>
-                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" className="dark:stroke-zinc-700" />
-                            <XAxis dataKey="stage" angle={-30} textAnchor="end" tick={{ fontSize: 11, fill: '#6b7280' }} axisLine={{ stroke: '#e5e7eb' }} tickLine={false} />
-                            <YAxis tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`} tick={{ fontSize: 11, fill: '#6b7280' }} domain={[0, 3500000]} ticks={[0, 1000000, 2000000, 3000000]} axisLine={{ stroke: '#e5e7eb' }} tickLine={false} />
-                            <Tooltip content={<CustomTooltip formatter={formatCurrency} />} cursor={{ fill: 'hsl(var(--muted))', opacity: 0.3 }} />
-                            <Bar dataKey="value" radius={[6, 6, 0, 0]} className="drop-shadow-sm">
-                              {waterfall.map((entry, index) => (
-                                <Cell key={`cell-${index}`} fill={entry.isProfit ? 'url(#profitBarGradient)' : 'url(#costBarGradient)'} />
-                              ))}
-                            </Bar>
-                          </BarChart>
-                        </ResponsiveContainer>
+                        {hasCostData ? (
+                          <ResponsiveContainer width="100%" height={240}>
+                            <BarChart data={waterfall} margin={{ bottom: 30 }} barCategoryGap="15%">
+                              <defs>
+                                <linearGradient id="profitBarGradient" x1="0" y1="0" x2="0" y2="1">
+                                  <stop offset="0%" stopColor="#10B981" stopOpacity={1} />
+                                  <stop offset="100%" stopColor="#059669" stopOpacity={0.8} />
+                                </linearGradient>
+                                <linearGradient id="costBarGradient" x1="0" y1="0" x2="0" y2="1">
+                                  <stop offset="0%" stopColor="#93C5FD" stopOpacity={1} />
+                                  <stop offset="100%" stopColor="#60A5FA" stopOpacity={0.8} />
+                                </linearGradient>
+                              </defs>
+                              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" className="dark:stroke-zinc-700" />
+                              <XAxis dataKey="stage" angle={-30} textAnchor="end" tick={{ fontSize: 11, fill: '#6b7280' }} axisLine={{ stroke: '#e5e7eb' }} tickLine={false} />
+                              <YAxis tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`} tick={{ fontSize: 11, fill: '#6b7280' }} domain={[0, 3500000]} ticks={[0, 1000000, 2000000, 3000000]} axisLine={{ stroke: '#e5e7eb' }} tickLine={false} />
+                              <Tooltip content={<CustomTooltip formatter={formatCurrency} />} cursor={{ fill: 'hsl(var(--muted))', opacity: 0.3 }} />
+                              <Bar dataKey="value" radius={[6, 6, 0, 0]} className="drop-shadow-sm">
+                                {waterfall.map((entry, index) => (
+                                  <Cell key={`cell-${index}`} fill={entry.isProfit ? 'url(#profitBarGradient)' : 'url(#costBarGradient)'} />
+                                ))}
+                              </Bar>
+                            </BarChart>
+                          </ResponsiveContainer>
+                        ) : (
+                          <EmptyState
+                            compact
+                            icon={<Receipt className="h-8 w-8" />}
+                            title="No cost data yet"
+                            description="Track project costs to see your profit breakdown."
+                            actionLabel="Log an invoice"
+                            actionHref="/app/renovations"
+                          />
+                        )}
                       </CardContent>
                     </Card>
                   </>

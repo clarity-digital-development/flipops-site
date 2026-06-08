@@ -2,6 +2,104 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/prisma';
 
+// ----------------------------------------------------------------------------
+// Cost category buckets — Invoice rows are tagged by `trade` (HVAC, Plumbing,
+// Marketing, Closing, Insurance, etc.). We bucket trades into the 5 high-level
+// categories the Profit Breakdown waterfall renders. Anything unmatched falls
+// into `other` so dollars aren't silently dropped.
+// ----------------------------------------------------------------------------
+type CostBucket = 'rehab' | 'holding' | 'closing' | 'marketing' | 'other';
+
+function bucketTrade(trade: string | null | undefined): CostBucket {
+  if (!trade) return 'other';
+  const t = trade.trim().toLowerCase();
+
+  // Marketing / acquisition spend.
+  if (
+    t === 'marketing' ||
+    t.includes('campaign') ||
+    t.includes('ppc') ||
+    t.includes('seo') ||
+    t.includes('mailer') ||
+    t.includes('skip trace') ||
+    t.includes('lead gen')
+  ) {
+    return 'marketing';
+  }
+
+  // Closing / transactional costs.
+  if (
+    t === 'closing' ||
+    t.includes('closing cost') ||
+    t.includes('title') ||
+    t.includes('escrow') ||
+    t.includes('attorney') ||
+    t.includes('legal') ||
+    t.includes('commission') ||
+    t.includes('realtor')
+  ) {
+    return 'closing';
+  }
+
+  // Holding costs (carry).
+  if (
+    t === 'holding' ||
+    t.includes('insurance') ||
+    t.includes('utility') ||
+    t.includes('utilities') ||
+    t.includes('tax') ||
+    t.includes('interest') ||
+    t.includes('hoa') ||
+    t.includes('property mgmt') ||
+    t.includes('property management')
+  ) {
+    return 'holding';
+  }
+
+  // Default: physical work = rehab. Covers HVAC, Plumbing, Electrical,
+  // Roofing, Framing, Drywall, Paint, Flooring, Kitchen, Bath, Demo, etc.
+  return 'rehab';
+}
+
+/**
+ * Aggregate Invoice rows for a user into rehab/holding/closing/marketing/other
+ * buckets. Invoices have no userId column — they're joined to the user via
+ * DealSpec.userId, so we filter by `dealId IN (user's deals)`.
+ */
+async function buildCostBreakdown(
+  userId: string,
+  dateFrom: Date,
+  dateTo: Date = new Date()
+): Promise<{ rehab: number; holding: number; closing: number; marketing: number; other: number; total: number }> {
+  const userDeals = await prisma.dealSpec.findMany({
+    where: { userId },
+    select: { id: true },
+  });
+  const dealIds = userDeals.map((d) => d.id);
+
+  const breakdown = { rehab: 0, holding: 0, closing: 0, marketing: 0, other: 0, total: 0 };
+
+  if (dealIds.length === 0) return breakdown;
+
+  const grouped = await prisma.invoice.groupBy({
+    by: ['trade'],
+    where: {
+      dealId: { in: dealIds },
+      createdAt: { gte: dateFrom, lte: dateTo },
+    },
+    _sum: { amount: true },
+  });
+
+  for (const row of grouped) {
+    const amount = row._sum.amount || 0;
+    const bucket = bucketTrade(row.trade);
+    breakdown[bucket] += amount;
+    breakdown.total += amount;
+  }
+
+  return breakdown;
+}
+
 /**
  * GET /api/analytics
  * Get analytics data aggregated from the database
@@ -228,15 +326,31 @@ export async function GET(request: NextRequest) {
       }
       response.weeklyTrends = weeklyTrends;
 
-      // Profit waterfall data
+      // Profit waterfall data — real Invoice-backed cost breakdown.
+      // Each Rehab / Holding / Closing / Marketing / Other row is summed
+      // from Invoice.amount, bucketed by Invoice.trade. When no invoices
+      // exist for the period, costBreakdown.total === 0 and the frontend
+      // renders an EmptyState in place of the chart.
+      const costBreakdown = await buildCostBreakdown(userId, dateFrom);
+      response.costBreakdown = costBreakdown;
+      response.hasCostData = costBreakdown.total > 0;
+
+      const purchaseTotal = dealAnalyses.reduce(
+        (sum, d) => sum + (d.purchasePrice || 0),
+        0
+      );
+      const revenueTotal = dealAnalyses.reduce((sum, d) => sum + (d.arv || 0), 0);
+
       response.waterfall = [
-        { stage: 'Revenue', value: grossProfit > 0 ? Math.round(grossProfit * 1.3) : 3250000, isProfit: true },
-        { stage: 'Purchase', value: Math.round((grossProfit > 0 ? grossProfit * 0.3 : 780000)), isProfit: false },
-        { stage: 'Gross Profit', value: grossProfit || 2470000, isProfit: true },
-        { stage: 'Rehab', value: Math.round((grossProfit || 2470000) * 0.17), isProfit: false },
-        { stage: 'Holding', value: Math.round((grossProfit || 2470000) * 0.035), isProfit: false },
-        { stage: 'Closing', value: Math.round((grossProfit || 2470000) * 0.047), isProfit: false },
-        { stage: 'Net Profit', value: netProfit || 1842000, isProfit: true },
+        { stage: 'Revenue', value: revenueTotal, isProfit: true },
+        { stage: 'Purchase', value: purchaseTotal, isProfit: false },
+        { stage: 'Gross Profit', value: grossProfit, isProfit: true },
+        { stage: 'Rehab', value: Math.round(costBreakdown.rehab), isProfit: false },
+        { stage: 'Holding', value: Math.round(costBreakdown.holding), isProfit: false },
+        { stage: 'Closing', value: Math.round(costBreakdown.closing), isProfit: false },
+        { stage: 'Marketing', value: Math.round(costBreakdown.marketing), isProfit: false },
+        { stage: 'Other', value: Math.round(costBreakdown.other), isProfit: false },
+        { stage: 'Net Profit', value: netProfit, isProfit: true },
       ];
 
       // Check if we have real data or should indicate demo mode
@@ -317,6 +431,89 @@ export async function GET(request: NextRequest) {
           ? parseFloat((vendorMetrics.reduce((sum, v) => sum + v.onTimePercentage, 0) / vendorMetrics.length).toFixed(1))
           : 86.8,
       };
+
+      // --------------------------------------------------------------------
+      // Vendor performance time-series (Sprint 2 #4):
+      //   - buildVendorSpendByCategory: sum Invoice.amount per category for
+      //     the current period, top 5. NOTE: Invoice has no `costCategory`
+      //     field in this schema — the closest proxy is `Invoice.trade`,
+      //     which is what the existing vendorMetrics block (lines ~282-289)
+      //     already uses. Categories like 'Roofing', 'HVAC', etc. flow
+      //     directly out of that column.
+      //   - buildVendorOnTimeTrend: rolling 5-week on-time % proxy. Invoice
+      //     has no `scheduledCompletedAt` / `actualCompletedAt` columns in
+      //     this schema. We approximate per-week on-time % as the weighted
+      //     average of `Vendor.onTimePct` of every vendor whose invoice was
+      //     created in that week, weighted by invoice count. When the team
+      //     later adds invoice completion timestamps, migrate this to a
+      //     true `actualCompletedAt <= scheduledCompletedAt` ratio.
+      // Both arrays are honest empties when no invoice rows exist; the UI
+      // renders an EmptyState in that case (no Math.random() / fixtures).
+      // --------------------------------------------------------------------
+      const periodInvoices = await prisma.invoice.findMany({
+        where: {
+          createdAt: { gte: dateFrom },
+          deal: { userId },
+        },
+        select: {
+          amount: true,
+          trade: true,
+          createdAt: true,
+          vendorId: true,
+          vendor: { select: { onTimePct: true } },
+        },
+      });
+
+      // buildVendorSpendByCategory
+      const categoryTotals = new Map<string, number>();
+      for (const inv of periodInvoices) {
+        // Mirror the trade-parse logic the rest of this route uses so the
+        // category strings line up between charts and tables.
+        let category = 'General';
+        if (inv.trade) {
+          try {
+            const parsed = JSON.parse(inv.trade);
+            category = Array.isArray(parsed) ? (parsed[0] || 'General') : inv.trade;
+          } catch {
+            category = inv.trade;
+          }
+        }
+        categoryTotals.set(category, (categoryTotals.get(category) || 0) + (inv.amount || 0));
+      }
+      const vendorSpendByCategory = Array.from(categoryTotals.entries())
+        .map(([cat, spend]) => ({ cat, spend: Math.round(spend) }))
+        .sort((a, b) => b.spend - a.spend)
+        .slice(0, 5);
+      response.vendorSpendByCategory = vendorSpendByCategory;
+
+      // buildVendorOnTimeTrend (rolling 5 weeks)
+      const vendorOnTimeTrend: Array<{ week: string; onTime: number | null }> = [];
+      for (let i = 4; i >= 0; i--) {
+        const weekStart = new Date();
+        weekStart.setDate(weekStart.getDate() - (i * 7) - 6);
+        weekStart.setHours(0, 0, 0, 0);
+        const weekEnd = new Date(weekStart);
+        weekEnd.setDate(weekEnd.getDate() + 7);
+
+        const bucket = periodInvoices.filter(
+          (inv) => inv.createdAt >= weekStart && inv.createdAt < weekEnd && inv.vendor
+        );
+
+        if (bucket.length === 0) {
+          vendorOnTimeTrend.push({ week: `W${5 - i}`, onTime: null });
+          continue;
+        }
+
+        // Weighted average of vendor on-time % weighted by invoice count.
+        const weightedSum = bucket.reduce(
+          (sum, inv) => sum + (inv.vendor?.onTimePct ?? 0),
+          0
+        );
+        const onTime = parseFloat((weightedSum / bucket.length).toFixed(1));
+        vendorOnTimeTrend.push({ week: `W${5 - i}`, onTime });
+      }
+      response.vendorOnTimeTrend = vendorOnTimeTrend;
+      response.hasVendorInvoiceData = periodInvoices.length > 0;
     }
 
     // Marketing analytics (mock data - would need campaign tracking table)

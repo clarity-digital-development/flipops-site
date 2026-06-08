@@ -1,0 +1,88 @@
+// ============================================================================
+// PHONE CALL MODEL — Lane 7 (Sprint 2)
+// ============================================================================
+// HOW TO APPLY:
+//   1. Append the `model PhoneCall { ... }` block below to prisma/schema.prisma
+//      (anywhere after the `Property` model definition).
+//   2. Append the `phoneCalls PhoneCall[]` relation lines to BOTH the User
+//      model and the Property model (see RELATION PATCHES section).
+//   3. Run: npx prisma db push    (do NOT use migrate dev — drift will wipe data
+//      per CLAUDE.md Railway PG ops notes)
+//   4. Run: npm run prisma:generate
+//   5. Set env var: PHONECALL_MODEL_READY=1
+//      (the webhook router gates all PhoneCall ops behind this flag so the
+//       app boots safely even if the model is not yet migrated)
+// ============================================================================
+
+model PhoneCall {
+  id                   String   @id @default(cuid())
+
+  // Multi-tenant ownership (mirrors Property pattern)
+  userId               String
+
+  // Telnyx identifiers
+  // call_control_id is the canonical lifetime identifier for a Call Control
+  // call leg in Telnyx — same id appears on every webhook for the same call.
+  telnyxCallControlId  String   @unique
+  telnyxLegId          String?  // optional secondary id (per-leg in conferences)
+  telnyxConnectionId   String?  // Telnyx connection / app id
+
+  // Direction & parties
+  direction            String   // "inbound" | "outbound"
+  fromNumber           String   // E.164 (+15551234567)
+  toNumber             String   // E.164
+
+  // Lifecycle
+  // status values: "initiated" | "ringing" | "answered" | "bridged"
+  //                | "hangup" | "failed" | "no_answer" | "busy"
+  status               String   @default("initiated")
+  durationSec          Int?
+  startedAt            DateTime?
+  answeredAt           DateTime?
+  endedAt              DateTime?
+  hangupCause          String?  // Telnyx hangup_cause (e.g. "normal_clearing")
+  hangupSource         String?  // "caller" | "callee" | "unknown"
+
+  // Recording / transcription
+  recordingUrl         String?  // signed S3 / Telnyx storage URL
+  recordingDurationSec Int?
+  transcript           String?  // full transcript (may be large — consider JSON)
+  transcriptLanguage   String?  // BCP-47 (e.g. "en-US")
+
+  // Disposition
+  dispositionNotes     String?  // user-entered notes (CRM-style)
+  outcome              String?  // "connected" | "voicemail" | "no_answer" | "wrong_number" | "do_not_call"
+
+  // Foreign keys
+  propertyId           String?
+
+  // Audit
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  // Relations
+  user                 User      @relation(fields: [userId], references: [id])
+  property             Property? @relation(fields: [propertyId], references: [id])
+
+  @@index([userId])
+  @@index([propertyId])
+  @@index([telnyxCallControlId])
+  @@index([startedAt])
+  @@index([status])
+  @@index([fromNumber])
+  @@index([toNumber])
+}
+
+// ============================================================================
+// RELATION PATCHES — add these single lines inside existing models
+// ============================================================================
+//
+// In `model User { ... }`, add to the relations block:
+//
+//     phoneCalls       PhoneCall[]
+//
+// In `model Property { ... }`, add to the relations block:
+//
+//     phoneCalls       PhoneCall[]
+//
+// ============================================================================
