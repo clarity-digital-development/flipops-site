@@ -34,15 +34,15 @@ import {
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { ConsentBadge, type ConsentState } from "./consent-badge";
+import { useTelnyxClient, type TelnyxCallState } from "@/lib/dialer/telnyx-client";
 
 // ---------------------------------------------------------------------------
 // FlipPhone — browser WebRTC softphone for human-initiated outbound.
-// Uses @telnyx/webrtc under the hood once wired. This file is the visual
-// surface; the actual SIP over WebSocket connection plugs in when the JWT
-// endpoint and credential are live.
+// Uses @telnyx/webrtc under the hood. JWT is minted server-side by
+// /api/dialer/jwt; call lifecycle is managed by the useTelnyxClient hook.
 // ---------------------------------------------------------------------------
 
-type CallState = "idle" | "dialing" | "ringing" | "active" | "ended";
+type CallState = TelnyxCallState;
 
 interface QueuedLead {
   id: string;
@@ -109,14 +109,22 @@ export function FlipPhone() {
   const [activeLead, setActiveLead] = useState<QueuedLead | null>(queue[0] ?? null);
   const [search, setSearch] = useState("");
   const [dialInput, setDialInput] = useState("");
-  const [callState, setCallState] = useState<CallState>("idle");
-  const [muted, setMuted] = useState(false);
-  const [held, setHeld] = useState(false);
   const [recording, setRecording] = useState(true);
   const [callerId, setCallerId] = useState(CALLER_IDS[0].id);
-  const [callSeconds, setCallSeconds] = useState(0);
   const [notes, setNotes] = useState("");
   const [disposition, setDisposition] = useState<string>("");
+
+  // Telnyx WebRTC client — connects on mount via /api/dialer/jwt.
+  // All call-state, mute/hold flags, and the call-duration timer are owned
+  // by the hook so the SDK is the single source of truth. When the JWT
+  // route returns 503 (env vars unset), the hook surfaces { error } and
+  // the action methods are no-ops — the UI degrades gracefully instead of
+  // pretending a call is in progress.
+  const telnyx = useTelnyxClient();
+  const callState = telnyx.state;
+  const muted = telnyx.isMuted;
+  const held = telnyx.isHeld;
+  const callSeconds = telnyx.callSeconds;
 
   const filtered = useMemo(
     () =>
@@ -131,36 +139,48 @@ export function FlipPhone() {
   );
 
   const dialOrPick = (digit: string) => {
-    if (callState === "active") return; // DTMF would stream to Telnyx once live
+    // During an active call, route the digit to the carrier via DTMF.
+    if (callState === "active") {
+      telnyx.sendDTMF(digit);
+      return;
+    }
     setDialInput((prev) => (prev.length >= 14 ? prev : prev + digit));
   };
 
   const backspace = () => setDialInput((prev) => prev.slice(0, -1));
 
-  const startCall = () => {
+  const startCall = async () => {
     if (!activeLead) return;
-    setCallState("dialing");
-    setTimeout(() => setCallState("ringing"), 600);
-    setTimeout(() => {
-      setCallState("active");
-      startTimer();
-    }, 1600);
+    const destination = dialInput || activeLead.phone;
+    await telnyx.dialNumber(destination, callerId);
   };
 
-  const endCall = () => {
-    setCallState("ended");
-    setCallSeconds(0);
-  };
+  const endCall = async () => {
+    const callControlId = telnyx.activeCallId;
+    await telnyx.hangup();
 
-  const startTimer = () => {
-    const id = window.setInterval(() => {
-      setCallSeconds((s) => {
-        if (callState === "active") return s + 1;
-        return s;
-      });
-    }, 1000);
-    // Hacky demo — actual cleanup will happen when real WebRTC events arrive.
-    setTimeout(() => window.clearInterval(id), 10 * 60 * 1000);
+    // Persist the call attempt server-side. Gated by PHONECALL_MODEL_READY
+    // on the API side — safe to fire-and-forget even when the model is not
+    // yet migrated (route returns 503 → we swallow).
+    if (callControlId || activeLead) {
+      try {
+        await fetch("/api/dialer/calls", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            telnyxCallControlId: callControlId,
+            propertyId: activeLead?.id ?? null,
+            toNumber: activeLead?.phone ?? dialInput,
+            fromNumber: callerId,
+            durationSec: callSeconds,
+            outcome: disposition || null,
+            dispositionNotes: notes || null,
+          }),
+        });
+      } catch {
+        // Non-fatal — webhook receiver will reconcile from Telnyx side.
+      }
+    }
   };
 
   const formatTime = (s: number) => {
@@ -395,7 +415,7 @@ export function FlipPhone() {
                     variant={muted ? "default" : "outline"}
                     size="sm"
                     className="h-12 flex-col gap-0.5 text-[10px]"
-                    onClick={() => setMuted((m) => !m)}
+                    onClick={() => telnyx.mute()}
                   >
                     {muted ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
                     {muted ? "Muted" : "Mute"}
@@ -404,7 +424,7 @@ export function FlipPhone() {
                     variant={held ? "default" : "outline"}
                     size="sm"
                     className="h-12 flex-col gap-0.5 text-[10px]"
-                    onClick={() => setHeld((h) => !h)}
+                    onClick={() => telnyx.hold()}
                   >
                     <PauseCircle className="h-4 w-4" />
                     Hold
