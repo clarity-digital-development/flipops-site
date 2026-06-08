@@ -36,6 +36,13 @@ export interface DialerDispatchJob {
    * Voicemail Drop for voicemail).
    */
   jobType: DialerJobType;
+  /**
+   * Tenant making the outbound contact. Required for the consent + DNC
+   * gates — consent is per (userId, phoneNumber), not global. Optional in
+   * the type for backward compatibility with legacy producers; the worker
+   * fails closed (refuses dispatch) when missing.
+   */
+  userId?: string;
   /** Recipient phone in E.164 format, e.g. "+19045551234". */
   toNumber: string;
   /** Origination phone (one of our Telnyx numbers) in E.164 format. */

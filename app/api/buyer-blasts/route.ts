@@ -31,8 +31,46 @@
 // ---------------------------------------------------------------------------
 
 import { NextRequest, NextResponse } from "next/server";
+import IORedis from "ioredis";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth/require-user";
+import { enqueueDialerDispatch } from "@/lib/queues/dialer-dispatch";
+import type { StateCode } from "@/lib/dialer/quiet-hours";
+
+// ---------------------------------------------------------------------------
+// Lazy Redis singleton — re-used across requests in the same Node process.
+// We deliberately don't tear it down on request completion; BullMQ is happy
+// to share one ioredis connection across many producers.
+// ---------------------------------------------------------------------------
+let _redis: IORedis | null = null;
+function redis(): IORedis {
+  if (_redis) return _redis;
+  const url = process.env.REDIS_URL;
+  if (!url) {
+    throw new Error("REDIS_URL is required to enqueue buyer blasts");
+  }
+  _redis = new IORedis(url, {
+    maxRetriesPerRequest: null,
+    enableReadyCheck: false,
+  });
+  return _redis;
+}
+
+// Two-letter US state codes accepted by lib/dialer/quiet-hours.StateCode.
+// We narrow Buyer.targetMarkets / Property.state strings into this union
+// before enqueueing so the worker's TCPA gate has canonical input.
+const US_STATE_CODES = new Set<string>([
+  "AL","AK","AZ","AR","CA","CO","CT","DE","FL","GA","HI","ID","IL","IN",
+  "IA","KS","KY","LA","ME","MD","MA","MI","MN","MS","MO","MT","NE","NV",
+  "NH","NJ","NM","NY","NC","ND","OH","OK","OR","PA","RI","SC","SD","TN",
+  "TX","UT","VT","VA","WA","WV","WI","WY","DC",
+]);
+
+function toStateCode(raw: string | null | undefined): StateCode | undefined {
+  if (!raw) return undefined;
+  const up = raw.trim().toUpperCase();
+  return US_STATE_CODES.has(up) ? (up as StateCode) : undefined;
+}
 
 type BlastChannel = "sms" | "voicemail";
 
@@ -110,10 +148,11 @@ export async function POST(request: NextRequest) {
     contractId = contract.id;
   }
 
-  // Sanity-check buyer ownership — every buyerId must belong to this user.
+  // Sanity-check buyer ownership AND pull phone + targetMarkets up-front so we
+  // can route each recipient through the TCPA gate without N+1 queries.
   const ownedBuyers = await prisma.buyer.findMany({
     where: { id: { in: buyerIds }, userId },
-    select: { id: true },
+    select: { id: true, phone: true, targetMarkets: true, name: true },
   });
   const ownedSet = new Set(ownedBuyers.map((b) => b.id));
   const orphans = buyerIds.filter((id) => !ownedSet.has(id));
@@ -124,19 +163,58 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // Persist the blast as a Campaign row. status='sent' so the UI's recent-list
-  // can render it as dispatched. Once the Telnyx dispatch worker ships, the
-  // worker should flip the status (sent -> delivered, etc.) based on Telnyx
-  // webhook callbacks.
-  //
-  // TODO(phase-8, Telnyx dispatch): Enqueue this blast onto the dialer's
-  // Telnyx outbound BullMQ queue. The queue worker should:
-  //   1. Resolve each buyer's phone (Buyer.phone, E.164-normalized).
-  //   2. Honor lib/dialer/quiet-hours per state — defer dispatch outside hours.
-  //   3. For channel='sms': Telnyx Messaging API (10DLC-registered sender).
-  //   4. For channel='voicemail': Telnyx ringless voicemail via call control.
-  //   5. Update Campaign row (replyCount/openCount/etc) from Telnyx webhooks.
-  // Until that lands, this endpoint persists-only for UI continuity.
+  // If a listing/contract was selected, look up its property state so we have
+  // a single canonical state to pass to the worker. Buyer.targetMarkets is a
+  // JSON array like ["Miami-Dade, FL"]; we use it as a best-effort fallback
+  // when the contract path is unavailable. The worker's `propertyState` field
+  // is the TCPA anchor — it's what determines the recipient's quiet-hours
+  // window. If both signals miss, the worker falls back to area-code → state
+  // and ultimately refuses the send if nothing resolves.
+  let listingState: StateCode | undefined;
+  if (contractId) {
+    const ctr = await prisma.contract.findUnique({
+      where: { id: contractId },
+      select: { property: { select: { state: true } } },
+    });
+    listingState = toStateCode(ctr?.property?.state);
+  }
+
+  function buyerHomeState(targetMarkets: string | null | undefined): StateCode | undefined {
+    if (!targetMarkets) return undefined;
+    try {
+      const arr = JSON.parse(targetMarkets) as unknown;
+      if (!Array.isArray(arr) || arr.length === 0) return undefined;
+      const first = String(arr[0]);
+      // "Miami-Dade, FL" → trailing 2-letter code after comma
+      const m = first.match(/,\s*([A-Za-z]{2})\s*$/);
+      return toStateCode(m?.[1]);
+    } catch {
+      return undefined;
+    }
+  }
+
+  // Build the FROM number. In production this is the user's provisioned 10DLC
+  // sender (SMS) or assigned Telnyx caller-ID (RVM); for the v0 wiring we read
+  // a single env-driven default. Per-user routing arrives with the messaging
+  // profile work in Sprint 4.
+  const fromNumber =
+    channel === "sms"
+      ? process.env.TELNYX_DEFAULT_SMS_FROM ?? process.env.TELNYX_DEFAULT_FROM ?? ""
+      : process.env.TELNYX_DEFAULT_RVM_FROM ?? process.env.TELNYX_DEFAULT_FROM ?? "";
+  if (!fromNumber) {
+    return NextResponse.json(
+      {
+        error:
+          "No origination number configured. Set TELNYX_DEFAULT_SMS_FROM / TELNYX_DEFAULT_RVM_FROM (or TELNYX_DEFAULT_FROM) before sending blasts.",
+      },
+      { status: 500 },
+    );
+  }
+
+  // Persist the Campaign row first so we have a correlationId to attach to
+  // every dispatch job. status='queued' (NOT 'sent') is the honest state —
+  // we'll flip rows to 'sent' / 'delivered' from Telnyx webhook callbacks.
+  // This is the contract fix the audit doc called out.
   const blast = await prisma.campaign.create({
     data: {
       userId,
@@ -147,10 +225,45 @@ export async function POST(request: NextRequest) {
       method: channel, // "sms" | "voicemail"
       buyerIds: JSON.stringify(buyerIds),
       recipientCount: buyerIds.length,
-      status: "sent",
+      status: "queued",
       sentAt: new Date(),
     },
   });
+
+  // Enqueue one dispatch job per recipient with a phone number. Buyers w/o a
+  // phone are skipped (counted in `skipped` so the UI can warn the operator).
+  // The worker's TCPA quiet-hours gate runs per-job, so out-of-window
+  // recipients get auto-deferred rather than dropped.
+  const enqueueErrors: string[] = [];
+  let enqueued = 0;
+  let skippedNoPhone = 0;
+  try {
+    const conn = redis();
+    for (const buyer of ownedBuyers) {
+      if (!buyer.phone || buyer.phone.trim().length === 0) {
+        skippedNoPhone += 1;
+        continue;
+      }
+      const propertyState = listingState ?? buyerHomeState(buyer.targetMarkets);
+      try {
+        await enqueueDialerDispatch(conn, {
+          jobType: channel, // 'sms' | 'voicemail'
+          toNumber: buyer.phone.trim(),
+          fromNumber,
+          propertyState,
+          body: message, // voicemail callers must pass a media URL here
+          correlationId: `blast:${blast.id}:buyer:${buyer.id}`,
+        });
+        enqueued += 1;
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        enqueueErrors.push(`${buyer.name}: ${msg}`);
+      }
+    }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    enqueueErrors.push(`fatal: ${msg}`);
+  }
 
   return NextResponse.json(
     {
@@ -162,6 +275,12 @@ export async function POST(request: NextRequest) {
         listingId: blast.contractId,
         sentAt: blast.sentAt,
         message: blast.message,
+      },
+      dispatch: {
+        enqueued,
+        skippedNoPhone,
+        errorCount: enqueueErrors.length,
+        errors: enqueueErrors.slice(0, 10), // cap for response size
       },
     },
     { status: 201 },

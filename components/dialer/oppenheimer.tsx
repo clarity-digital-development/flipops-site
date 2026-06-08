@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Bot,
   Sparkles,
@@ -156,12 +156,26 @@ const LIVE_INBOUND = [
   },
 ];
 
-const TODAY_STATS = {
-  inboundHandled: 14,
-  callbacksCompleted: 8,
-  apptsBooked: 5,
-  afterHoursSaves: 3,
+interface TodayStats {
+  inboundHandled: number;
+  callbacksCompleted: number;
+  apptsBooked: number;
+  afterHoursSaves: number;
+}
+
+const TODAY_STATS_FALLBACK: TodayStats = {
+  inboundHandled: 0,
+  callbacksCompleted: 0,
+  apptsBooked: 0,
+  afterHoursSaves: 0,
 };
+
+// The currently-configured Telnyx AI Assistant. In production this comes from
+// the user's profile (one Assistant per workspace); for v0 we read an env-
+// driven default and fall back to a sentinel that the API treats as "primary".
+const ASSISTANT_ID =
+  (typeof process !== "undefined" && process.env.NEXT_PUBLIC_TELNYX_ASSISTANT_ID) ||
+  "primary";
 
 // Completed calls surface here with AI-extracted disposition + notes
 const RECENT_CALLS = [
@@ -248,9 +262,108 @@ export function Oppenheimer() {
   const [customPrompt, setCustomPrompt] = useState("");
   const [advancedOpen, setAdvancedOpen] = useState(false);
 
+  // Live stats from /api/dialer/stats?period=today. Falls back to zeros while
+  // the fetch is in flight so the UI never flashes stale demo numbers.
+  const [todayStats, setTodayStats] = useState<TodayStats>(TODAY_STATS_FALLBACK);
+
+  // Hydration guard — we don't want to fire a PATCH the first time useEffect
+  // sees the controlled-state values, only on actual user changes.
+  const hydratedRef = useRef(false);
+  const patchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const currentPersonality = PERSONALITIES.find((p) => p.id === personality)!;
   const effectivePrompt =
     personality === "custom" ? customPrompt : currentPersonality.prompt;
+
+  // ---- GET initial assistant config + today stats ----
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(
+          `/api/telnyx/assistants/${encodeURIComponent(ASSISTANT_ID)}`,
+          { method: "GET" },
+        );
+        if (!res.ok) return; // tolerate 401/404 silently — keep defaults
+        const json = (await res.json()) as {
+          assistant?: {
+            enabled?: boolean;
+            personality?: PersonalityPreset;
+            voiceId?: string;
+            greeting?: string;
+            customPrompt?: string;
+          };
+        };
+        if (cancelled || !json.assistant) return;
+        const a = json.assistant;
+        if (typeof a.enabled === "boolean") setEnabled(a.enabled);
+        if (a.personality) setPersonality(a.personality);
+        if (a.voiceId) setVoiceId(a.voiceId);
+        if (typeof a.greeting === "string") setGreeting(a.greeting);
+        if (typeof a.customPrompt === "string") setCustomPrompt(a.customPrompt);
+      } catch {
+        // network error — leave defaults
+      } finally {
+        // Mark hydrated even on failure so user edits start firing PATCHes
+        // immediately rather than waiting for a successful GET.
+        hydratedRef.current = true;
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadStats() {
+      try {
+        const res = await fetch("/api/dialer/stats?period=today", { method: "GET" });
+        if (!res.ok) return;
+        const json = (await res.json()) as { stats?: Partial<TodayStats> };
+        if (cancelled || !json.stats) return;
+        setTodayStats({
+          inboundHandled: json.stats.inboundHandled ?? 0,
+          callbacksCompleted: json.stats.callbacksCompleted ?? 0,
+          apptsBooked: json.stats.apptsBooked ?? 0,
+          afterHoursSaves: json.stats.afterHoursSaves ?? 0,
+        });
+      } catch {
+        // leave fallback
+      }
+    }
+    loadStats();
+    const id = setInterval(loadStats, 60_000); // refresh once a minute
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, []);
+
+  // ---- PATCH on change (debounced 400ms) ----
+  useEffect(() => {
+    if (!hydratedRef.current) return;
+    if (patchTimerRef.current) clearTimeout(patchTimerRef.current);
+    patchTimerRef.current = setTimeout(() => {
+      fetch(`/api/telnyx/assistants/${encodeURIComponent(ASSISTANT_ID)}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          enabled,
+          personality,
+          voiceId,
+          greeting,
+          customPrompt: personality === "custom" ? customPrompt : undefined,
+        }),
+      }).catch(() => {
+        // Swallow — the UI is optimistic and we don't want a transient
+        // 500 to bounce the user's toggle state back.
+      });
+    }, 400);
+    return () => {
+      if (patchTimerRef.current) clearTimeout(patchTimerRef.current);
+    };
+  }, [enabled, personality, voiceId, greeting, customPrompt]);
 
   return (
     <div className="h-full flex flex-col overflow-hidden">
@@ -303,10 +416,10 @@ export function Oppenheimer() {
             </div>
 
             <div className="grid grid-cols-4 divide-x divide-border border-t border-border">
-              <StatCell label="Inbound handled today" value={TODAY_STATS.inboundHandled} />
-              <StatCell label="Callbacks today" value={TODAY_STATS.callbacksCompleted} />
-              <StatCell label="Appts booked" value={TODAY_STATS.apptsBooked} emphasis />
-              <StatCell label="After-hours saves" value={TODAY_STATS.afterHoursSaves} />
+              <StatCell label="Inbound handled today" value={todayStats.inboundHandled} />
+              <StatCell label="Callbacks today" value={todayStats.callbacksCompleted} />
+              <StatCell label="Appts booked" value={todayStats.apptsBooked} emphasis />
+              <StatCell label="After-hours saves" value={todayStats.afterHoursSaves} />
             </div>
           </Card>
 

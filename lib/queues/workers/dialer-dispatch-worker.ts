@@ -14,6 +14,8 @@ import {
   dialerQueueDefaultJobOptions,
   type DialerDispatchJob,
 } from "@/lib/queues/dialer-dispatch";
+import { hasConsent } from "@/lib/consent/check";
+import { checkDNC } from "@/lib/consent/dnc";
 
 // ---------------------------------------------------------------------------
 // dialer-dispatch worker — TCPA safety wrapper for outbound voice/SMS.
@@ -47,18 +49,70 @@ const CONCURRENCY = 5;
 const LIMITER = { max: 60, duration: 60_000 };
 
 /**
- * Placeholder dispatch — intentionally throws. Sprint 3 replaces this with
- * the real Telnyx Messaging / Call Control / Voicemail Drop integration.
+ * Real Telnyx dispatch (Sprint 3). Routes by jobType:
+ *   - sms       → lib/telnyx/sms.ts sendSMS (10DLC Messaging API)
+ *   - voicemail → lib/telnyx/voicemail.ts sendRinglessVoicemail (Call Control)
+ *   - voice     → not supported from the worker. Live voice is the Flip Phone
+ *                 WebRTC path; the worker only does async SMS + VM. Throwing
+ *                 here keeps the BullMQ failed-jobs panel loud if a producer
+ *                 ever enqueues a 'voice' job by mistake.
  *
- * The reason this throws instead of returning silently: a silent no-op here
- * would hide every quiet-hours gating bug behind a fake success. Throwing
- * means an accidental pre-Sprint-3 producer trips a loud failed-job + retry
- * + alert chain, and we find out immediately.
+ * Quiet-hours gating has already passed at this point — this function is
+ * the actual carrier handoff, not the safety gate.
  */
 async function dispatchToTelnyx(job: DialerDispatchJob): Promise<void> {
-  throw new Error(
-    `Telnyx dispatch not implemented (Sprint 3). Quiet-hours gate passed for jobType=${job.jobType} to=${job.toNumber} from=${job.fromNumber}.`,
-  );
+  if (job.jobType === "voice") {
+    throw new Error(
+      `voice from worker not supported, use WebRTC (to=${job.toNumber})`,
+    );
+  }
+
+  if (job.jobType === "sms") {
+    const body = job.body;
+    if (!body || body.trim().length === 0) {
+      throw new Error(
+        `dispatchToTelnyx: jobType=sms requires non-empty body (to=${job.toNumber}, correlationId=${job.correlationId ?? "none"})`,
+      );
+    }
+    const { sendSMS } = await import("@/lib/telnyx/sms");
+    const msgId = await sendSMS({
+      from: job.fromNumber,
+      to: job.toNumber,
+      body,
+    });
+    console.log(
+      `[dialer-dispatch] sms sent to=${job.toNumber} from=${job.fromNumber} telnyxMessageId=${msgId}`,
+    );
+    return;
+  }
+
+  if (job.jobType === "voicemail") {
+    // Body field is repurposed as the media URL for ringless voicemail —
+    // producers pass a pre-recorded MP3/WAV URL (Cloudflare R2 / S3) and the
+    // Telnyx Call Control playback flow drops it straight into the
+    // recipient's voicemail box without ringing the handset.
+    const mediaUrl = job.body;
+    if (!mediaUrl || mediaUrl.trim().length === 0) {
+      throw new Error(
+        `dispatchToTelnyx: jobType=voicemail requires body=mediaUrl (to=${job.toNumber}, correlationId=${job.correlationId ?? "none"})`,
+      );
+    }
+    const { sendRinglessVoicemail } = await import("@/lib/telnyx/voicemail");
+    const callId = await sendRinglessVoicemail({
+      from: job.fromNumber,
+      to: job.toNumber,
+      mediaUrl,
+    });
+    console.log(
+      `[dialer-dispatch] rvm sent to=${job.toNumber} from=${job.fromNumber} telnyxCallControlId=${callId}`,
+    );
+    return;
+  }
+
+  // Exhaustiveness check — DialerJobType is a string union, so the compiler
+  // will warn if a new variant lands without a handler above.
+  const _exhaustive: never = job.jobType;
+  throw new Error(`dispatchToTelnyx: unknown jobType=${String(_exhaustive)}`);
 }
 
 function resolveRecipientState(
@@ -73,12 +127,17 @@ async function writeDispatchAudit(opts: {
   status:
     | "tcpa-deferred"
     | "tcpa-unknown-state"
+    | "tcpa-no-consent"
+    | "tcpa-on-dnc"
+    | "tcpa-missing-tenant"
     | "dispatched"
     | "dispatch-failed";
   state: StateCode | null;
   errorMessage?: string;
   deferredUntil?: Date;
   durationMs?: number;
+  consentRecordId?: string | null;
+  dncCheckedAt?: string | null;
 }): Promise<void> {
   try {
     await prisma.bulkIngestJob.create({
@@ -96,12 +155,15 @@ async function writeDispatchAudit(opts: {
         durationMs: opts.durationMs ?? 0,
         finishedAt: new Date(),
         runStatsJson: {
-          jobType:        opts.job.jobType,
-          toNumber:       opts.job.toNumber,
-          fromNumber:     opts.job.fromNumber,
-          propertyState:  opts.job.propertyState ?? null,
-          deferredUntil:  opts.deferredUntil?.toISOString() ?? null,
-          correlationId:  opts.job.correlationId ?? null,
+          jobType:          opts.job.jobType,
+          toNumber:         opts.job.toNumber,
+          fromNumber:       opts.job.fromNumber,
+          propertyState:    opts.job.propertyState ?? null,
+          deferredUntil:    opts.deferredUntil?.toISOString() ?? null,
+          correlationId:    opts.job.correlationId ?? null,
+          userId:           opts.job.userId ?? null,
+          consentRecordId:  opts.consentRecordId ?? null,
+          dncCheckedAt:     opts.dncCheckedAt ?? null,
         } as unknown as object,
       },
     });
@@ -121,6 +183,81 @@ export async function processDialerDispatchJob(
   connection: IORedis,
 ): Promise<void> {
   const data = job.data;
+
+  // -------------------------------------------------------------------------
+  // TCPA gate 0a — tenant identity required.
+  //
+  // Consent is per (userId, phoneNumber). A job without a userId cannot be
+  // consent-checked, so we refuse dispatch. Producers should ALWAYS attach
+  // userId from the authenticated request context. This branch exists to
+  // catch legacy / test producers and fail closed.
+  // -------------------------------------------------------------------------
+  if (!data.userId) {
+    const msg = `dialer-dispatch job missing userId — cannot perform TCPA consent check. Refusing dispatch. jobType=${data.jobType} to=${data.toNumber}`;
+    console.warn(`[dialer-dispatch] ${msg}`);
+    await writeDispatchAudit({
+      job: data,
+      status: "tcpa-missing-tenant",
+      state: null,
+      errorMessage: msg,
+    });
+    throw new Error(msg);
+  }
+
+  // -------------------------------------------------------------------------
+  // TCPA gate 0b — express/implied consent required.
+  //
+  // Runs BEFORE the quiet-hours check because consent is a hard pre-condition;
+  // there is no "defer until later" recovery from missing consent the way
+  // there is for an out-of-window dispatch. If the consent record is missing
+  // or revoked we must throw and never re-enqueue.
+  // -------------------------------------------------------------------------
+  const consent = await hasConsent({
+    userId: data.userId,
+    phoneNumber: data.toNumber,
+    // Marketing autodial (SMS / voicemail-drop) requires express consent
+    // under the FCC 2024 one-to-one rule. Live voice callbacks can ride on
+    // implied consent for transactional business relationships.
+    requireExpress: data.jobType !== "voice",
+  });
+  if (!consent.hasConsent) {
+    const msg = `No valid consent record for userId=${data.userId} to=${data.toNumber} jobType=${data.jobType}. Refusing dispatch.`;
+    console.warn(`[dialer-dispatch] ${msg}`);
+    await writeDispatchAudit({
+      job: data,
+      status: "tcpa-no-consent",
+      state: null,
+      errorMessage: "no_consent",
+    });
+    // Do NOT throw — this is an expected business outcome, not a system
+    // error. Throwing would burn retry budget and noise up the failed-jobs
+    // panel for a known-bad recipient. Worker exits cleanly; audit row
+    // captures the refusal.
+    return;
+  }
+
+  // -------------------------------------------------------------------------
+  // TCPA gate 0c — Do-Not-Call list scrub.
+  //
+  // Currently a stub that always returns onDNC:false. Once a real DNC vendor
+  // is wired in (FreeDNC / Newkleus / etc.), this branch starts blocking
+  // numbers on the federal + state + internal DNC lists.
+  // -------------------------------------------------------------------------
+  const dnc = await checkDNC(data.toNumber);
+  if (dnc.onDNC) {
+    const msg = `Phone ${data.toNumber} is on DNC (flags=${JSON.stringify(dnc.flags)}). Refusing dispatch.`;
+    console.warn(`[dialer-dispatch] ${msg}`);
+    await writeDispatchAudit({
+      job: data,
+      status: "tcpa-on-dnc",
+      state: null,
+      errorMessage: "on_dnc",
+      consentRecordId: consent.recordId,
+      dncCheckedAt: dnc.checkedAt,
+    });
+    return;
+  }
+
   const state = resolveRecipientState(data);
 
   // Unknown state → fail loud. We refuse to dispatch without TCPA gating.
@@ -165,6 +302,8 @@ export async function processDialerDispatchJob(
       state,
       deferredUntil,
       errorMessage: `Outside quiet-hours window for ${state}; re-enqueued for ${deferredUntil.toISOString()}`,
+      consentRecordId: consent.recordId,
+      dncCheckedAt: dnc.checkedAt,
     });
     console.log(
       `[dialer-dispatch] deferred jobType=${data.jobType} to=${data.toNumber} state=${state} until=${deferredUntil.toISOString()} (delay=${Math.round(delay / 1000)}s)`,
@@ -184,6 +323,8 @@ export async function processDialerDispatchJob(
       status: "dispatched",
       state,
       durationMs,
+      consentRecordId: consent.recordId,
+      dncCheckedAt: dnc.checkedAt,
     });
     console.log(
       `[dialer-dispatch] dispatched jobType=${data.jobType} to=${data.toNumber} state=${state} ${durationMs}ms`,
@@ -197,6 +338,8 @@ export async function processDialerDispatchJob(
       state,
       durationMs,
       errorMessage: msg,
+      consentRecordId: consent.recordId,
+      dncCheckedAt: dnc.checkedAt,
     });
     throw err; // surface to BullMQ for retry/backoff
   }
