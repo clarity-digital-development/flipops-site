@@ -157,7 +157,8 @@ function StatChip({
   icon: React.ElementType;
   label: string;
   value: number;
-  trend?: number;
+  // `null` is treated the same as `undefined` — no trend pill rendered.
+  trend?: number | null;
   format?: "number" | "currency" | "percent" | "multiplier";
   highlight?: boolean;
 }) {
@@ -193,7 +194,7 @@ function StatChip({
             "text-sm font-semibold tabular-nums",
             highlight && "text-amber-700 dark:text-amber-300"
           )}>{formattedValue}</span>
-          {trend !== undefined && (
+          {trend !== undefined && trend !== null && (
             <div className={cn("flex items-center gap-0.5 text-[10px] font-medium", trendColor)}>
               <TrendIcon className="h-2.5 w-2.5" />
               {Math.abs(trend).toFixed(1)}%
@@ -355,6 +356,22 @@ export default function AnalyticsPage() {
   const [teamMetrics, setTeamMetrics] = useState<TeamMetrics[]>(DEFAULT_TEAM);
   const [vendorMetrics, setVendorMetrics] = useState<VendorMetrics[]>(DEFAULT_VENDORS);
 
+  // Period-over-period KPI deltas from the API. `null` (or missing) → no trend pill.
+  const [kpiTrends, setKpiTrends] = useState<{
+    totalRevenue?: number | null;
+    grossProfit?: number | null;
+    netProfit?: number | null;
+    qualifiedLeads?: number | null;
+    conversionRate?: number | null;
+    romi?: number | null;
+    totalDeals?: number | null;
+    avgDealSize?: number | null;
+    leads?: number | null;
+    offers?: number | null;
+    contracts?: number | null;
+    closedDeals?: number | null;
+  }>({});
+
   // Team tab state for search, sort, pagination
   const [teamSearch, setTeamSearch] = useState("");
   const [teamSortBy, setTeamSortBy] = useState<"userName" | "totalRevenue" | "totalDeals" | "winRate">("totalRevenue");
@@ -381,12 +398,15 @@ export default function AnalyticsPage() {
         if (data.kpis) setKpis(data.kpis);
         if (data.funnel) setFunnel(data.funnel);
         if (data.waterfall) setWaterfall(data.waterfall);
-        if (data.trends) {
-          setTrends(data.trends.map((t: { date: string; value: number }) => ({
+        // Weekly profit trend is now under `weeklyTrends` so it does not
+        // collide with the new KPI-delta `trends` object.
+        if (data.weeklyTrends) {
+          setTrends(data.weeklyTrends.map((t: { date: string; value: number }) => ({
             ...t,
             date: new Date(t.date)
           })));
         }
+        if (data.trends) setKpiTrends(data.trends);
         if (data.marketingMetrics) setMarketingMetrics(data.marketingMetrics);
         if (data.teamMetrics) setTeamMetrics(data.teamMetrics);
         if (data.vendorMetrics && data.vendorMetrics.length > 0) {
@@ -553,14 +573,30 @@ export default function AnalyticsPage() {
             <div>
               <h1 className="text-lg font-semibold tracking-tight">Analytics</h1>
               <p className="text-xs text-muted-foreground">
-                {kpis.romi.toFixed(1)}x ROMI • {kpis.closedDeals} Deals Closed
+                {(kpis.romi ?? 0).toFixed(1)}x ROMI • {kpis.closedDeals} Deals Closed
               </p>
             </div>
-            {!loading && (
-              <Badge variant={hasRealData ? "default" : "secondary"} className="text-[10px]">
-                {hasRealData ? "Live Data" : "Demo Data"}
-              </Badge>
-            )}
+            {!loading && (() => {
+              // Per-tab data honesty: only show "Live Data" when the active
+              // tab is actually backed by real DB queries. Marketing /
+              // Acquisition / Vendors are fixture-driven today.
+              const tabMode: 'live' | 'demo' | 'mixed' =
+                activeTab === 'executive'
+                  ? (hasRealData ? 'live' : 'demo')
+                  : activeTab === 'profitability'
+                    ? (hasProfitabilityData ? 'live' : 'demo')
+                    : activeTab === 'team'
+                      ? 'mixed'
+                      : 'demo';
+              const label = tabMode === 'live' ? 'Live Data' : tabMode === 'mixed' ? 'Partial Live Data' : 'Demo Data';
+              const variant: 'default' | 'secondary' | 'outline' =
+                tabMode === 'live' ? 'default' : tabMode === 'mixed' ? 'outline' : 'secondary';
+              return (
+                <Badge variant={variant} className="text-[10px]">
+                  {label}
+                </Badge>
+              );
+            })()}
           </div>
           <div className="flex items-center gap-2">
             <Select defaultValue="30d" onValueChange={handleDateRangeChange}>
@@ -601,14 +637,14 @@ export default function AnalyticsPage() {
             Array.from({ length: 8 }).map((_, i) => <StatChipSkeleton key={i} />)
           ) : (
             <>
-              <StatChip icon={Users} label="Total Leads" value={kpis.leads} trend={32} />
-              <StatChip icon={Target} label="Qualified" value={kpis.qualifiedLeads} trend={18} />
-              <StatChip icon={FileText} label="Offers" value={kpis.offers} trend={24} />
-              <StatChip icon={FileText} label="Contracts" value={kpis.contracts} trend={15} />
-              <StatChip icon={Trophy} label="Closed" value={kpis.closedDeals} trend={22} />
-              <StatChip icon={DollarSign} label="Net Profit" value={kpis.netProfit} format="currency" trend={24} highlight />
-              <StatChip icon={Zap} label="ROMI" value={kpis.romi} format="multiplier" trend={15} />
-              <StatChip icon={Activity} label="Conversion" value={kpis.conversionRate * 100} format="percent" trend={8} />
+              <StatChip icon={Users} label="Total Leads" value={kpis.leads} trend={kpiTrends.leads ?? undefined} />
+              <StatChip icon={Target} label="Qualified" value={kpis.qualifiedLeads} trend={kpiTrends.qualifiedLeads ?? undefined} />
+              <StatChip icon={FileText} label="Offers" value={kpis.offers} trend={kpiTrends.offers ?? undefined} />
+              <StatChip icon={FileText} label="Contracts" value={kpis.contracts} trend={kpiTrends.contracts ?? undefined} />
+              <StatChip icon={Trophy} label="Closed" value={kpis.closedDeals} trend={kpiTrends.closedDeals ?? undefined} />
+              <StatChip icon={DollarSign} label="Net Profit" value={kpis.netProfit} format="currency" trend={kpiTrends.netProfit ?? undefined} highlight />
+              <StatChip icon={Zap} label="ROMI" value={kpis.romi ?? 0} format="multiplier" trend={kpiTrends.romi ?? undefined} />
+              <StatChip icon={Activity} label="Conversion" value={(kpis.conversionRate ?? 0) * 100} format="percent" trend={kpiTrends.conversionRate ?? undefined} />
             </>
           )}
         </div>
@@ -1052,26 +1088,33 @@ export default function AnalyticsPage() {
                           </CardTitle>
                         </CardHeader>
                         <CardContent>
-                          <ResponsiveContainer width="100%" height={200}>
-                            <BarChart data={profitByMarket.length > 0 ? profitByMarket : [
-                              { market: 'Phoenix', profit: 680000, deals: 28 },
-                              { market: 'Tucson', profit: 520000, deals: 22 },
-                              { market: 'Scottsdale', profit: 420000, deals: 18 },
-                              { market: 'Mesa', profit: 222000, deals: 8 }
-                            ]} barCategoryGap="25%">
-                              <defs>
-                                <linearGradient id="marketProfitGradient" x1="0" y1="0" x2="0" y2="1">
-                                  <stop offset="0%" stopColor="#10B981" stopOpacity={1} />
-                                  <stop offset="100%" stopColor="#059669" stopOpacity={0.8} />
-                                </linearGradient>
-                              </defs>
-                              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" className="dark:stroke-zinc-700" />
-                              <XAxis dataKey="market" tick={{ fontSize: 11, fill: '#6b7280' }} axisLine={{ stroke: '#e5e7eb' }} tickLine={false} />
-                              <YAxis tick={{ fontSize: 11, fill: '#6b7280' }} tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`} axisLine={{ stroke: '#e5e7eb' }} tickLine={false} />
-                              <Tooltip content={<CustomTooltip formatter={formatCurrency} />} cursor={{ fill: 'hsl(var(--muted))', opacity: 0.3 }} />
-                              <Bar dataKey="profit" fill="url(#marketProfitGradient)" radius={[6, 6, 0, 0]} className="drop-shadow-sm" />
-                            </BarChart>
-                          </ResponsiveContainer>
+                          {profitByMarket.length > 0 ? (
+                            <ResponsiveContainer width="100%" height={200}>
+                              <BarChart data={profitByMarket} barCategoryGap="25%">
+                                <defs>
+                                  <linearGradient id="marketProfitGradient" x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="0%" stopColor="#10B981" stopOpacity={1} />
+                                    <stop offset="100%" stopColor="#059669" stopOpacity={0.8} />
+                                  </linearGradient>
+                                </defs>
+                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" className="dark:stroke-zinc-700" />
+                                <XAxis dataKey="market" tick={{ fontSize: 11, fill: '#6b7280' }} axisLine={{ stroke: '#e5e7eb' }} tickLine={false} />
+                                <YAxis tick={{ fontSize: 11, fill: '#6b7280' }} tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`} axisLine={{ stroke: '#e5e7eb' }} tickLine={false} />
+                                <Tooltip content={<CustomTooltip formatter={formatCurrency} />} cursor={{ fill: 'hsl(var(--muted))', opacity: 0.3 }} />
+                                <Bar dataKey="profit" fill="url(#marketProfitGradient)" radius={[6, 6, 0, 0]} className="drop-shadow-sm" />
+                              </BarChart>
+                            </ResponsiveContainer>
+                          ) : (
+                            <div className="h-[200px] flex flex-col items-center justify-center text-center px-4">
+                              <div className="p-2 rounded-full bg-muted mb-2">
+                                <BarChart3 className="h-5 w-5 text-muted-foreground" />
+                              </div>
+                              <p className="text-xs font-medium">No deals analyzed yet</p>
+                              <p className="text-[10px] text-muted-foreground mt-1 max-w-[220px]">
+                                Close a deal to see profitability by market.
+                              </p>
+                            </div>
+                          )}
                         </CardContent>
                       </Card>
 
@@ -1083,25 +1126,32 @@ export default function AnalyticsPage() {
                           </CardTitle>
                         </CardHeader>
                         <CardContent className="p-3">
-                          <div className="space-y-2">
-                            {(topDeals.length > 0 ? topDeals : [
-                              { address: '123 Main St', market: 'Phoenix', profit: 140000, margin: 77.8 },
-                              { address: '456 Oak Ave', market: 'Scottsdale', profit: 165000, margin: 75.0 },
-                              { address: '789 Elm Dr', market: 'Tucson', profit: 105000, margin: 70.0 },
-                              { address: '321 Pine Rd', market: 'Mesa', profit: 110000, margin: 66.7 }
-                            ]).map((deal) => (
-                              <div key={deal.address} className="flex justify-between items-center p-2 hover:bg-muted/50 rounded-lg cursor-pointer transition-colors">
-                                <div>
-                                  <p className="text-xs font-medium">{deal.address}</p>
-                                  <p className="text-[10px] text-muted-foreground">{deal.market}</p>
+                          {topDeals.length > 0 ? (
+                            <div className="space-y-2">
+                              {topDeals.map((deal) => (
+                                <div key={deal.address} className="flex justify-between items-center p-2 hover:bg-muted/50 rounded-lg cursor-pointer transition-colors">
+                                  <div>
+                                    <p className="text-xs font-medium">{deal.address}</p>
+                                    <p className="text-[10px] text-muted-foreground">{deal.market}</p>
+                                  </div>
+                                  <div className="text-right">
+                                    <p className="text-xs font-medium text-emerald-600 tabular-nums">{formatCurrency(deal.profit)}</p>
+                                    <p className="text-[10px] text-muted-foreground tabular-nums">{deal.margin.toFixed(1)}% margin</p>
+                                  </div>
                                 </div>
-                                <div className="text-right">
-                                  <p className="text-xs font-medium text-emerald-600 tabular-nums">{formatCurrency(deal.profit)}</p>
-                                  <p className="text-[10px] text-muted-foreground tabular-nums">{deal.margin.toFixed(1)}% margin</p>
-                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <div className="h-[180px] flex flex-col items-center justify-center text-center px-4">
+                              <div className="p-2 rounded-full bg-muted mb-2">
+                                <Trophy className="h-5 w-5 text-muted-foreground" />
                               </div>
-                            ))}
-                          </div>
+                              <p className="text-xs font-medium">No closed deals yet</p>
+                              <p className="text-[10px] text-muted-foreground mt-1 max-w-[220px]">
+                                Your top performers will surface here once deals start closing.
+                              </p>
+                            </div>
+                          )}
                         </CardContent>
                       </Card>
                     </div>

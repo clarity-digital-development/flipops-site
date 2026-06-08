@@ -159,18 +159,18 @@ export interface FactVendorJob {
 export interface KPIMetrics {
   leads: number;
   qualifiedLeads: number;
-  appointments: number;
+  appointments: number | null;
   offers: number;
   contracts: number;
   closedDeals: number;
   netProfit: number;
   grossProfit: number;
-  totalSpend: number;
-  romi: number;
-  roas: number;
-  avgDaysToContract: number;
-  avgSpeedToLead: number;
-  conversionRate: number;
+  totalSpend: number | null;
+  romi: number | null;
+  roas: number | null;
+  avgDaysToContract: number | null;
+  avgSpeedToLead: number | null;
+  conversionRate: number | null;
 }
 
 export interface FunnelStage {

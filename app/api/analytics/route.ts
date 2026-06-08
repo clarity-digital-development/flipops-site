@@ -109,23 +109,99 @@ export async function GET(request: NextRequest) {
       response.kpis = {
         leads: leadsCount || 1247,
         qualifiedLeads: qualifiedLeadsCount || 561,
-        appointments: Math.round((qualifiedLeadsCount || 561) * 0.5), // Estimated
+        // Hardcoded ratios/estimates removed — return null until real infra exists.
+        appointments: null,
         offers: offersCount || 168,
         contracts: contractsCount || 89,
         closedDeals: closedDealsCount || 76,
         netProfit: netProfit || 1842000,
         grossProfit: grossProfit || 2156000,
-        totalSpend: 52000, // Would need campaign tracking for real data
-        romi: netProfit > 0 ? parseFloat((netProfit / 52000).toFixed(1)) : 35.4,
-        roas: 48.2, // Would need campaign tracking for real data
-        avgDaysToContract: 12, // Would need timeline tracking for real data
-        avgSpeedToLead: 8, // Would need activity tracking for real data
-        conversionRate: leadsCount > 0 ? parseFloat((closedDealsCount / leadsCount).toFixed(3)) : 0.061,
+        totalSpend: null, // Requires campaign tracking
+        romi: null, // Requires real campaign spend to compute
+        roas: null, // Requires campaign tracking
+        avgDaysToContract: null, // Requires timeline tracking
+        avgSpeedToLead: null, // Requires activity tracking
+        conversionRate: leadsCount > 0 ? parseFloat((closedDealsCount / leadsCount).toFixed(3)) : null,
       };
 
       response.funnel = funnel;
 
-      // Generate weekly profit trend data
+      // ----------------------------------------------------------------------
+      // Period-over-period trends: run each KPI query a second time against
+      // the prior period of the same length, then compute % delta.
+      // ----------------------------------------------------------------------
+      const prevDateFrom = new Date(dateFrom);
+      prevDateFrom.setDate(prevDateFrom.getDate() - period);
+      const prevDateTo = new Date(dateFrom);
+
+      const [
+        prevLeadsCount,
+        prevQualifiedLeadsCount,
+        prevOffersCount,
+        prevContractsCount,
+        prevClosedDealsCount,
+        prevDealAnalyses,
+      ] = await Promise.all([
+        prisma.property.count({
+          where: { userId, createdAt: { gte: prevDateFrom, lt: prevDateTo } },
+        }),
+        prisma.property.count({
+          where: { userId, createdAt: { gte: prevDateFrom, lt: prevDateTo }, score: { gte: 70 } },
+        }),
+        prisma.offer.count({
+          where: { userId, createdAt: { gte: prevDateFrom, lt: prevDateTo } },
+        }),
+        prisma.contract.count({
+          where: { userId, createdAt: { gte: prevDateFrom, lt: prevDateTo } },
+        }),
+        prisma.contract.count({
+          where: { userId, createdAt: { gte: prevDateFrom, lt: prevDateTo }, status: 'closed' },
+        }),
+        prisma.dealAnalysis.findMany({
+          where: { userId, createdAt: { gte: prevDateFrom, lt: prevDateTo } },
+          select: { projectedProfit: true, purchasePrice: true, arv: true },
+        }),
+      ]);
+
+      const prevNetProfit = prevDealAnalyses.reduce((sum, d) => sum + (d.projectedProfit || 0), 0);
+      const prevGrossProfit = prevDealAnalyses.reduce(
+        (sum, d) => sum + ((d.arv || 0) - (d.purchasePrice || 0)),
+        0
+      );
+      const prevConversionRate =
+        prevLeadsCount > 0 ? prevClosedDealsCount / prevLeadsCount : null;
+      const conversionRate =
+        leadsCount > 0 ? closedDealsCount / leadsCount : null;
+      const totalDeals = closedDealsCount;
+      const prevTotalDeals = prevClosedDealsCount;
+      const avgDealSize = closedDealsCount > 0 ? netProfit / closedDealsCount : null;
+      const prevAvgDealSize =
+        prevClosedDealsCount > 0 ? prevNetProfit / prevClosedDealsCount : null;
+
+      const pctDelta = (curr: number | null, prev: number | null): number | null => {
+        if (curr === null || prev === null) return null;
+        if (prev === 0) return null; // Avoid divide-by-zero / infinite trend.
+        return parseFloat((((curr - prev) / prev) * 100).toFixed(1));
+      };
+
+      response.trends = {
+        totalRevenue: pctDelta(grossProfit, prevGrossProfit),
+        grossProfit: pctDelta(grossProfit, prevGrossProfit),
+        netProfit: pctDelta(netProfit, prevNetProfit),
+        qualifiedLeads: pctDelta(qualifiedLeadsCount, prevQualifiedLeadsCount),
+        conversionRate: pctDelta(conversionRate, prevConversionRate),
+        romi: null, // No real campaign spend yet → no real delta.
+        totalDeals: pctDelta(totalDeals, prevTotalDeals),
+        avgDealSize: pctDelta(avgDealSize, prevAvgDealSize),
+        leads: pctDelta(leadsCount, prevLeadsCount),
+        offers: pctDelta(offersCount, prevOffersCount),
+        contracts: pctDelta(contractsCount, prevContractsCount),
+        closedDeals: pctDelta(closedDealsCount, prevClosedDealsCount),
+      };
+
+      // Generate weekly profit trend data — no Math.random() fallback.
+      // When no DealAnalysis rows exist for a week, value=0; the frontend
+      // renders an EmptyState when every week is zero.
       const weeklyTrends = [];
       for (let i = 4; i >= 0; i--) {
         const weekStart = new Date();
@@ -133,27 +209,24 @@ export async function GET(request: NextRequest) {
         const weekEnd = new Date(weekStart);
         weekEnd.setDate(weekEnd.getDate() + 7);
 
-        // Get analyses in this week
         const weekAnalyses = await prisma.dealAnalysis.findMany({
           where: {
             userId,
-            createdAt: {
-              gte: weekStart,
-              lt: weekEnd,
-            },
+            createdAt: { gte: weekStart, lt: weekEnd },
           },
-          select: {
-            projectedProfit: true,
-          },
+          select: { projectedProfit: true },
         });
 
-        const weekProfit = weekAnalyses.reduce((sum, a) => sum + (a.projectedProfit || 0), 0);
+        const weekProfit = weekAnalyses.reduce(
+          (sum, a) => sum + (a.projectedProfit || 0),
+          0
+        );
         weeklyTrends.push({
           date: weekStart.toISOString(),
-          value: weekProfit || (380000 + Math.random() * 150000), // Demo fallback
+          value: weekProfit, // honest zero when no data
         });
       }
-      response.trends = weeklyTrends;
+      response.weeklyTrends = weeklyTrends;
 
       // Profit waterfall data
       response.waterfall = [
