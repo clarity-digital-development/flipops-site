@@ -35,6 +35,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
 import { ThemeToggle } from "@/app/components/theme-toggle";
 import { ErrorBoundary } from "@/app/components/error-boundary";
+import { NotificationsDropdown } from "@/components/layout/notifications-dropdown";
 import {
   DEFAULT_INVESTOR_TYPE,
   filterSidebarByInvestorType,
@@ -402,25 +403,12 @@ export default function AppLayout({
           {/* Actions */}
           <div className="flex items-center gap-2 sm:gap-3">
             <ThemeToggle />
-            <Button
-              variant="ghost"
-              size="icon"
-              className="relative"
-              aria-label="Notifications"
-              onClick={() => {
-                // Phase 8: /api/notifications GET requires FO_API_KEY and is
-                // not user-scoped; surfacing recent notifications from the
-                // browser would either leak cross-tenant data or 401. Toast
-                // until a user-scoped query lands.
-                toast({
-                  title: "Notifications coming soon",
-                  description: "Recent activity will appear here once user-scoped notifications ship.",
-                });
-              }}
-            >
-              <Bell className="h-5 w-5" />
-              {/* Hardcoded unread dot removed — it was a lie. */}
-            </Button>
+            <NotificationsDropdown />
+            {/* Sprint 1: replaces the dead Bell toast. NotificationsDropdown
+                fetches GET /api/notifications/me on mount + on open, shows an
+                unread count badge, and exposes a Mark-all-read PATCH. The
+                route is user-scoped via requireUser() so anonymous browsers
+                see {unread:0,notifications:[]} not 401. */}
             <Button
               variant="default"
               size="sm"
