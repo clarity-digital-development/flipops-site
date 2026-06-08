@@ -25,4 +25,26 @@ const nextConfig = {
   },
 }
 
-module.exports = nextConfig
+// Sentry wrapper — ENV-gated. If @sentry/nextjs isn't installed yet or
+// SENTRY_DSN is missing, fall back to the bare config so dev / preview /
+// CI builds still succeed. This is intentional: Sentry is observability,
+// not a hard runtime dependency.
+let finalConfig = nextConfig
+try {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports, global-require
+  const { withSentryConfig } = require('@sentry/nextjs')
+  finalConfig = withSentryConfig(nextConfig, {
+    silent: true,
+    hideSourceMaps: true,
+    // Optional org / project / authToken pulled from env — the Sentry CLI
+    // reads SENTRY_AUTH_TOKEN automatically during build to upload source maps.
+    org: process.env.SENTRY_ORG,
+    project: process.env.SENTRY_PROJECT,
+  })
+} catch (err) {
+  // Package not installed yet — skip the wrap. Logged once at build time.
+  // eslint-disable-next-line no-console
+  console.warn('[next.config] @sentry/nextjs not installed; skipping Sentry wrap.')
+}
+
+module.exports = finalConfig

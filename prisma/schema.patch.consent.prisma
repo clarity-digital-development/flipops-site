@@ -1,0 +1,99 @@
+// -----------------------------------------------------------------------------
+// ConsentRecord — TCPA / CAN-SPAM consent ledger.
+//
+// Apply by pasting into prisma/schema.prisma alongside the existing User and
+// Property models, then running:
+//
+//   npx prisma db push
+//   npx prisma generate
+//
+// Why a dedicated table instead of a flag on Property / Lead:
+//   1. A single phone may appear on multiple properties (LLC owner, family
+//      member, agent). Consent is per (userId, phoneNumber), not per Property.
+//   2. Consent has provenance — we MUST record where it came from
+//      (web-form / skip-trace / inbound-call / paper-mail-back). The TCPA
+//      and FCC 2024 one-to-one consent rule require evidence for every
+//      outbound contact attempt.
+//   3. Consent can be revoked at any time; we keep the row and stamp
+//      revokedAt rather than deleting, so we can prove compliance under
+//      audit.
+//
+// The composite indexes are sized for the worker's hot path:
+//   hasConsent(userId, phoneNumber) and hasConsent(userId, emailAddress).
+// -----------------------------------------------------------------------------
+
+model ConsentRecord {
+  id            String    @id @default(cuid())
+
+  // Tenant owning the consent. Consent is NOT transferable between tenants
+  // even for the same phone number — Investor A's express consent does not
+  // grant Investor B permission to call.
+  userId        String
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Optional link to the Property the consent was captured against. Helps
+  // with audit ("why did we call this number?") but is not required —
+  // skip-trace and inbound-call consent often pre-dates a Property record.
+  propertyId    String?
+  property      Property? @relation(fields: [propertyId], references: [id], onDelete: SetNull)
+
+  // E.164 phone number, e.g. "+19045551234". Normalize on write.
+  phoneNumber   String
+  // Optional email — same record can cover phone + email if both were
+  // captured in the same web-form submission.
+  emailAddress  String?
+
+  // Consent strength. Strings (not enum) to match the rest of the schema's
+  // convention and to keep migrations cheap.
+  //   express   — explicit signed/checkbox opt-in (TCPA-compliant for SMS
+  //               and pre-recorded voice). Required for marketing autodial.
+  //   implied   — business relationship or prior inquiry. Covers transactional
+  //               but NOT marketing autodial.
+  //   none      — no recorded consent. Worker will REFUSE dispatch.
+  //   revoked   — consent was withdrawn (STOP reply, oral revocation, etc.).
+  //               Worker will REFUSE dispatch. Kept for audit, never deleted.
+  consentType   String
+
+  // Provenance:
+  //   web-form          — Calendly-style opt-in checkbox on landing page
+  //   skip-trace        — vendor-attested consent (BatchSkipTracing,
+  //                       Cole Information, etc.) — VERIFY vendor terms
+  //                       before trusting this as TCPA-grade express consent
+  //   inbound-call      — caller dialed us; their initial call grants
+  //                       implied consent for callback within the same
+  //                       business relationship
+  //   inbound-sms       — caller texted us (e.g. replied YES to a flyer)
+  //   paper-mail-back   — direct-mail reply card returned
+  //   referral          — third-party referral (lower consent strength)
+  consentSource String
+
+  consentedAt   DateTime  @default(now())
+  revokedAt     DateTime?
+
+  // URL to S3/R2-stored evidence (signed opt-in screenshot, call recording,
+  // mail-back scan). Surfaced in audit responses to TCPA litigation.
+  evidenceUrl   String?
+
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Hot-path index for worker consent check. Composite covers the common
+  // hasConsent(userId, phoneNumber) query without a full scan.
+  @@index([userId, phoneNumber])
+  @@index([userId, emailAddress])
+  // Helps the revocation sweep that runs on STOP-reply ingest:
+  // "find all live consent rows for this phone across all tenants."
+  @@index([phoneNumber, revokedAt])
+}
+
+// NOTE: also add the back-relation to User and Property:
+//
+//   model User {
+//     ...
+//     consentRecords ConsentRecord[]
+//   }
+//
+//   model Property {
+//     ...
+//     consentRecords ConsentRecord[]
+//   }
