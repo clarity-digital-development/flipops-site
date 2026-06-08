@@ -22,7 +22,7 @@ app/                    # Next.js App Router
     dialer/             # Dialer page (Telnyx + Oppenheimer inbound AI — replaced Campaigns)
     offers/             # Offers page and seed data
     vendors/            # Vendors page with network system
-      page.tsx          # Main vendors UI (USE_DEMO_DATA toggle)
+      page.tsx          # Main vendors UI (API-driven, /api/vendors/my)
       seed-data.ts      # Demo vendor data (12 vendors)
     components/         # Shared app components
   api/                  # API routes
@@ -219,7 +219,7 @@ See `docs/guardrails/` for implementation details.
 
 ## Feature Status (Last Reviewed: 2026-01-30, Updated: 2026-01-30)
 
-> **Note**: Vendor Network System added 2026-01-30. Currently using demo data (`USE_DEMO_DATA = true`). Production system ready with Google Places integration, tiered access, and admin scripts.
+> **Note**: Vendor Network System added 2026-01-30. Production-default — vendors UI fetches from `/api/vendors/my` and `/api/vendors/platform` (no demo fallback). Google Places integration, tiered access, and admin scripts wired.
 
 ### ✅ FULLY IMPLEMENTED & WORKING
 
@@ -653,13 +653,7 @@ Completely redesigned with "Vendor Command Center" aesthetic:
 - **Toast Notifications** - Uses shadcn/ui `useToast` hook (NOT sonner)
 - **Accessibility** - SheetTitle wrapped in `VisuallyHidden` for screen reader compliance
 
-**Demo Mode Toggle**:
-```typescript
-// At top of page.tsx - toggle between demo and production data
-const USE_DEMO_DATA = true;  // Set to false for API-driven data
-```
-- When `true`: Uses 12 demo vendors from `seed-data.ts` (no API calls)
-- When `false`: Fetches from `/api/vendors/my` and `/api/vendors/platform`
+**Data Source**: Vendors page is API-driven only. Fetches from `/api/vendors/my` (user network) and `/api/vendors/platform` (browse — premium tiers). The historical `USE_DEMO_DATA` toggle and demo seed-data fallback were removed (2026-06-08) — the seed fallback was hard-locking every user to 12 AZ contractors regardless of their actual network.
 
 **Seed Data** (`app/app/vendors/seed-data.ts`):
 - 12 demo vendors across 8 trade categories

@@ -83,15 +83,12 @@ import { cn } from "@/lib/utils";
 import {
   type Vendor,
   type Project,
-  vendors as demoVendors,
-  projects as demoProjects,
 } from "./seed-data";
 
-// Use real API data — seed data is no longer used.
+// Production: vendors are always API-driven via /api/vendors/my.
 // Per the platform UX walkthrough (2026-06-04), the seed-data fallback was
 // hard-locking every user to 12 AZ contractors regardless of their actual
-// vendor network. /api/vendors/my returns the user's real vendors.
-const USE_DEMO_DATA = false;
+// vendor network. The USE_DEMO_DATA toggle has been removed; demo branches deleted.
 
 // ============================================================================
 // TRADE CONFIGURATION (matches VendorCategory enum)
@@ -511,12 +508,28 @@ function VendorCard({ vendor, isSelected, onClick, viewMode }: VendorCardProps) 
           </Badge>
           <div className="flex items-center gap-1">
             {vendor.email && (
-              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={(e) => { e.stopPropagation(); }}>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  window.open(`mailto:${vendor.email}`, '_self');
+                }}
+              >
                 <Mail className="h-4 w-4" />
               </Button>
             )}
             {vendor.phone && (
-              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={(e) => { e.stopPropagation(); }}>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  window.open(`tel:${vendor.phone}`, '_self');
+                }}
+              >
                 <Phone className="h-4 w-4" />
               </Button>
             )}
@@ -1009,15 +1022,8 @@ export default function VendorsPage() {
     googlePlaceId: v.googlePlaceId,
   }), []);
 
-  // Fetch my vendors from new API (or use demo data)
+  // Fetch my vendors from API.
   const fetchMyVendors = useCallback(async () => {
-    if (USE_DEMO_DATA) {
-      // Use demo data - skip API call
-      setLoading(false);
-      setProjects(demoProjects);
-      return;
-    }
-
     try {
       setLoading(true);
       const params = new URLSearchParams();
@@ -1145,10 +1151,6 @@ export default function VendorsPage() {
 
   // Get effective vendors list for My Vendors tab
   const effectiveVendors = useMemo(() => {
-    if (USE_DEMO_DATA) {
-      // Use demo vendors directly
-      return demoVendors;
-    }
     return myVendors.map(convertMyVendorToVendor);
   }, [myVendors, convertMyVendorToVendor]);
 
