@@ -42,6 +42,7 @@ model User {
   tier            String    @default("pro") // free, pro, enterprise
   monthlyDeals    Int       @default(0) // Track usage for tiered pricing
   subscriptionStatus String @default("active") // active, paused, cancelled
+  stripeCustomerId   String? @unique // Stripe Customer ID; populated on first checkout.session.completed
 
   // Platform settings
   onboarded       Boolean   @default(false)
