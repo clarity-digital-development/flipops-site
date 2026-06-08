@@ -9,6 +9,7 @@ import type { RunContext } from "@/lib/scrapers/dispatch/types";
 import { runScraperHealthCheck } from "@/lib/cron/monitoring/scraper-health";
 import { setupMonitoringJobs } from "@/lib/cron/worker-bullmq-monitoring";
 import { handleScrapeCompleted } from "@/lib/cron/auction-summary-hook";
+import { setupDialerDispatchJobs } from "@/lib/queues/workers/dialer-dispatch-worker";
 
 // ---------------------------------------------------------------------------
 // worker-bullmq — the BullMQ-driven freshness scheduler.
@@ -545,6 +546,12 @@ async function main(): Promise<void> {
 
   // Phase 6: 5 monitoring/discovery jobs migrated from legacy execSync.
   await setupMonitoringJobs(connection, queues, workers);
+
+  // Sprint 1 Lane 4: TCPA quiet-hours dispatcher. Safety wrapper around
+  // future Telnyx outbound (Sprint 3). Re-enqueues anything that lands
+  // outside the recipient-state's permitted window; throws "not implemented"
+  // for any job that reaches the dispatch step today.
+  await setupDialerDispatchJobs(connection, queues, workers);
 
   // Initial registry sync.
   await syncRegistry();
