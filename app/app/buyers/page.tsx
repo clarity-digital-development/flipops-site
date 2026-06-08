@@ -1334,20 +1334,89 @@ export default function BuyersPage() {
                                       </Button>
                                     </DropdownMenuTrigger>
                                     <DropdownMenuContent align="end">
-                                      <DropdownMenuItem>
+                                      <DropdownMenuItem
+                                        onClick={async () => {
+                                          try {
+                                            const res = await fetch(`/api/buyer-offers/${offer.id}`, {
+                                              method: 'PATCH',
+                                              headers: { 'Content-Type': 'application/json' },
+                                              body: JSON.stringify({ status: 'accepted' })
+                                            });
+                                            if (res.ok) {
+                                              toast.success('Offer accepted');
+                                              fetchBuyerOffersOnMount();
+                                            } else {
+                                              toast.error('Failed to accept offer');
+                                            }
+                                          } catch {
+                                            toast.error('Failed to accept offer');
+                                          }
+                                        }}
+                                      >
                                         <CheckCircle className="h-4 w-4 mr-2" />
                                         Accept
                                       </DropdownMenuItem>
-                                      <DropdownMenuItem>
+                                      <DropdownMenuItem
+                                        onClick={() => {
+                                          const counterAmount = prompt('Enter counter offer amount:');
+                                          if (counterAmount) {
+                                            fetch(`/api/buyer-offers/${offer.id}`, {
+                                              method: 'PATCH',
+                                              headers: { 'Content-Type': 'application/json' },
+                                              body: JSON.stringify({
+                                                status: 'countered',
+                                                counterAmount: parseFloat(counterAmount)
+                                              })
+                                            }).then(res => {
+                                              if (res.ok) {
+                                                toast.success('Counter offer sent');
+                                                fetchBuyerOffersOnMount();
+                                              } else {
+                                                toast.error('Failed to send counter offer');
+                                              }
+                                            }).catch(() => {
+                                              toast.error('Failed to send counter offer');
+                                            });
+                                          }
+                                        }}
+                                      >
                                         <MessageSquare className="h-4 w-4 mr-2" />
                                         Counter
                                       </DropdownMenuItem>
-                                      <DropdownMenuItem>
+                                      <DropdownMenuItem
+                                        disabled={!offer.buyer.phone}
+                                        onClick={() => {
+                                          if (offer.buyer.phone) {
+                                            window.open(`tel:${offer.buyer.phone}`, '_self');
+                                          } else {
+                                            toast.error('No phone number on file');
+                                          }
+                                        }}
+                                      >
                                         <Phone className="h-4 w-4 mr-2" />
                                         Call
                                       </DropdownMenuItem>
                                       <DropdownMenuSeparator />
-                                      <DropdownMenuItem className="text-red-600">
+                                      <DropdownMenuItem
+                                        className="text-red-600"
+                                        onClick={async () => {
+                                          try {
+                                            const res = await fetch(`/api/buyer-offers/${offer.id}`, {
+                                              method: 'PATCH',
+                                              headers: { 'Content-Type': 'application/json' },
+                                              body: JSON.stringify({ status: 'declined' })
+                                            });
+                                            if (res.ok) {
+                                              toast.success('Offer declined');
+                                              fetchBuyerOffersOnMount();
+                                            } else {
+                                              toast.error('Failed to decline offer');
+                                            }
+                                          } catch {
+                                            toast.error('Failed to decline offer');
+                                          }
+                                        }}
+                                      >
                                         <AlertCircle className="h-4 w-4 mr-2" />
                                         Decline
                                       </DropdownMenuItem>

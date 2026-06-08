@@ -1032,6 +1032,13 @@ export default function RentalsPage() {
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [selectedRental, setSelectedRental] = useState<Rental | null>(null);
   const [detailSheetOpen, setDetailSheetOpen] = useState(false);
+  // Edit + Record-Payment dialog state — wired to RentalDetailSheet's
+  // onRequestEdit / onRequestPayment callbacks. Without these, the detail
+  // sheet buttons no-op (props were never passed at the parent render).
+  const [editRental, setEditRental] = useState<Rental | null>(null);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [paymentRental, setPaymentRental] = useState<Rental | null>(null);
+  const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
 
   // Fetch rentals — strictly real data, no seed fallback.
   useEffect(() => {
@@ -1362,6 +1369,18 @@ export default function RentalsPage() {
         rental={selectedRental}
         open={detailSheetOpen}
         onClose={() => setDetailSheetOpen(false)}
+        onRequestEdit={(r) => {
+          // PATCH /api/rentals/[id] — open the edit dialog.
+          // Wired here so the detail-sheet button isn't a silent no-op.
+          setEditRental(r);
+          setEditDialogOpen(true);
+        }}
+        onRequestPayment={(r) => {
+          // POST /api/rentals/[id]/income — open the record-payment dialog.
+          // Wired here so the detail-sheet button isn't a silent no-op.
+          setPaymentRental(r);
+          setPaymentDialogOpen(true);
+        }}
       />
     </div>
   );

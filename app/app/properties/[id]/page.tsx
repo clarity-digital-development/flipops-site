@@ -480,7 +480,7 @@ function HeroSection({
                 {property.score ?? "—"}
               </span>
             </div>
-            <Link href="/app/underwriting">
+            <Link href={`/app/underwriting?propertyId=${property.id}`}>
               <Button size="sm" variant="outline" className="gap-1.5">
                 <Calculator className="h-3.5 w-3.5" />
                 Underwrite

@@ -536,7 +536,10 @@ function OfferCard({
                 <>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem asChild>
-                    <Link href="/app/contracts" onClick={(e) => e.stopPropagation()}>
+                    <Link
+                      href={`/app/contracts?highlight=${offer.contract.id}`}
+                      onClick={(e) => e.stopPropagation()}
+                    >
                       <FileSignature className="h-4 w-4 mr-2" />
                       View Contract
                     </Link>

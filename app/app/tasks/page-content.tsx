@@ -2,6 +2,7 @@
 export const dynamic = 'force-dynamic';
 
 import { useState, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import {
   Search,
   Clock,
@@ -611,6 +612,7 @@ function TaskDetailSheet({
 }) {
   const [commentText, setCommentText] = useState("");
   const [activeTab, setActiveTab] = useState("details");
+  const router = useRouter();
 
   if (!task) return null;
 
@@ -780,7 +782,21 @@ function TaskDetailSheet({
                         )}
                         <span className="text-sm font-medium">{task.linkedEntity.name}</span>
                       </div>
-                      <Button variant="ghost" size="sm">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          if (!task.linkedEntity) return;
+                          // Route to the linked entity. Leads land on the leads
+                          // table with the row highlighted; deals land on the
+                          // contracts table the same way. Both views support
+                          // ?highlight={id} via the URL contract used elsewhere.
+                          const path = task.linkedEntity.type === "lead"
+                            ? `/app/leads?highlight=${task.linkedEntity.id}`
+                            : `/app/contracts?highlight=${task.linkedEntity.id}`;
+                          router.push(path);
+                        }}
+                      >
                         <ExternalLink className="h-4 w-4" />
                       </Button>
                     </div>
