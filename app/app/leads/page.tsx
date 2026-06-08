@@ -261,20 +261,49 @@ export default function LeadsPage() {
   };
 
   const handleSkipTrace = async (id: string) => {
-    // Phase 8: /api/properties/[id]/skip-trace exists but is a *writer* — it
-    // expects pre-fetched phones/emails from the BatchData provider AND
-    // requires FO_API_KEY (server-side only). The browser cannot trigger a
-    // fresh skip trace until the BatchData fetch path is reactivated and
-    // moved behind a Clerk-auth proxy route.
-    // TODO: wire when BatchData billing reactivated.
     const target = properties.find((p) => p.id === id);
     if (target) void trackLeadEvent("enriched", target, { kind: "skip_trace" });
-    toast({
-      title: "Skip trace coming soon",
-      description: target
-        ? `Owner contact lookup for ${target.address} will run once BatchData billing is reactivated.`
-        : "Skip trace request will run once BatchData is live.",
-    });
+    try {
+      const res = await fetch(`/api/properties/${id}/enrich`, { method: "POST" });
+      if (res.ok) {
+        const data = await res.json();
+        // Best-effort: refresh just this lead row by re-fetching the list. The
+        // enrich endpoint returns the updated Property row so we could splice
+        // it in directly, but a full refresh keeps virtual/dedup logic honest.
+        await reloadLeads();
+        toast({
+          title: "Skip trace complete",
+          description: `${data.phoneCount ?? 0} phones, ${data.emailCount ?? 0} emails found.`,
+        });
+        // Activity log (best-effort — ignore failure if user has no Team yet).
+        void fetch("/api/activity", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ type: "skip_trace", propertyId: id }),
+        }).catch(() => {});
+        return;
+      }
+      if (res.status === 503) {
+        toast({
+          title: "Skip trace not configured",
+          description: "Set BATCHDATA_API_KEY in env to enable owner contact lookup.",
+          variant: "destructive",
+        });
+        return;
+      }
+      const body = await res.json().catch(() => ({}));
+      toast({
+        title: "Skip trace failed",
+        description: body?.error ?? `Status ${res.status} — try again shortly.`,
+        variant: "destructive",
+      });
+    } catch (err) {
+      toast({
+        title: "Skip trace failed",
+        description: "Network hiccup. Try again shortly.",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleSendToUnderwriting = (id: string) => {

@@ -457,58 +457,22 @@ export default function SettingsPage() {
               </ScrollArea>
             </TabsContent>
 
-            {/* Integrations - Coming Soon */}
+            {/* Integrations — live Nylas email connect card */}
             <TabsContent value="integrations" className="h-full mt-0">
               <ScrollArea className="h-full">
-              <div className="flex flex-col items-center justify-center py-16 text-center">
-                <Rocket className="h-16 w-16 text-muted-foreground mb-6" />
-                <h3 className="text-xl font-semibold">Integrations & Automation</h3>
-                <p className="text-muted-foreground mt-3 max-w-md">
-                  Connect your favorite tools and automate your workflow.
-                  We're building powerful integrations to streamline your real estate operations.
-                </p>
-                <Badge variant="outline" className="mt-6 text-sm px-4 py-1">
-                  Coming Q2 2025
-                </Badge>
-
-                <div className="mt-10 grid grid-cols-2 md:grid-cols-3 gap-4 text-left max-w-2xl">
-                  <div className="p-4 border rounded-lg bg-muted/30">
-                    <p className="font-medium text-sm">Slack Notifications</p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Get deal alerts in your Slack workspace
-                    </p>
-                  </div>
-                  <div className="p-4 border rounded-lg bg-muted/30">
-                    <p className="font-medium text-sm">SMS Campaigns</p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Send text campaigns via Twilio
-                    </p>
-                  </div>
-                  <div className="p-4 border rounded-lg bg-muted/30">
-                    <p className="font-medium text-sm">Zapier & Webhooks</p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Connect to 5,000+ apps
-                    </p>
-                  </div>
-                  <div className="p-4 border rounded-lg bg-muted/30">
-                    <p className="font-medium text-sm">API Access</p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Build custom integrations
-                    </p>
-                  </div>
-                  <div className="p-4 border rounded-lg bg-muted/30">
-                    <p className="font-medium text-sm">Lead Scoring Rules</p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Custom scoring algorithms
-                    </p>
-                  </div>
-                  <div className="p-4 border rounded-lg bg-muted/30">
-                    <p className="font-medium text-sm">Email Templates</p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Automated email sequences
-                    </p>
-                  </div>
-                </div>
+              <div className="p-6 max-w-3xl mx-auto">
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Email (Nylas)</CardTitle>
+                    <CardDescription>
+                      Connect your inbox to send offers, follow-ups, and disposition blasts
+                      from FlipOps. Read receipts and reply tracking land back in /app/inbox.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <EmailIntegrationCard />
+                  </CardContent>
+                </Card>
               </div>
               </ScrollArea>
             </TabsContent>

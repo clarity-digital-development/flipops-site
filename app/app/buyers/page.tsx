@@ -348,8 +348,11 @@ export default function BuyersPage() {
       address: `${contract.property.address}, ${contract.property.city}, ${contract.property.state} ${contract.property.zip}`,
       status,
       askPrice: contract.purchasePrice,
-      arvEstimate: Math.round(contract.purchasePrice * 1.4), // Estimate ARV as 140% of purchase price
-      repairEstimate: Math.round(contract.purchasePrice * 0.15), // Estimate repairs as 15% of purchase price
+      // Pull real ARV / repair estimates from the linked DealAnalysis when one
+      // exists. Falls back to null so the UI renders '—' instead of the old
+      // 1.4x / 0.15x fabrication that looked like real data.
+      arvEstimate: contract.deal?.arv ?? null,
+      repairEstimate: contract.deal?.repairBudget ?? null,
       netToSeller: Math.round(contract.purchasePrice * 0.9),
       blastSentDate: undefined,
       daysOnMarket,
