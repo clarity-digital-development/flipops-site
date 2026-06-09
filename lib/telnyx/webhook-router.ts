@@ -24,7 +24,11 @@ export type TelnyxEventType =
   | 'call.hangup'
   | 'call.recording.saved'
   | 'call.transcription.received'
-  | 'conversation.ended';
+  | 'conversation.ended'
+  | 'message.received'
+  | 'message.sent'
+  | 'message.finalized'
+  | 'message.delivery_failed';
 
 export interface TelnyxWebhookEnvelope<P = unknown> {
   data: {
@@ -82,6 +86,109 @@ export interface CallTranscriptionReceivedPayload {
 export interface ConversationEndedPayload {
   call_control_id?: string;
   conversation_id?: string;
+}
+
+// ----------------------------------------------------------------------------
+// SMS event payloads (Telnyx Messaging webhook v2)
+// Reference: https://developers.telnyx.com/docs/api/v2/messaging
+// ----------------------------------------------------------------------------
+
+export interface TelnyxMessageAddress {
+  phone_number: string;
+  carrier?: string;
+  line_type?: string;
+  status?: 'queued' | 'sending' | 'sent' | 'delivered' | 'delivery_failed' | 'sending_failed' | string;
+}
+
+export interface TelnyxMessagePayload {
+  id: string;
+  record_type?: 'message';
+  direction?: 'inbound' | 'outbound';
+  type?: 'SMS' | 'MMS' | string;
+  messaging_profile_id?: string;
+  from?: { phone_number: string; carrier?: string; line_type?: string };
+  to?: TelnyxMessageAddress[];
+  text?: string;
+  encoding?: string;
+  parts?: number;
+  errors?: Array<{ code?: string; title?: string; detail?: string }>;
+  received_at?: string;
+  sent_at?: string;
+  completed_at?: string;
+}
+
+// ----------------------------------------------------------------------------
+// Helpers
+// ----------------------------------------------------------------------------
+
+/** Normalize an inbound phone number to E.164-ish: strip non-digits, prefix '+'. */
+function normalizeE164(raw: string | undefined | null): string | null {
+  if (!raw) return null;
+  const trimmed = String(raw).trim();
+  if (!trimmed) return null;
+  if (trimmed.startsWith('+')) {
+    const digits = trimmed.slice(1).replace(/\D/g, '');
+    return digits ? `+${digits}` : null;
+  }
+  const digits = trimmed.replace(/\D/g, '');
+  if (!digits) return null;
+  return `+${digits}`;
+}
+
+/**
+ * Find the first Property whose `phoneNumbers` JSON string contains the
+ * given E.164 number. Scans across ALL users because inbound SMS arrives at
+ * a Telnyx-owned number and we cannot pre-filter by userId here.
+ *
+ * Uses a substring `contains` match against the JSON-encoded column — this is
+ * a best-effort match. Limit 10 results, returns first.
+ */
+async function findPropertyByPhone(e164: string): Promise<{ id: string; userId: string; contactNotes: string | null } | null> {
+  try {
+    // Match either with '+' prefix or just the digits — covers both stored shapes.
+    const digits = e164.replace(/\D/g, '');
+    const rows = await prisma.property.findMany({
+      where: {
+        OR: [
+          { phoneNumbers: { contains: e164 } },
+          { phoneNumbers: { contains: digits } },
+        ],
+      },
+      select: { id: true, userId: true, contactNotes: true },
+      take: 10,
+    });
+    return rows[0] ?? null;
+  } catch (e) {
+    console.error('[telnyx:webhook] findPropertyByPhone failed', e);
+    return null;
+  }
+}
+
+/** Append a single note entry to a Property.contactNotes JSON array, creating the array if needed. */
+async function appendContactNote(
+  propertyId: string,
+  existing: string | null,
+  entry: { date: string; note: string; method: string; source: string; sentiment: string | null }
+): Promise<void> {
+  let arr: unknown[] = [];
+  if (existing) {
+    try {
+      const parsed = JSON.parse(existing);
+      if (Array.isArray(parsed)) arr = parsed;
+    } catch {
+      // Existing value was not valid JSON — drop it rather than crash.
+      arr = [];
+    }
+  }
+  arr.push(entry);
+  await prisma.property.update({
+    where: { id: propertyId },
+    data: {
+      contactNotes: JSON.stringify(arr),
+      lastContactDate: new Date(entry.date),
+      lastContactMethod: 'sms',
+    },
+  });
 }
 
 // ----------------------------------------------------------------------------
@@ -244,13 +351,95 @@ async function handleConversationEnded(p: ConversationEndedPayload) {
 }
 
 // ----------------------------------------------------------------------------
+// SMS handlers
+// ----------------------------------------------------------------------------
+
+async function handleMessageReceived(
+  p: TelnyxMessagePayload,
+  occurredAt: string
+): Promise<{ action: string; propertyId: string | null }> {
+  const fromRaw = p.from?.phone_number;
+  const toRaw = p.to?.[0]?.phone_number;
+  const text = (p.text ?? '').trim();
+  const fromE164 = normalizeE164(fromRaw);
+
+  console.log('[telnyx:webhook] message.received', {
+    telnyxMessageId: p.id,
+    from: fromE164,
+    to: toRaw,
+    length: text.length,
+  });
+
+  if (!fromE164) {
+    return { action: 'inbound_dropped_no_from', propertyId: null };
+  }
+
+  const property = await findPropertyByPhone(fromE164);
+  if (!property) {
+    return { action: 'inbound_unmatched', propertyId: null };
+  }
+
+  await appendContactNote(property.id, property.contactNotes, {
+    date: occurredAt || new Date().toISOString(),
+    note: text,
+    method: 'sms',
+    source: 'telnyx-inbound',
+    sentiment: null,
+  });
+
+  return { action: 'inbound_logged', propertyId: property.id };
+}
+
+async function handleMessageSent(
+  p: TelnyxMessagePayload
+): Promise<{ action: string; telnyxMessageId: string }> {
+  // Campaign-level status update is deferred — schema has no recipient mapping
+  // table and no Campaign.sentCount field. Log for observability.
+  console.log('[telnyx:webhook] message.sent', {
+    telnyxMessageId: p.id,
+    messagingProfileId: p.messaging_profile_id,
+    to: p.to?.[0]?.phone_number,
+  });
+  return { action: 'sent_logged', telnyxMessageId: p.id };
+}
+
+async function handleMessageFinalized(
+  p: TelnyxMessagePayload
+): Promise<{ action: string; status: string }> {
+  const status = p.to?.[0]?.status ?? 'unknown';
+  // Campaign.deliveredCount / failedCount don't exist on the current schema —
+  // log only. When the mapping table + counter fields land (sprint 3 L3), wire
+  // increments here keyed by telnyxMessageId -> Campaign.
+  console.log('[telnyx:webhook] message.finalized', {
+    telnyxMessageId: p.id,
+    status,
+    errors: p.errors,
+  });
+  return { action: 'finalized_logged', status };
+}
+
+async function handleMessageDeliveryFailed(
+  p: TelnyxMessagePayload
+): Promise<{ action: string; status: string }> {
+  const status = p.to?.[0]?.status ?? 'delivery_failed';
+  console.error('[telnyx:webhook] message.delivery_failed', {
+    telnyxMessageId: p.id,
+    status,
+    errors: p.errors,
+    to: p.to?.[0]?.phone_number,
+  });
+  return { action: 'delivery_failed_logged', status };
+}
+
+// ----------------------------------------------------------------------------
 // Public dispatcher
 // ----------------------------------------------------------------------------
 
 export async function routeTelnyxEvent(
   envelope: TelnyxWebhookEnvelope
-): Promise<{ handled: boolean; eventType: string }> {
+): Promise<{ handled: boolean; eventType: string; action?: string; propertyId?: string | null; telnyxMessageId?: string; status?: string; error?: string }> {
   const eventType = envelope?.data?.event_type;
+  const occurredAt = envelope?.data?.occurred_at ?? new Date().toISOString();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const payload = envelope?.data?.payload as any;
 
@@ -273,6 +462,42 @@ export async function routeTelnyxEvent(
     case 'conversation.ended':
       await handleConversationEnded(payload as ConversationEndedPayload);
       return { handled: true, eventType };
+    case 'message.received':
+      try {
+        const r = await handleMessageReceived(payload as TelnyxMessagePayload, occurredAt);
+        return { handled: true, eventType, action: r.action, propertyId: r.propertyId };
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        console.error('[telnyx:webhook] message.received handler threw', msg);
+        return { handled: false, eventType, error: msg };
+      }
+    case 'message.sent':
+      try {
+        const r = await handleMessageSent(payload as TelnyxMessagePayload);
+        return { handled: true, eventType, action: r.action, telnyxMessageId: r.telnyxMessageId };
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        console.error('[telnyx:webhook] message.sent handler threw', msg);
+        return { handled: false, eventType, error: msg };
+      }
+    case 'message.finalized':
+      try {
+        const r = await handleMessageFinalized(payload as TelnyxMessagePayload);
+        return { handled: true, eventType, action: r.action, status: r.status };
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        console.error('[telnyx:webhook] message.finalized handler threw', msg);
+        return { handled: false, eventType, error: msg };
+      }
+    case 'message.delivery_failed':
+      try {
+        const r = await handleMessageDeliveryFailed(payload as TelnyxMessagePayload);
+        return { handled: true, eventType, action: r.action, status: r.status };
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        console.error('[telnyx:webhook] message.delivery_failed handler threw', msg);
+        return { handled: false, eventType, error: msg };
+      }
     default:
       console.log('[telnyx:webhook] unhandled event', { eventType });
       return { handled: false, eventType: eventType ?? 'unknown' };
