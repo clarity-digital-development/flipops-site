@@ -135,55 +135,112 @@ function normalizeE164(raw: string | undefined | null): string | null {
   return `+${digits}`;
 }
 
-// TODO: replace with User→TelnyxNumber owner lookup. Inbound SMS arrives at a
-// FlipOps-owned 'to' number; we know which User owns that number, so we should
-// scope the Property search to ONLY that User's Properties. Requires either a
-// TelnyxNumber{number,userId} table or a User.telnyxNumbers JSON column. Until
-// then this exact-quote + ambiguity-refusal pattern prevents cross-tenant
-// contamination.
 /**
- * Find the first Property whose `phoneNumbers` JSON string contains the
- * given E.164 number. Scans across ALL users because inbound SMS arrives at
- * a Telnyx-owned number and we cannot pre-filter by userId here.
+ * Look up the User who owns a FlipOps Telnyx phone number.
  *
- * Uses a substring `contains` match against the JSON-encoded column wrapped in
- * double-quotes so we only match exact-string array elements (never partial
- * digit runs that could collide with zip codes, EINs, or other property
- * numbers). Limit 10 results; if more than one row matches we refuse to act
- * and return the literal 'ambiguous' so the caller can drop the inbound SMS
- * rather than mutate the wrong tenant's Property.
+ * Returns the owning userId, or null if no TelnyxNumber row matches.
+ * This is the foundation for owner-scoped property lookups: by resolving
+ * the inbound 'to' (or outbound 'from') FlipOps-owned number to a User,
+ * we can scope ALL downstream Property/CampaignRecipient queries to that
+ * tenant — eliminating cross-tenant contamination by construction rather
+ * than by ambiguity-refusal.
  */
-async function findPropertyByPhone(
-  e164: string
-): Promise<{ id: string; userId: string; contactNotes: string | null } | 'ambiguous' | null> {
+async function findTelnyxNumberOwner(toE164: string): Promise<{ userId: string } | null> {
   try {
-    // Match either with '+' prefix or just the digits — covers both stored shapes.
+    const row = await prisma.telnyxNumber.findUnique({
+      where: { phoneNumber: toE164 },
+      select: { userId: true },
+    });
+    return row ?? null;
+  } catch (e) {
+    console.error('[telnyx:webhook] findTelnyxNumberOwner failed', e);
+    return null;
+  }
+}
+
+/**
+ * Find a Property whose `phoneNumbers` JSON contains `fromE164`, scoped to
+ * the User who owns the FlipOps `toE164` number.
+ *
+ * Owner scoping is the long-term fix for cross-tenant contamination: we no
+ * longer scan ALL users hoping the exact-quote substring is unique. We first
+ * resolve `toE164` -> owning userId via TelnyxNumber, then constrain the
+ * Property query by that userId.
+ *
+ * Return sentinels:
+ *   'unknown_to' — inbound landed on a phone number we don't own. Treat as
+ *                  drop-on-floor: the SMS was delivered to us in error or the
+ *                  TelnyxNumber row hasn't been provisioned yet.
+ *   'ambiguous'  — owning user has multiple Properties whose phoneNumbers JSON
+ *                  contains the same `fromE164`. With owner scoping this is a
+ *                  legitimate scenario (e.g. one owner has multiple distress
+ *                  signals surfaced as separate Property rows). Tiebreaker:
+ *                  we pick the most-recently-updated Property as a
+ *                  deterministic, sensible default for the single-tenant
+ *                  context (no cross-tenant risk once the owner is fixed),
+ *                  so this sentinel is NEVER actually returned today. It's
+ *                  preserved on the type union so callers stay forward-
+ *                  compatible if we ever want to switch back to strict
+ *                  refusal-on-multi-match.
+ *
+ * Uses the same double-quote-wrapped substring match from the post-security-fix
+ * `findPropertyByPhone` to avoid partial-digit collisions with zip codes, EINs,
+ * or other numeric fields encoded in the JSON column.
+ */
+async function findPropertyByPhoneScopedToOwner(
+  fromE164: string,
+  toE164: string
+): Promise<
+  | { id: string; userId: string; contactNotes: string | null }
+  | 'unknown_to'
+  | 'ambiguous'
+  | null
+> {
+  const owner = await findTelnyxNumberOwner(toE164);
+  if (!owner) {
+    console.warn('[telnyx:webhook] inbound to unknown FlipOps number', { to: toE164 });
+    return 'unknown_to';
+  }
+
+  try {
     // JSON arrays stored as strings look like `["+19045551234","+19045555678"]`;
     // wrapping the needle in double-quotes ensures we only hit exact-string
     // elements, never partial substrings inside other JSON fields.
-    const digits = e164.replace(/\D/g, '');
+    const digits = fromE164.replace(/\D/g, '');
     const rows = await prisma.property.findMany({
       where: {
+        userId: owner.userId,
         OR: [
-          { phoneNumbers: { contains: '"' + e164 + '"' } },
+          { phoneNumbers: { contains: '"' + fromE164 + '"' } },
           { phoneNumbers: { contains: '"' + digits + '"' } },
         ],
       },
-      select: { id: true, userId: true, contactNotes: true },
+      select: { id: true, userId: true, contactNotes: true, updatedAt: true },
+      orderBy: { updatedAt: 'desc' },
       take: 10,
     });
     if (rows.length === 0) return null;
     if (rows.length > 1) {
-      console.error('[telnyx:webhook] findPropertyByPhone ambiguous match — refusing to act', {
-        e164,
-        matchCount: rows.length,
-        matches: rows.map((r) => ({ propertyId: r.id, userId: r.userId })),
-      });
-      return 'ambiguous';
+      // Owner-scoped multi-match: legitimate scenario (single user with several
+      // Property rows for the same phone — multiple distress signals tied to
+      // the same owner). Deterministic tiebreaker: take the most-recently-
+      // updated Property (orderBy updatedAt desc above). Logged for ops.
+      console.warn(
+        '[telnyx:webhook] owner-scoped multi-match — picking most-recently-updated Property',
+        {
+          fromE164,
+          toE164,
+          userId: owner.userId,
+          matchCount: rows.length,
+          matches: rows.map((r) => ({ propertyId: r.id, updatedAt: r.updatedAt })),
+          chosen: rows[0].id,
+        }
+      );
     }
-    return rows[0];
+    const { id, userId, contactNotes } = rows[0];
+    return { id, userId, contactNotes };
   } catch (e) {
-    console.error('[telnyx:webhook] findPropertyByPhone failed', e);
+    console.error('[telnyx:webhook] findPropertyByPhoneScopedToOwner failed', e);
     return null;
   }
 }
@@ -386,23 +443,35 @@ async function handleMessageReceived(
   const toRaw = p.to?.[0]?.phone_number;
   const text = (p.text ?? '').trim();
   const fromE164 = normalizeE164(fromRaw);
+  const toE164 = normalizeE164(toRaw);
 
   console.log('[telnyx:webhook] message.received', {
     telnyxMessageId: p.id,
     from: fromE164,
-    to: toRaw,
+    to: toE164,
     length: text.length,
   });
 
   if (!fromE164) {
     return { action: 'inbound_dropped_no_from', propertyId: null };
   }
+  if (!toE164) {
+    // Without a 'to' we can't resolve the owning user — drop rather than
+    // fall back to scanning all tenants.
+    return { action: 'inbound_dropped_no_to', propertyId: null };
+  }
 
-  const property = await findPropertyByPhone(fromE164);
+  const property = await findPropertyByPhoneScopedToOwner(fromE164, toE164);
+  if (property === 'unknown_to') {
+    // Inbound SMS landed on a number we don't own (or haven't provisioned
+    // yet). Webhook still 200s; warn logged inside the lookup helper.
+    return { action: 'inbound_to_unowned_number', propertyId: null };
+  }
   if (property === 'ambiguous') {
-    // Multiple Properties across (potentially different) tenants share this
-    // phone number — refuse to mutate any of them. Webhook still 200s; ops
-    // can review the log line emitted inside findPropertyByPhone.
+    // Reserved sentinel — see findPropertyByPhoneScopedToOwner. Today the
+    // helper tiebreaks via most-recently-updated so this branch is never
+    // taken, but preserving it keeps the security-fix refusal behavior
+    // available if we ever opt back into strict mode.
     return { action: 'inbound_ambiguous_dropped', propertyId: null };
   }
   if (!property) {
@@ -417,19 +486,82 @@ async function handleMessageReceived(
     sentiment: null,
   });
 
+  // Best-effort: create a Notification row for the owning user. Wrapped in
+  // try/catch so a notification insert failure (e.g. schema not yet migrated,
+  // duplicate eventId on Telnyx redelivery) never breaks the inbound SMS flow.
+  //
+  // Schema note: Notification has a single `message` column, not title/body.
+  // We JSON-encode { title, body } into `message` so /api/notifications/me can
+  // decode and surface the structured shape the UI expects.
+  try {
+    const body = text.slice(0, 280);
+    await prisma.notification.create({
+      data: {
+        eventId: `sms.inbound:${p.id}`,
+        userId: property.userId,
+        type: 'sms.inbound',
+        message: JSON.stringify({ title: 'New SMS reply', body }),
+        occurredAt: occurredAt ? new Date(occurredAt) : new Date(),
+        createdAt: occurredAt ? new Date(occurredAt) : new Date(),
+      },
+    });
+  } catch (e) {
+    console.error('[telnyx:webhook] notification.create failed (non-fatal)', e);
+  }
+
+  // Lane 3: mirror inbound SMS into Activity. Wrapped in try/catch — the SMS
+  // ingest path is load-bearing; a missing/changed Activity model must NEVER
+  // fail the webhook acknowledgement to Telnyx.
+  try {
+    await prisma.activity.create({
+      data: {
+        userId: property.userId,
+        propertyId: property.id,
+        type: 'sms_received',
+        occurredAt: new Date(occurredAt || new Date().toISOString()),
+        notes: text.slice(0, 500),
+      },
+    });
+  } catch (e) {
+    console.error('[telnyx:webhook] activity.create(sms_received) failed (non-fatal)', e);
+  }
+
   return { action: 'inbound_logged', propertyId: property.id };
 }
 
 async function handleMessageSent(
   p: TelnyxMessagePayload
 ): Promise<{ action: string; telnyxMessageId: string }> {
-  // Campaign-level status update is deferred — schema has no recipient mapping
-  // table and no Campaign.sentCount field. Log for observability.
-  console.log('[telnyx:webhook] message.sent', {
-    telnyxMessageId: p.id,
-    messagingProfileId: p.messaging_profile_id,
-    to: p.to?.[0]?.phone_number,
-  });
+  // The dialer-dispatch worker has already marked CampaignRecipient.status='sent'
+  // immediately after sendSMS() returned a messageId. Telnyx 'message.sent' fires
+  // AFTER our worker, so this handler is just a no-op / log for idempotency.
+  // We still verify the row exists for observability.
+  //
+  // Owner-lookup hook (Lane 4 prep): outbound 'from' is a FlipOps-owned number,
+  // so resolve owner now and thread userId into observability. When Lane 4
+  // wires owner-scoped CampaignRecipient lookups, this same userId will be the
+  // safety scope on the findUnique above.
+  const fromE164 = normalizeE164(p.from?.phone_number);
+  const owner = fromE164 ? await findTelnyxNumberOwner(fromE164) : null;
+  try {
+    const recipient = await prisma.campaignRecipient.findUnique({
+      where: { telnyxMessageId: p.id },
+      select: { id: true, campaignId: true, status: true },
+    });
+    console.log('[telnyx:webhook] message.sent', {
+      telnyxMessageId: p.id,
+      messagingProfileId: p.messaging_profile_id,
+      from: fromE164,
+      to: p.to?.[0]?.phone_number,
+      ownerUserId: owner?.userId ?? null,
+      recipientFound: !!recipient,
+      campaignId: recipient?.campaignId,
+      currentStatus: recipient?.status,
+    });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.error('[telnyx:webhook] message.sent recipient lookup failed', msg);
+  }
   return { action: 'sent_logged', telnyxMessageId: p.id };
 }
 
@@ -437,14 +569,68 @@ async function handleMessageFinalized(
   p: TelnyxMessagePayload
 ): Promise<{ action: string; status: string }> {
   const status = p.to?.[0]?.status ?? 'unknown';
-  // Campaign.deliveredCount / failedCount don't exist on the current schema —
-  // log only. When the mapping table + counter fields land (sprint 3 L3), wire
-  // increments here keyed by telnyxMessageId -> Campaign.
-  console.log('[telnyx:webhook] message.finalized', {
-    telnyxMessageId: p.id,
-    status,
-    errors: p.errors,
-  });
+  // Owner-lookup hook (Lane 4 prep): outbound 'from' is a FlipOps-owned number.
+  // Threading userId now means Lane 4 (CampaignRecipient lookup by
+  // telnyxMessageId) can scope by userId for safety once the join is wired.
+  const fromE164 = normalizeE164(p.from?.phone_number);
+  const owner = fromE164 ? await findTelnyxNumberOwner(fromE164) : null;
+  // Resolve CampaignRecipient by telnyxMessageId and flip status to
+  // 'delivered' or 'failed' + bump the parent Campaign counter. Wrapped in
+  // try/catch — counter drift must never break the webhook ack to Telnyx.
+  try {
+    const recipient = await prisma.campaignRecipient.findUnique({
+      where: { telnyxMessageId: p.id },
+      select: { id: true, campaignId: true, status: true },
+    });
+    if (recipient) {
+      if (status === 'delivered') {
+        // Idempotency guard: Telnyx can re-deliver webhooks on retry; skip
+        // the increment if we've already recorded delivery for this row.
+        if (recipient.status !== 'delivered') {
+          await prisma.campaignRecipient.update({
+            where: { id: recipient.id },
+            data: { status: 'delivered', deliveredAt: new Date() },
+          });
+          await prisma.campaign.update({
+            where: { id: recipient.campaignId },
+            data: { deliveredCount: { increment: 1 } },
+          });
+        }
+      } else if (status === 'delivery_failed' || status === 'sending_failed') {
+        if (recipient.status !== 'failed') {
+          const reason =
+            p.errors?.[0]?.detail ??
+            p.errors?.[0]?.title ??
+            p.errors?.[0]?.code ??
+            status;
+          await prisma.campaignRecipient.update({
+            where: { id: recipient.id },
+            data: {
+              status: 'failed',
+              failedAt: new Date(),
+              failureReason: reason,
+            },
+          });
+          await prisma.campaign.update({
+            where: { id: recipient.campaignId },
+            data: { failedCount: { increment: 1 } },
+          });
+        }
+      }
+    }
+    console.log('[telnyx:webhook] message.finalized', {
+      telnyxMessageId: p.id,
+      status,
+      from: fromE164,
+      ownerUserId: owner?.userId ?? null,
+      errors: p.errors,
+      recipientFound: !!recipient,
+      campaignId: recipient?.campaignId,
+    });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.error('[telnyx:webhook] message.finalized counter update failed', msg);
+  }
   return { action: 'finalized_logged', status };
 }
 
@@ -452,12 +638,52 @@ async function handleMessageDeliveryFailed(
   p: TelnyxMessagePayload
 ): Promise<{ action: string; status: string }> {
   const status = p.to?.[0]?.status ?? 'delivery_failed';
-  console.error('[telnyx:webhook] message.delivery_failed', {
-    telnyxMessageId: p.id,
-    status,
-    errors: p.errors,
-    to: p.to?.[0]?.phone_number,
-  });
+  // Owner-lookup hook (Lane 4 prep): outbound 'from' is a FlipOps-owned number.
+  // Threading userId now means Lane 4 (CampaignRecipient lookup by
+  // telnyxMessageId) can scope by userId for safety once the join is wired.
+  const fromE164 = normalizeE164(p.from?.phone_number);
+  const owner = fromE164 ? await findTelnyxNumberOwner(fromE164) : null;
+  // Same failed-branch logic as handleMessageFinalized; Telnyx fires this in
+  // addition to message.finalized when delivery hard-fails. Idempotency
+  // guard (status !== 'failed') prevents double-counting.
+  try {
+    const recipient = await prisma.campaignRecipient.findUnique({
+      where: { telnyxMessageId: p.id },
+      select: { id: true, campaignId: true, status: true },
+    });
+    if (recipient && recipient.status !== 'failed') {
+      const reason =
+        p.errors?.[0]?.detail ??
+        p.errors?.[0]?.title ??
+        p.errors?.[0]?.code ??
+        status;
+      await prisma.campaignRecipient.update({
+        where: { id: recipient.id },
+        data: {
+          status: 'failed',
+          failedAt: new Date(),
+          failureReason: reason,
+        },
+      });
+      await prisma.campaign.update({
+        where: { id: recipient.campaignId },
+        data: { failedCount: { increment: 1 } },
+      });
+    }
+    console.error('[telnyx:webhook] message.delivery_failed', {
+      telnyxMessageId: p.id,
+      status,
+      from: fromE164,
+      ownerUserId: owner?.userId ?? null,
+      errors: p.errors,
+      to: p.to?.[0]?.phone_number,
+      recipientFound: !!recipient,
+      campaignId: recipient?.campaignId,
+    });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.error('[telnyx:webhook] message.delivery_failed counter update failed', msg);
+  }
   return { action: 'delivery_failed_logged', status };
 }
 

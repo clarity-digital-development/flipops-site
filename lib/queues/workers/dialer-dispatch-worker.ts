@@ -60,7 +60,7 @@ const LIMITER = { max: 60, duration: 60_000 };
  * Quiet-hours gating has already passed at this point — this function is
  * the actual carrier handoff, not the safety gate.
  */
-async function dispatchToTelnyx(job: DialerDispatchJob): Promise<void> {
+async function dispatchToTelnyx(job: DialerDispatchJob): Promise<string | null> {
   if (job.jobType === "voice") {
     throw new Error(
       `voice from worker not supported, use WebRTC (to=${job.toNumber})`,
@@ -83,7 +83,7 @@ async function dispatchToTelnyx(job: DialerDispatchJob): Promise<void> {
     console.log(
       `[dialer-dispatch] sms sent to=${job.toNumber} from=${job.fromNumber} telnyxMessageId=${msgId}`,
     );
-    return;
+    return msgId ?? null;
   }
 
   if (job.jobType === "voicemail") {
@@ -106,13 +106,82 @@ async function dispatchToTelnyx(job: DialerDispatchJob): Promise<void> {
     console.log(
       `[dialer-dispatch] rvm sent to=${job.toNumber} from=${job.fromNumber} telnyxCallControlId=${callId}`,
     );
-    return;
+    // RVM call-control IDs are NOT Telnyx message IDs and won't match a
+    // message.finalized webhook lookup. Return null so CampaignRecipient
+    // stores a null telnyxMessageId for voicemail jobs.
+    return null;
   }
 
   // Exhaustiveness check — DialerJobType is a string union, so the compiler
   // will warn if a new variant lands without a handler above.
   const _exhaustive: never = job.jobType;
   throw new Error(`dispatchToTelnyx: unknown jobType=${String(_exhaustive)}`);
+}
+
+// ---------------------------------------------------------------------------
+// CampaignRecipient + Campaign counter wiring (Sprint 3 L4)
+//
+// When the producer attached a campaignId, we mirror the dispatch outcome
+// onto the CampaignRecipient row + bump the parent Campaign counters. Both
+// operations are wrapped in try/catch — analytics drift must never mask a
+// real dispatch result. Mirrors the writeDispatchAudit best-effort pattern.
+// ---------------------------------------------------------------------------
+async function markRecipientSent(
+  campaignId: string,
+  toPhoneNumber: string,
+  telnyxMessageId: string | null,
+): Promise<void> {
+  try {
+    const sentAt = new Date();
+    // updateMany is idempotent + safe even if the buyer-blasts route audit
+    // insert failed (no row → updateMany affects 0 rows, harmless).
+    await prisma.campaignRecipient.updateMany({
+      where: { campaignId, toPhoneNumber, status: "queued" },
+      data: {
+        telnyxMessageId,
+        status: "sent",
+        sentAt,
+      },
+    });
+    await prisma.campaign.update({
+      where: { id: campaignId },
+      data: { sentCount: { increment: 1 } },
+    });
+  } catch (err) {
+    console.error(
+      `[dialer-dispatch] failed to mark CampaignRecipient sent campaignId=${campaignId} to=${toPhoneNumber}: ${
+        err instanceof Error ? err.message : String(err)
+      }`,
+    );
+  }
+}
+
+async function markRecipientFailed(
+  campaignId: string,
+  toPhoneNumber: string,
+  failureReason: string,
+): Promise<void> {
+  try {
+    const failedAt = new Date();
+    await prisma.campaignRecipient.updateMany({
+      where: { campaignId, toPhoneNumber, status: "queued" },
+      data: {
+        status: "failed",
+        failedAt,
+        failureReason,
+      },
+    });
+    await prisma.campaign.update({
+      where: { id: campaignId },
+      data: { failedCount: { increment: 1 } },
+    });
+  } catch (err) {
+    console.error(
+      `[dialer-dispatch] failed to mark CampaignRecipient failed campaignId=${campaignId} to=${toPhoneNumber}: ${
+        err instanceof Error ? err.message : String(err)
+      }`,
+    );
+  }
 }
 
 function resolveRecipientState(
@@ -316,7 +385,7 @@ export async function processDialerDispatchJob(
   // a loud error in the BullMQ failed-jobs panel.
   const start = Date.now();
   try {
-    await dispatchToTelnyx(data);
+    const telnyxMessageId = await dispatchToTelnyx(data);
     const durationMs = Date.now() - start;
     await writeDispatchAudit({
       job: data,
@@ -326,6 +395,11 @@ export async function processDialerDispatchJob(
       consentRecordId: consent.recordId,
       dncCheckedAt: dnc.checkedAt,
     });
+    // Campaign-scoped audit: mirror dispatch onto CampaignRecipient + bump
+    // Campaign.sentCount. Best-effort; never propagates errors.
+    if (data.campaignId) {
+      await markRecipientSent(data.campaignId, data.toNumber, telnyxMessageId);
+    }
     console.log(
       `[dialer-dispatch] dispatched jobType=${data.jobType} to=${data.toNumber} state=${state} ${durationMs}ms`,
     );
@@ -341,6 +415,11 @@ export async function processDialerDispatchJob(
       consentRecordId: consent.recordId,
       dncCheckedAt: dnc.checkedAt,
     });
+    // Campaign-scoped audit: mark CampaignRecipient failed + bump
+    // Campaign.failedCount. Best-effort; never propagates errors.
+    if (data.campaignId) {
+      await markRecipientFailed(data.campaignId, data.toNumber, msg);
+    }
     throw err; // surface to BullMQ for retry/backoff
   }
 }

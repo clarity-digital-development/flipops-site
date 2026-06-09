@@ -67,6 +67,15 @@ export interface DialerDispatchJob {
    * Typically a Lead.id or Property.id. Surfaced in BulkIngestJob.sourceTag.
    */
   correlationId?: string;
+  /**
+   * Optional Campaign.id when this dispatch belongs to a buyer-blast or
+   * deferred-followup campaign. When set, the worker upserts a
+   * CampaignRecipient row keyed by (campaignId + toPhoneNumber) on dispatch
+   * success/failure and bumps Campaign.sentCount / failedCount accordingly.
+   * Webhook handlers then resolve telnyxMessageId → CampaignRecipient to
+   * bump deliveredCount on `message.finalized` / `message.delivery_failed`.
+   */
+  campaignId?: string;
 }
 
 export const dialerQueueDefaultJobOptions = {

@@ -84,6 +84,11 @@ model User {
   // ML behavioral signals
   leadEvents            LeadEvent[]               // Behavioral training signal
 
+  // Deferred-followups (Sprint 2.5)
+  telnyxNumbers         TelnyxNumber[]            // User-owned Telnyx phone numbers (SMS/voice scoping)
+  notifications         Notification[]            // User-scoped notifications
+  activities            Activity[]                // User-scoped activities (userId source-of-truth)
+
   @@index([email])
   @@index([clerkId])
   @@index([tier])
@@ -737,6 +742,11 @@ model Campaign {
   replyCount      Int       @default(0)
   offerCount      Int       @default(0)
 
+  // Telnyx dispatch counters (Sprint 2.5 deferred-followups)
+  sentCount       Int       @default(0)
+  deliveredCount  Int       @default(0)
+  failedCount     Int       @default(0)
+
   // Notes
   notes           String?
 
@@ -745,13 +755,61 @@ model Campaign {
   updatedAt       DateTime  @updatedAt
 
   // Relations
-  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  contract        Contract? @relation(fields: [contractId], references: [id], onDelete: SetNull)
+  user            User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  contract        Contract?           @relation(fields: [contractId], references: [id], onDelete: SetNull)
+  recipients      CampaignRecipient[] // Per-recipient dispatch tracking (Telnyx)
 
   @@index([userId])
   @@index([contractId])
   @@index([status])
   @@index([createdAt])
+}
+
+// Per-recipient Telnyx dispatch tracking (Sprint 2.5 deferred-followups)
+// Maps Telnyx message ID → Campaign row for delivery/failure webhook fan-out.
+model CampaignRecipient {
+  id              String    @id @default(cuid())
+  campaignId      String
+  propertyId      String?   // Either propertyId OR buyerId
+  buyerId         String?
+  telnyxMessageId String?   @unique  // Set on enqueue; null if dispatch never happened
+  toPhoneNumber   String    // E.164
+  status          String    @default("queued") // queued | sent | delivered | failed
+  sentAt          DateTime?
+  deliveredAt     DateTime?
+  failedAt        DateTime?
+  failureReason   String?
+  createdAt       DateTime  @default(now())
+
+  // Relations
+  campaign        Campaign  @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@index([campaignId, status])
+  @@index([telnyxMessageId])
+}
+
+// Telnyx-owned phone numbers (Sprint 2.5 deferred-followups)
+// Scopes inbound SMS/voice to the user who owns the 'to' number.
+model TelnyxNumber {
+  id                  String    @id @default(cuid())
+  userId              String
+  phoneNumber         String    @unique  // E.164 with '+' prefix
+  label               String?            // friendly UI label e.g. "Jacksonville outreach"
+  smsEnabled          Boolean   @default(true)
+  voiceEnabled        Boolean   @default(true)
+  mmsEnabled          Boolean   @default(false)
+  messagingProfileId  String?            // Telnyx Messaging Profile ID for SMS routing
+  connectionId        String?            // Telnyx Call Control Connection ID for voice
+  provisionedAt       DateTime  @default(now())
+  lastUsedAt          DateTime?
+  active              Boolean   @default(true)
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  // Relations
+  user                User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, active])
 }
 
 // Rental property management for buy-and-hold investors
@@ -915,15 +973,22 @@ model Notification {
   eventId     String   @unique
   type        String   // g1.denied, property.alert, etc.
   dealId      String?
+  userId      String?  // nullable for backward compat with existing rows that have no user scope
   message     String
   metadata    String?  // Flexible metadata including dedupe_hash (JSON string for SQLite)
   occurredAt  DateTime @default(now())
   createdAt   DateTime @default(now())
   processed   Boolean  @default(false)
+  readAt      DateTime?
+
+  // Relations
+  user        User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([type, occurredAt])
   @@index([dealId])
   @@index([processed])
+  @@index([userId, readAt])
+  @@index([userId, createdAt(sort: Desc)])
 }
 
 // =============================================================================
@@ -1366,8 +1431,9 @@ model TeamInvite {
 // Activity tracking for team performance analytics
 model Activity {
   id              String       @id @default(cuid())
-  teamId          String
-  memberId        String       // TeamMember ID
+  teamId          String?      // optional — userId is now the SOURCE OF TRUTH
+  memberId        String?      // optional — TeamMember ID
+  userId          String?      // nullable until backfilled; SOURCE OF TRUTH going forward
 
   // Activity details
   type            String       // "call", "sms", "email", "appointment", "offer", "note", "task"
@@ -1392,8 +1458,9 @@ model Activity {
   createdAt       DateTime     @default(now())
 
   // Relations
-  team            Team         @relation(fields: [teamId], references: [id], onDelete: Cascade)
-  member          TeamMember   @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  team            Team?        @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  member          TeamMember?  @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  user            User?        @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([teamId])
   @@index([memberId])
@@ -1402,6 +1469,7 @@ model Activity {
   @@index([type])
   @@index([propertyId])
   @@index([dealId])
+  @@index([userId, occurredAt])
 }
 
 // =============================================================================

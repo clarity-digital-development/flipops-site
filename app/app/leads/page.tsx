@@ -275,11 +275,11 @@ export default function LeadsPage() {
           title: "Skip trace complete",
           description: `${data.phoneCount ?? 0} phones, ${data.emailCount ?? 0} emails found.`,
         });
-        // Activity log (best-effort — ignore failure if user has no Team yet).
+        // Activity log (Lane 3: userId is source of truth, no Team gate).
         void fetch("/api/activity", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ type: "skip_trace", propertyId: id }),
+          body: JSON.stringify({ type: "skip_trace_run", propertyId: id }),
         }).catch(() => {});
         return;
       }
@@ -310,6 +310,13 @@ export default function LeadsPage() {
     // Behavioral: strongest positive signal — user is investing time analyzing.
     const lead = properties.find((p) => p.id === id);
     if (lead) void trackLeadEvent("pursued", lead, { destination: "underwriting" });
+    // Activity log (Lane 3): fire BEFORE router.push so the request is in
+    // flight before navigation tears down the page (fetch survives the nav).
+    void fetch("/api/activity", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ type: "sent_to_underwriting", propertyId: id }),
+    }).catch(() => {});
     router.push(`/app/underwriting?propertyId=${encodeURIComponent(id)}`);
   };
 
@@ -355,6 +362,13 @@ export default function LeadsPage() {
               : p,
           ),
         );
+        // Activity log (Lane 3): only on successful PATCH so we don't double-
+        // count the demo-mode fallback below.
+        void fetch("/api/activity", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ type: "contact_logged", propertyId: id }),
+        }).catch(() => {});
         toast({ title: "Contact logged" });
       } else {
         // Fall back to local state update (demo mode)

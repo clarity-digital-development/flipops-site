@@ -1,25 +1,23 @@
 // ---------------------------------------------------------------------------
 // POST /api/activity
 //
-// Insert an Activity row — the same model the analytics route already queries
-// (prisma/schema.prisma:1366). Activity requires { teamId, memberId } where
-// memberId is a TeamMember row id. We resolve them from the signed-in user:
-//
-//   User → User.currentTeamId → TeamMember where (teamId, userId) matches
-//
-// If the user isn't a member of any team yet, we 200 with { skipped: true }
-// rather than 409 — the caller is firing activity logs as a side-effect of
-// primary actions (skip trace, log contact). It would be hostile to make the
-// primary action 500 because the team scaffolding isn't wired yet.
+// Lane 3 (2026-06-09): Activity.userId is now the SOURCE OF TRUTH. The schema
+// agent dropped the hard team requirement — teamId/memberId are now nullable.
+// Solo users can fire Activity rows tied to userId alone; the Team-scoped path
+// is gone. Team users still get rows (they just won't auto-populate teamId/
+// memberId from this endpoint; those columns are populated by separate
+// team-scoped flows when/if they're rewired).
 //
 // Body:
 //   {
-//     type: string,                  // 'call' | 'sms' | 'email' | 'note' | 'task' | 'skip_trace' | ...
+//     type: string,                  // 'call' | 'sms' | 'email' | 'note' | 'task' | 'skip_trace_run' | ...
 //     propertyId?: string,
 //     occurredAt?: string (ISO),
 //     durationMs?: number,           // converted to durationSec internally
 //     dispositionNotes?: string,
 //   }
+//
+// Returns: { id, created: true }
 // ---------------------------------------------------------------------------
 
 import { NextRequest, NextResponse } from "next/server";
@@ -54,31 +52,15 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // Resolve team + member. Users without a team are accepted silently — see
-  // header comment for the rationale.
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    select: { currentTeamId: true },
-  });
-  if (!user?.currentTeamId) {
-    return NextResponse.json({ skipped: true, reason: "NO_TEAM" });
-  }
-
-  const member = await prisma.teamMember.findFirst({
-    where: { teamId: user.currentTeamId, userId, isActive: true },
-    select: { id: true, responseTimeTarget: true },
-  });
-  if (!member) {
-    return NextResponse.json({ skipped: true, reason: "NOT_TEAM_MEMBER" });
-  }
-
   const durationSec =
     typeof body.durationMs === "number" ? Math.round(body.durationMs / 1000) : undefined;
 
   const activity = await prisma.activity.create({
     data: {
-      teamId: user.currentTeamId,
-      memberId: member.id,
+      userId,
+      // teamId / memberId intentionally omitted — userId is source of truth.
+      // Solo users get null; team users get null here too. Team-scoped flows
+      // populate those columns separately when needed.
       type: body.type,
       outcome: body.outcome ?? null,
       propertyId: body.propertyId ?? null,
@@ -89,8 +71,8 @@ export async function POST(request: NextRequest) {
       sentiment: body.sentiment ?? null,
       occurredAt: body.occurredAt ? new Date(body.occurredAt) : new Date(),
     },
-    select: { id: true, occurredAt: true, type: true },
+    select: { id: true },
   });
 
-  return NextResponse.json({ activity });
+  return NextResponse.json({ id: activity.id, created: true });
 }

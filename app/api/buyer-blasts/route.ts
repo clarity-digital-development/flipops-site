@@ -245,16 +245,41 @@ export async function POST(request: NextRequest) {
         continue;
       }
       const propertyState = listingState ?? buyerHomeState(buyer.targetMarkets);
+      const toPhoneNumber = buyer.phone.trim();
       try {
         await enqueueDialerDispatch(conn, {
           jobType: channel, // 'sms' | 'voicemail'
-          toNumber: buyer.phone.trim(),
+          userId,
+          toNumber: toPhoneNumber,
           fromNumber,
           propertyState,
           body: message, // voicemail callers must pass a media URL here
           correlationId: `blast:${blast.id}:buyer:${buyer.id}`,
+          campaignId: blast.id,
         });
         enqueued += 1;
+
+        // Audit row for the recipient. Wrapped in its own try/catch so the
+        // dispatch is never blocked by an audit-row write failure (mirrors
+        // the writeDispatchAudit pattern in the worker). The unique key on
+        // CampaignRecipient is (campaignId + toPhoneNumber + status='queued')
+        // — the worker will flip status to 'sent' / 'failed' post-dispatch.
+        try {
+          await prisma.campaignRecipient.create({
+            data: {
+              campaignId: blast.id,
+              buyerId: buyer.id,
+              toPhoneNumber,
+              status: "queued",
+            },
+          });
+        } catch (auditErr) {
+          const auditMsg =
+            auditErr instanceof Error ? auditErr.message : String(auditErr);
+          console.error(
+            `[buyer-blasts] failed to write CampaignRecipient audit row for blast=${blast.id} buyer=${buyer.id}: ${auditMsg}`,
+          );
+        }
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         enqueueErrors.push(`${buyer.name}: ${msg}`);
