@@ -135,29 +135,53 @@ function normalizeE164(raw: string | undefined | null): string | null {
   return `+${digits}`;
 }
 
+// TODO: replace with User→TelnyxNumber owner lookup. Inbound SMS arrives at a
+// FlipOps-owned 'to' number; we know which User owns that number, so we should
+// scope the Property search to ONLY that User's Properties. Requires either a
+// TelnyxNumber{number,userId} table or a User.telnyxNumbers JSON column. Until
+// then this exact-quote + ambiguity-refusal pattern prevents cross-tenant
+// contamination.
 /**
  * Find the first Property whose `phoneNumbers` JSON string contains the
  * given E.164 number. Scans across ALL users because inbound SMS arrives at
  * a Telnyx-owned number and we cannot pre-filter by userId here.
  *
- * Uses a substring `contains` match against the JSON-encoded column — this is
- * a best-effort match. Limit 10 results, returns first.
+ * Uses a substring `contains` match against the JSON-encoded column wrapped in
+ * double-quotes so we only match exact-string array elements (never partial
+ * digit runs that could collide with zip codes, EINs, or other property
+ * numbers). Limit 10 results; if more than one row matches we refuse to act
+ * and return the literal 'ambiguous' so the caller can drop the inbound SMS
+ * rather than mutate the wrong tenant's Property.
  */
-async function findPropertyByPhone(e164: string): Promise<{ id: string; userId: string; contactNotes: string | null } | null> {
+async function findPropertyByPhone(
+  e164: string
+): Promise<{ id: string; userId: string; contactNotes: string | null } | 'ambiguous' | null> {
   try {
     // Match either with '+' prefix or just the digits — covers both stored shapes.
+    // JSON arrays stored as strings look like `["+19045551234","+19045555678"]`;
+    // wrapping the needle in double-quotes ensures we only hit exact-string
+    // elements, never partial substrings inside other JSON fields.
     const digits = e164.replace(/\D/g, '');
     const rows = await prisma.property.findMany({
       where: {
         OR: [
-          { phoneNumbers: { contains: e164 } },
-          { phoneNumbers: { contains: digits } },
+          { phoneNumbers: { contains: '"' + e164 + '"' } },
+          { phoneNumbers: { contains: '"' + digits + '"' } },
         ],
       },
       select: { id: true, userId: true, contactNotes: true },
       take: 10,
     });
-    return rows[0] ?? null;
+    if (rows.length === 0) return null;
+    if (rows.length > 1) {
+      console.error('[telnyx:webhook] findPropertyByPhone ambiguous match — refusing to act', {
+        e164,
+        matchCount: rows.length,
+        matches: rows.map((r) => ({ propertyId: r.id, userId: r.userId })),
+      });
+      return 'ambiguous';
+    }
+    return rows[0];
   } catch (e) {
     console.error('[telnyx:webhook] findPropertyByPhone failed', e);
     return null;
@@ -375,6 +399,12 @@ async function handleMessageReceived(
   }
 
   const property = await findPropertyByPhone(fromE164);
+  if (property === 'ambiguous') {
+    // Multiple Properties across (potentially different) tenants share this
+    // phone number — refuse to mutate any of them. Webhook still 200s; ops
+    // can review the log line emitted inside findPropertyByPhone.
+    return { action: 'inbound_ambiguous_dropped', propertyId: null };
+  }
   if (!property) {
     return { action: 'inbound_unmatched', propertyId: null };
   }
