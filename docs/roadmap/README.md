@@ -51,7 +51,7 @@
 
 | Month | Theme | Items | Done | In progress |
 |---|---|---|---|---|
-| **M1** — `M1-foundations.md` | Stop the bleeding, ship the receipts | 9 | 6 | 3 (PARTIAL) |
+| **M1** — `M1-foundations.md` | Stop the bleeding, ship the receipts | 9 | 8 | 1 (M1.3 big-6 geocode) |
 | **M2** — `M2-coverage-and-intelligence.md` | Coverage multiplier + first model | 7 | 0 | 0 |
 | **M3** — `M3-signals-and-demo.md` | New signals, AVM, investor demo | 7 | 0 | 0 |
 | **OPS** — `OPERATIONS.md` | Provisioning, credentials, carry-overs | rolling | — | — |
@@ -69,6 +69,7 @@ prod — fixes are code-complete).
 
 > Append-only. Newest first. Every pivot gets one line: date · what changed · why · affected items.
 
+- **2026-06-10** — M1 execution complete (8/9 DONE): production restored after 7-deploy outage (lockfile + Sentry/Turbopack), tax layer healthy ($758.8M/112K parcels), owner-occupancy 96% statewide (10.56M), geocode 63.2% (6.95M) — big-6 metros pending county-GIS sourcing (FGIO Hub 500s on >450K-parcel exports). Telnyx number seeded. Chunked-update pattern required for Railway proxy (39e2716).
 - **2026-06-09** — M1 executed via 10-lane workflow; statewide geocode + owner-occupancy
   backfills queued as post-deploy runs. M1.1/M1.2/M1.5/M1.6/M1.7/M1.9 DONE; M1.3/M1.4/M1.8
   PARTIAL (details in M1-foundations.md).
