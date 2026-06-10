@@ -78,8 +78,11 @@ const NORM_MAIL = `LEFT(BTRIM(regexp_replace(regexp_replace(UPPER(split_part("ow
 const ZIP_SITUS = `NULLIF(LEFT(regexp_replace(COALESCE("situsZip", ''), '\\D', '', 'g'), 5), '')`;
 const ZIP_MAIL = `(regexp_match("ownerMailingAddress", '(\\d{5})(?:-?\\d{4})?\\s*$'))[1]`;
 
-/** Inner per-row computation: (id, occ boolean). Filtered to decidable rows. */
-function computeSql(fips: string): string {
+/** Inner per-row computation: (id, occ boolean). Filtered to decidable rows.
+ *  onlyUnset additionally restricts to rows not yet computed — the chunked
+ *  loop's progress guarantee (occ is provably non-null for decidable rows,
+ *  so every selected row leaves the NULL set once updated). */
+function computeSql(fips: string, onlyUnset = false): string {
   return `
     SELECT
       "id",
@@ -99,6 +102,7 @@ function computeSql(fips: string): string {
       WHERE "countyFips" = '${fips}'
         AND "situsAddress" IS NOT NULL
         AND "ownerMailingAddress" IS NOT NULL
+        ${onlyUnset ? `AND "ownerOccupied" IS NULL` : ""}
     ) raw
   `;
 }
@@ -132,24 +136,46 @@ async function runCounty(
     };
   }
 
-  // Live: single set-based UPDATE for this county inside its own transaction.
-  // synchronous_commit=OFF per the F1 BulkIngester pattern (durability across
-  // a crash is irrelevant — re-run recomputes); explicit timeout because the
-  // Prisma interactive-transaction default is 5s.
-  const updated = await prisma.$transaction(
-    async (tx) => {
-      await tx.$executeRawUnsafe(`SET LOCAL statement_timeout = ${opts.timeoutMs}`);
-      await tx.$executeRawUnsafe(`SET LOCAL synchronous_commit = OFF`);
-      return tx.$executeRawUnsafe(`
-        UPDATE flipops."Parcel" AS p
-        SET "ownerOccupied" = c.occ,
-            "updatedAt" = NOW()
-        FROM (${computeSql(fips)}) c
-        WHERE p."id" = c."id"
-      `);
-    },
-    { timeout: Math.max(opts.timeoutMs + 30_000, 60_000) },
-  );
+  // Live: set-based UPDATE inside its own transaction. synchronous_commit=OFF
+  // per the F1 BulkIngester pattern; explicit timeout because the Prisma
+  // interactive-transaction default is 5s.
+  //
+  // chunkSize > 0 → CHUNKED loop over still-NULL rows. Required for the big
+  // counties (300K+ rows): a single multi-minute UPDATE sends no wire traffic
+  // while the server works, and the Railway TCP proxy kills the silent
+  // connection ("Server has closed the connection"). Chunks of ~150-200K keep
+  // each statement under ~2 min. Resumable by construction (onlyUnset).
+  const runChunk = (limitClause: string, onlyUnset: boolean) =>
+    prisma.$transaction(
+      async (tx) => {
+        await tx.$executeRawUnsafe(`SET LOCAL statement_timeout = ${opts.timeoutMs}`);
+        await tx.$executeRawUnsafe(`SET LOCAL synchronous_commit = OFF`);
+        return tx.$executeRawUnsafe(`
+          UPDATE flipops."Parcel" AS p
+          SET "ownerOccupied" = c.occ,
+              "updatedAt" = NOW()
+          FROM (${computeSql(fips, onlyUnset)} ${limitClause}) c
+          WHERE p."id" = c."id"
+        `);
+      },
+      { timeout: Math.max(opts.timeoutMs + 30_000, 60_000) },
+    );
+
+  let updated = 0;
+  if (opts.chunkSize > 0) {
+    // Runaway guard: decidable rows / chunk + slack.
+    const maxIters = Math.ceil(11_000_000 / opts.chunkSize) + 10;
+    for (let i = 0; i < maxIters; i++) {
+      const n = await runChunk(`LIMIT ${opts.chunkSize}`, true);
+      updated += n;
+      if (n > 0) {
+        console.log(`    chunk ${i + 1}: +${n.toLocaleString()} (total ${updated.toLocaleString()})`);
+      }
+      if (n === 0) break;
+    }
+  } else {
+    updated = await runChunk("", false);
+  }
 
   // Cheap post-update breakdown for the progress log (countyFips is indexed).
   const [agg] = await prisma.$queryRawUnsafe<
@@ -175,7 +201,7 @@ async function runCounty(
 }
 
 function parseArgs(argv: string[]) {
-  const opts = { counties: [] as string[], dryRun: false, timeoutMs: 60_000 };
+  const opts = { counties: [] as string[], dryRun: false, timeoutMs: 60_000, chunkSize: 0 };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === "--dry-run") opts.dryRun = true;
@@ -185,6 +211,10 @@ function parseArgs(argv: string[]) {
         const fips = c.trim().replace(/[^0-9]/g, "");
         if (fips) opts.counties.push(fips);
       }
+    } else if (a === "--chunk-size" || a.startsWith("--chunk-size=")) {
+      const v = a.includes("=") ? a.split("=")[1] : argv[++i];
+      const n = parseInt(v ?? "", 10);
+      if (!isNaN(n) && n > 0) opts.chunkSize = n;
     } else if (a === "--timeout-ms" || a.startsWith("--timeout-ms=")) {
       const v = a.includes("=") ? a.split("=")[1] : argv[++i];
       const n = parseInt(v ?? "", 10);
