@@ -4,6 +4,15 @@
 
 FlipOps is a real estate investment automation platform built with Next.js 16, React 19, and Tailwind CSS v4. It helps investors manage property discovery, deal analysis, and project management.
 
+## ⚡ ACTIVE ROADMAP — READ BEFORE STARTING WORK
+
+**`docs/roadmap/README.md` is the living plan.** It tracks the 90-day strategy (born from the
+2026-06-09 State of the Union audit), current item statuses, and a Direction Log for pivots.
+Before picking up any task: read that README (small, ~2 min), pick the next TODO respecting
+deps, and load only the relevant month file. After shipping: update statuses there.
+Strategic constants (do not relitigate): scrape > buy (all data vendors are dead ends),
+flipper-primary persona, competitors = REsimpli + Goliath Data.
+
 ## Tech Stack
 
 - **Framework**: Next.js 16 with App Router
