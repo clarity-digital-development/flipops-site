@@ -123,7 +123,7 @@ export async function GET() {
     const sortedItems = actionItems.sort((a, b) => {
       if (a.priority === 'high' && b.priority !== 'high') return -1;
       if (b.priority === 'high' && a.priority !== 'high') return 1;
-      const typeOrder = { first_contact: 1, follow_up: 2, overdue_task: 3 };
+      const typeOrder: Record<string, number> = { first_contact: 1, follow_up: 2, overdue_task: 3 };
       return (typeOrder[a.type] || 3) - (typeOrder[b.type] || 3);
     });
 

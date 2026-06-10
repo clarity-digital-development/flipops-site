@@ -7,7 +7,18 @@
 ---
 
 ### M1.1 — Label-bleed P0: stop destroying ML training data
-**Status:** TODO · **Effort:** 2-3 days · **Deps:** none (M1.6 helps but don't wait)
+**Status:** DONE (2026-06-09) · **Effort:** 2-3 days · **Deps:** none (M1.6 helps but don't wait)
+**Outcome:** Full pipeline shipped. Anonymous-session path live: `/api/leads/events` accepts
+client `sessionId` (route added to middleware public list — events were 401'd before reaching
+the route), every rejection logs loudly; session→user linking via `/api/leads/events/link`
+(protected). Outcome labels (`offer_made`/`contract_signed`/`closed`) emit transactionally via
+`emitLeadEvent(tx)` inside the Offer/Contract route `$transaction`s, with scorer-version +
+family-breakdown snapshots (`lib/events/emit.ts`). Inbound Telnyx SMS stamps
+`CampaignRecipient.repliedAt` + replyCount (webhook-router, non-fatal). Health stat at
+`/api/admin/events-health`. JIT provisioning in `requireUser()`. Schema: `LeadEvent.userId`
+nullable + `sessionId`, `CampaignRecipient.repliedAt` (db push applied). Smoke-verified on
+live DB (anonymous insert persisted with snapshot); a real inbound-SMS repliedAt check
+post-deploy is the only outstanding verification.
 **Why:** `LeadEvent`, `Activity`, `DealAnalysis`, `Offer`, `Contract` = ALL 0 rows. The
 behavioral pipeline (`lib/behavior/client.ts` → API) is correctly wired but the pre-launch
 auth bypass 401s most events and a silent `no_user` drop discards the rest. Labels are
@@ -38,7 +49,12 @@ write transactionally; the health stat exists; a test SMS reply stamps repliedAt
 ---
 
 ### M1.2 — /api/comps rewrite onto ParcelSale
-**Status:** TODO · **Effort:** 2-4 days · **Deps:** M1.3 strongly recommended first (real distance needs lat/lng)
+**Status:** DONE (2026-06-09) · **Effort:** 2-4 days · **Deps:** M1.3 strongly recommended first (real distance needs lat/lng)
+**Outcome:** `/api/comps` fully rewritten onto ParcelSale JOIN Parcel with an empirically
+validated arms-length `qualCode` filter ('01'/'02' in; '05' multi-parcel and '11'/'14'
+nominal transfers out) + price floor; real haversine distance when coords exist, ZIP-match
+display fallback until the M1.3 geocode run lands; underwriting page consumes the new shape
+(nullable distance/beds/baths, weighted-ARV null-distance prior). No random numbers remain.
 **Why:** Current comps query the user's own distressed-lead Property table (selection-biased,
 depresses ARV — the opposite of what a flipper needs), fake distance with a random number,
 and call a DOR tax-assessment number an "AVM" — while **1,976,625 ParcelSale rows are
@@ -57,7 +73,12 @@ distances; no random numbers anywhere in the comps path.
 ---
 
 ### M1.3 — FGIO geocode join: lat/lng on 11M parcels
-**Status:** TODO · **Effort:** ~1 day (mostly runtime) · **Deps:** none
+**Status:** PARTIAL (2026-06-09 — code done, statewide run pending) · **Effort:** ~1 day (mostly runtime) · **Deps:** none
+**Outcome:** Streaming shapefile+GeoJSON ingester built (`lib/data-sources/bulk/fl-fgio-bulk.ts`)
+with Hub download automation + batched UPDATE-only SQL, CLI at `scripts/ingest-fl-geocodes.ts`
+(`--download <fips|all>`, `--dry-run`). Key findings: Hub Download API v1 only serves SHAPEFILE
+for FGIO items and defaults to FL Albers meters — `spatialRefId=4326` required. The statewide
+backfill run is queued as a post-deploy execution; Parcel lat/lng is still 0% in PG.
 **Why:** latitude/longitude = 0.0% on ALL 10,998,035 parcels. Blocks map pins from real data,
 distance-based comps (M1.2), and every spatial ML feature. The ingester ALREADY EXISTS —
 this was a Week-2 FL-COVERAGE-PLAN item that simply never ran.
@@ -76,7 +97,15 @@ this was a Week-2 FL-COVERAGE-PLAN item that simply never ran.
 ---
 
 ### M1.4 — Tax-delinquency data-quality bugs (3 counties)
-**Status:** TODO · **Effort:** 1-2 days · **Deps:** none
+**Status:** PARTIAL (2026-06-09 — root causes fixed in code, prod re-runs pending) · **Effort:** 1-2 days · **Deps:** none
+**Outcome:** Root causes diagnosed and fixed: Broward's LienHub county-held source truthfully
+has ~1 row most of the year — replaced with a new TaxSys govhub CSV scraper
+(`lib/scrapers/vendors/broward-tax-delinquent-csv.ts`, now primary in dispatch); Hillsborough
+gets amounts via a certificate Face Amount join second pass; `rescore-tax-delinquent.ts` now
+dedups latest capture per (county, apn, doc) and stops claiming "$0.00 owed" when amounts are
+uncaptured. Diagnostics added (`scripts/diagnose-tax-delinquency.ts`). STILL OPEN: production
+scraper re-runs + rescore — DB still shows Broward=1 summary row and Hillsborough sum=$0
+(verified via diagnostic 2026-06-10).
 **Why:** Three bugs poison per-metro exposure numbers (the headline demo stat):
 Broward (12011) = exactly 1 row; Hillsborough (12057) = 18,385 rows summing to $0
 (amount extraction broken); Palm Beach (12099) = implausibly sparse 573 rows.
@@ -91,7 +120,13 @@ re-scored (scripts/rescore-tax-delinquent.ts).
 ---
 
 ### M1.5 — DELETE-NOW cleanup (~19,400 lines) + scorer extraction
-**Status:** TODO · **Effort:** 1-2 days · **Deps:** none, but do scorer extraction FIRST
+**Status:** DONE (2026-06-09) · **Effort:** 1-2 days · **Deps:** none, but do scorer extraction FIRST
+**Outcome:** Scorer v2.1 extracted to `lib/scoring/distress-scorer.ts` first, then `lib/reapi/`
++ `app/api/reapi/` deleted wholesale; ~100 dead scripts + probe-artifact dirs removed; 25
+orphaned app/components deleted; 23 historical docs moved to `docs/archive/`; broken
+`seed:railway` npm script removed. Audit corrections: newsletter-form, interactive-score-demo,
+trust-bar are LIVE imports (footer/hero-v2) — kept. Post-cleanup fix: RealAuction macro test
+fixtures were restored into `tests/scrapers/fixtures/`. Typecheck exits 0 (root + workers).
 **Why:** Parasitic weight: dead scripts, orphaned components, REAPI corpse. Also the live
 scorer is misfiled inside the dead provider's directory.
 **What/How (order matters):**
@@ -113,7 +148,12 @@ scorer is misfiled inside the dead provider's directory.
 ---
 
 ### M1.6 — requireUser() sweep: 28 routes (Clerk migration step 1)
-**Status:** TODO · **Effort:** 1-2 days · **Deps:** none · **Unblocks:** M1.1 fully, M2.5
+**Status:** DONE (2026-06-09) · **Effort:** 1-2 days · **Deps:** none · **Unblocks:** M1.1 fully, M2.5
+**Outcome:** Routes swept onto canonical `requireUser()`, which now JIT-provisions the User
+row (upsert on clerkId from Clerk profile; P2002 fallback adopts pre-Clerk same-email rows;
+404 only when Clerk has no email). Verified: exactly ONE API route still imports Clerk
+directly — `app/api/leads/events/route.ts`, deliberately left for M1.1's anonymous-session
+rework. Service-key (FO_API_KEY) paths untouched.
 **Why:** ~28 API routes still call Clerk's `auth()` directly. Sweeping them onto the canonical
 `lib/auth/require-user.ts` helper makes the eventual NextAuth swap a 3-file change instead of
 a 41-file change, AND centralizes the jit-provisioning from M1.1 step 4.
@@ -127,7 +167,13 @@ Clerk directly.
 ---
 
 ### M1.7 — Data Health & Coverage page (the crown jewel)
-**Status:** TODO · **Effort:** 3-4 days · **Deps:** M1.3 (choropleth needs nothing, but stats benefit)
+**Status:** DONE (2026-06-09) · **Effort:** 3-4 days · **Deps:** M1.3 (choropleth needs nothing, but stats benefit)
+**Outcome:** `app/app/data-sources/page.tsx` fully rebuilt as user-facing Data Health &
+Coverage backed by new `/api/data-health` (requireUser, 10-min in-memory cache): real headline
+stats validated against prod (10,998,035 parcels · 67/67 counties · 1,976,625 sales · 105,586
+tax-delinquent · $686.8M owed · 532 foreclosures · 163 future auctions), 67-tile FL county
+coverage grid, per-source freshness cards from ScrapeRegistry/BulkIngestJob, honest provenance
+footer. Added to sidebar for all personas (full aggregate batch runs in ~1.2s).
 **Why:** The single highest demo-impact-per-effort build in the estate. Today /app/data-sources
 is 100% hardcoded fiction. Everything a real version needs already exists: `ScrapeRegistry`,
 `BulkIngestJob` audit rows, county counts — already rendered in admin-only /app/admin/scrapers.
@@ -146,7 +192,14 @@ is 100% hardcoded fiction. Everything a real version needs already exists: `Scra
 ---
 
 ### M1.8 — Zero-cost derived signals (pure SQL over data in hand)
-**Status:** TODO · **Effort:** ~1 day · **Deps:** none
+**Status:** PARTIAL (2026-06-09 — code done, statewide run pending) · **Effort:** ~1 day · **Deps:** none
+**Outcome:** `Parcel.ownerOccupied` column landed (db push applied); derivation script built
+(`scripts/derive-owner-occupancy.ts` — per-county set-based UPDATE, `--county`/`--dry-run`)
+and live-verified on Calhoun 12013 (13,236 rows in 9.8s, 20.9% occupied — rural-plausible,
+spot-checked clean); DOR_UC → land-use lookup shipped (`lib/data-sources/dor-uc-codes.ts`,
+100-code DR-505 table); scorer wired (promote sets `absenteeOwner = parcel.ownerOccupied ===
+false`). STILL OPEN: the statewide backfill run (queued post-deploy alongside the M1.3
+geocode run) and the NEWLY_ABSENTEE year-over-year diff (TODO block in the script).
 **What/How:**
 1. **NEWLY_ABSENTEE**: year-over-year NAL mailing-address diff (owner mailing address changed
    away from situs = just became absentee = high-motivation window). Pure SQL; add boost to scorer.
@@ -160,7 +213,14 @@ is 100% hardcoded fiction. Everything a real version needs already exists: `Scra
 ---
 
 ### M1.9 — CLAUDE.md stale-claims fix
-**Status:** TODO · **Effort:** ~2 hours · **Deps:** ideally after M1.5/M1.6 so it describes reality
+**Status:** DONE (2026-06-09) · **Effort:** ~2 hours · **Deps:** ideally after M1.5/M1.6 so it describes reality
+**Outcome:** CLAUDE.md surgically corrected: auth = Clerk-live + requireUser()-only route
+guard with JIT provisioning (NextAuth migration in progress); REAPI/ATTOM env vars and
+"plan to reactivate" claims removed (property data is self-scraped); deleted-doc references
+(DECISIONS.md/TESTS.md) and lib/reapi pointers fixed (scorer = lib/scoring); Feature Status
+now documents the scrape-first data layer (11M FL parcels), Data Health page, and real comps
+endpoint; "Coming Q2 2025" + deleted homepage-component sections removed; roadmap statuses
+mirrored here and in README.md.
 **Why:** CLAUDE.md actively misleads every agent onboarded onto the repo: claims REAPI
 reactivation plans, Clerk-auth-forever, references docs deleted in the teardown
 (DECISIONS.md/TESTS.md), stale homepage section list, "Coming Q2 2025" claims.

@@ -7,8 +7,15 @@ async function createHighScoreProperty() {
     const timestamp = Date.now();
     const address = `${700 + (timestamp % 300)} High Score Ave`;
 
+    // Property.userId is required — own test rows via the local seed user.
+    const owner = await prisma.user.upsert({
+      where: { email: 'seed@flipops.local' },
+      update: {},
+      create: { email: 'seed@flipops.local', name: 'Seed User', targetMarkets: '[]' },
+    });
     const property = await prisma.property.create({
       data: {
+        userId: owner.id,
         address: address,
         city: 'Miami',
         state: 'FL',

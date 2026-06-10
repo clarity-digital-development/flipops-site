@@ -314,6 +314,7 @@ export abstract class CountyScraper {
         data: {
           email: SYSTEM_EMAIL,
           clerkId: `system_scrapers_${Date.now()}`,
+          targetMarkets: '[]', // required JSON-array column
         },
       });
     }

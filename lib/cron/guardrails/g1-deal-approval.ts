@@ -63,7 +63,7 @@ async function g1DealApprovalAlert() {
         totalViolations += violations.length;
 
         // Send Slack notification
-        const sent = await sendG1Alert(user.slackWebhook!, violations, user.name);
+        const sent = await sendG1Alert(user.slackWebhook!, violations, user.name ?? 'Unknown');
 
         if (sent) {
           totalNotifications++;

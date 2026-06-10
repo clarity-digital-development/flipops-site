@@ -64,9 +64,12 @@ async function checkAPIProfile() {
     }
 
   } catch (error) {
-    console.error('❌ Error:', error.message);
+    console.error('❌ Error:', error instanceof Error ? error.message : error);
     throw error;
   }
 }
 
 checkAPIProfile().catch(console.error);
+
+// Treat this script as a module to avoid global-scope const collisions.
+export {};

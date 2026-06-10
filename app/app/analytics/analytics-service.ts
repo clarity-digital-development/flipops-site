@@ -621,16 +621,16 @@ export function getHeatmapData(
       let value = 0;
       switch (metric) {
         case 'romi':
-          value = kpis.romi;
+          value = kpis.romi ?? 0;
           break;
         case 'roas':
-          value = kpis.roas;
+          value = kpis.roas ?? 0;
           break;
         case 'cpl':
-          value = kpis.leads > 0 ? kpis.totalSpend / kpis.leads : 0;
+          value = kpis.leads > 0 ? (kpis.totalSpend ?? 0) / kpis.leads : 0;
           break;
         case 'conversion':
-          value = kpis.conversionRate * 100;
+          value = (kpis.conversionRate ?? 0) * 100;
           break;
       }
       

@@ -28,8 +28,11 @@ export async function buildTruthPanel(dealId: string) {
   const region = (deal as any).region ?? "Miami";
   const grade = (deal as any).grade ?? "Standard";
 
-  const policy = await prisma.policy.findUnique({
-    where: { region_grade: { region, grade } }
+  // Policy is unique on (userId, region, grade); panels run without user
+  // context, so prefer the global default policy (userId null).
+  const policy = await prisma.policy.findFirst({
+    where: { region, grade },
+    orderBy: { userId: { sort: 'asc', nulls: 'first' } }
   });
   if (!policy) throw new Error("Policy missing");
 

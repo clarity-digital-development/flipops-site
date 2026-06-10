@@ -19,10 +19,10 @@ function getMockedDealData(dealId: string) {
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { dealId: string } }
+  { params }: { params: Promise<{ dealId: string }> }
 ) {
   try {
-    const dealId = params.dealId;
+    const { dealId } = await params;
 
     if (!dealId) {
       return NextResponse.json(

@@ -189,7 +189,8 @@ export async function estimate(options: EstimateOptions): Promise<EstimateRespon
         missingCostModels.push({
           trade: node.trade,
           task: node.task,
-          unit: node.quantity.unit
+          // quantity is a Json column shaped {value, unit, method}
+          unit: (node.quantity as { unit?: string } | null)?.unit ?? 'unknown'
         });
       }
     }

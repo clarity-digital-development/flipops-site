@@ -45,7 +45,7 @@ async function verifyData() {
     console.log('   Database connection string: ' + process.env.DATABASE_URL?.substring(0, 50) + '...\n');
 
   } catch (error) {
-    console.error('❌ Error:', error.message);
+    console.error('❌ Error:', error instanceof Error ? error.message : error);
     throw error;
   } finally {
     await prisma.$disconnect();

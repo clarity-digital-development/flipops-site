@@ -48,6 +48,9 @@ const isPublicRoute = createRouteMatcher([
   "/api/panels/truth",           // Panel endpoint
   "/api/panels/money",           // Panel endpoint
   "/api/panels/motion",          // Panel endpoint
+  "/api/leads/events",           // M1.1: behavioral telemetry accepts ANONYMOUS (sessionId) events;
+                                 // the route resolves identity itself via requireUser() when present.
+                                 // NOTE: /api/leads/events/link is intentionally NOT public.
   "/not-authorized",
   "/app(.*)",                     // TODO: Remove this when ready for beta launch (re-enable Clerk auth)
   "/api/dashboard/(.*)",         // Dashboard API endpoints

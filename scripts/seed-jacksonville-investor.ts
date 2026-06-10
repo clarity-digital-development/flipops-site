@@ -209,7 +209,7 @@ async function seedJacksonvilleInvestor() {
     console.log('✅ Created Florida investment policy:');
     console.log(`   Max Exposure: $${policy.maxExposureUsd.toLocaleString()}`);
     console.log(`   Target ROI: ${(policy.targetRoiPct * 100)}%`);
-    console.log(`   Max Duration: ${policy.maxDealDurationDays} days`);
+    console.log(`   CO SLA: ${policy.coSlaHours} hours`);
     console.log('');
   }
 

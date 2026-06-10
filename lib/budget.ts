@@ -1,5 +1,15 @@
 import { prisma } from './prisma';
 
+/** BudgetLedger stores its trade maps as JSON strings — parse defensively. */
+function parseLedgerMap<T = number>(raw: string | null | undefined): Record<string, T> {
+  if (!raw) return {};
+  try {
+    return JSON.parse(raw) ?? {};
+  } catch {
+    return {};
+  }
+}
+
 export type VarianceTier = 'GREEN' | 'TIER1' | 'TIER2';
 
 export interface VarianceAnalysis {
@@ -62,19 +72,19 @@ export async function applyInvoiceAndComputeTiers(params: {
     ledger = await prisma.budgetLedger.create({
       data: {
         dealId,
-        baseline: {},
-        committed: {},
-        actuals: {},
-        variance: {},
+        baseline: '{}',
+        committed: '{}',
+        actuals: '{}',
+        variance: '{}',
         contingencyRemaining: 0
       }
     });
   }
 
   // Parse JSON fields
-  const baseline = (ledger.baseline as Record<string, number>) || {};
-  const committed = (ledger.committed as Record<string, number>) || {};
-  const actuals = (ledger.actuals as Record<string, number>) || {};
+  const baseline = parseLedgerMap(ledger.baseline);
+  const committed = parseLedgerMap(ledger.committed);
+  const actuals = parseLedgerMap(ledger.actuals);
 
   // Update actuals for this trade
   const previousActuals = actuals[trade] || 0;
@@ -171,7 +181,7 @@ export async function applyInvoiceAndComputeTiers(params: {
   }
 
   // Update variance in ledger
-  const variance = (ledger.variance as Record<string, any>) || {};
+  const variance = parseLedgerMap<any>(ledger.variance);
   variance[trade] = {
     amount: tradeVariance,
     percentage: tradeVariancePct,
@@ -187,12 +197,12 @@ export async function applyInvoiceAndComputeTiers(params: {
     updatedAt: new Date().toISOString()
   };
 
-  // Save updated ledger
+  // Save updated ledger (maps serialized back to JSON strings)
   await prisma.budgetLedger.update({
     where: { dealId },
     data: {
-      actuals,
-      variance
+      actuals: JSON.stringify(actuals),
+      variance: JSON.stringify(variance)
     }
   });
 

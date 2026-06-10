@@ -71,8 +71,8 @@ export async function POST(request: NextRequest) {
         deltaUsd,
         impactDays,
         status: 'proposed',
-        rationale: reason || null,
-        simResults: null // Will be updated after simulation
+        rationale: reason || null
+        // simResults intentionally omitted (defaults to NULL) — updated after simulation
       }
     });
 
@@ -108,7 +108,13 @@ export async function POST(request: NextRequest) {
       });
 
       if (ledger) {
-        const committed = (ledger.committed as Record<string, number>) || {};
+        // BudgetLedger.committed is a JSON-string column — parse defensively.
+        let committed: Record<string, number> = {};
+        try {
+          committed = ledger.committed ? JSON.parse(ledger.committed) ?? {} : {};
+        } catch {
+          committed = {};
+        }
         const tradeCommitted = committed[trade] || 0;
 
         // Update trade-specific commitment
@@ -121,7 +127,7 @@ export async function POST(request: NextRequest) {
 
         await prisma.budgetLedger.update({
           where: { dealId },
-          data: { committed }
+          data: { committed: JSON.stringify(committed) }
         });
 
         log.info({ trade, deltaUsd, newCommitted: committed[trade] }, 'Updated budget ledger commitments');

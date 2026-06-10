@@ -163,7 +163,7 @@ export async function getQueueMetrics(queueName: string) {
       queue.getCompletedCount(),
       queue.getFailedCount(),
       queue.getDelayedCount(),
-      queue.getPausedCount(),
+      queue.getJobCountByTypes('paused'),
     ]);
 
     return {

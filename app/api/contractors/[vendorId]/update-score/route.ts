@@ -12,8 +12,9 @@ interface ScoreUpdate {
 
 export async function PUT(
   req: NextRequest,
-  { params }: { params: { vendorId: string } }
+  { params }: { params: Promise<{ vendorId: string }> }
 ) {
+  const { vendorId } = await params;
   try {
     // API key authentication (required)
     const apiKey = req.headers.get('x-api-key') || req.headers.get('authorization')?.replace('Bearer ', '');
@@ -24,7 +25,6 @@ export async function PUT(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const vendorId = params.vendorId;
     const body: ScoreUpdate = await req.json();
 
     // Validate vendor exists
@@ -116,7 +116,7 @@ export async function PUT(
     }, { status: 200 });
 
   } catch (error) {
-    log.error({ error, vendorId: params.vendorId }, 'Failed to update contractor scores');
+    log.error({ error, vendorId }, 'Failed to update contractor scores');
     return NextResponse.json({
       error: 'Internal server error',
       message: error instanceof Error ? error.message : 'Unknown error',

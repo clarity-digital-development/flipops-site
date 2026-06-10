@@ -1,5 +1,9 @@
 // Uncertainty bands for different trades (in percentage)
-export const TRADE_UNCERTAINTIES = {
+// Indexed by free-form trade strings at runtime, so type as Record.
+export const TRADE_UNCERTAINTIES: {
+  materials: Record<string, number> & { default: number };
+  labor: Record<string, number> & { default: number };
+} = {
   materials: {
     Roofing: 0.10,
     Kitchen: 0.12,

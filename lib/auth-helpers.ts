@@ -1,9 +1,13 @@
 /**
  * Authentication helpers for API routes
+ *
+ * Legacy shim — delegates to the canonical requireUser() guard
+ * (lib/auth/require-user.ts) so JIT user provisioning and the eventual
+ * Clerk→NextAuth swap live in ONE place. Prefer importing requireUser()
+ * directly in new routes.
  */
 
-import { auth } from '@clerk/nextjs/server';
-import { prisma } from '@/lib/prisma';
+import { requireUser } from '@/lib/auth/require-user';
 
 export interface AuthResult {
   success: boolean;
@@ -13,27 +17,23 @@ export interface AuthResult {
 }
 
 /**
- * Get the authenticated database user ID from Clerk session
- * Returns the internal database user ID (not the Clerk ID)
+ * Get the authenticated database user ID from the current session.
+ * Returns the internal database user ID (not the Clerk ID).
  */
 export async function getAuthenticatedUserId(): Promise<AuthResult> {
   try {
-    const { userId: clerkId } = await auth();
+    const guard = await requireUser();
 
-    if (!clerkId) {
-      return { success: false, error: 'Unauthorized', status: 401 };
+    if ('error' in guard) {
+      const status = guard.error.status;
+      return {
+        success: false,
+        error: status === 404 ? 'User not found' : 'Unauthorized',
+        status,
+      };
     }
 
-    const dbUser = await prisma.user.findUnique({
-      where: { clerkId },
-      select: { id: true },
-    });
-
-    if (!dbUser) {
-      return { success: false, error: 'User not found', status: 404 };
-    }
-
-    return { success: true, userId: dbUser.id };
+    return { success: true, userId: guard.userId };
   } catch (error) {
     console.error('Auth error:', error);
     return { success: false, error: 'Authentication failed', status: 500 };

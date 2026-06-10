@@ -12,7 +12,6 @@ export default function robots(): MetadataRoute.Robots {
           '/sign-in/',
           '/sign-up/',
           '/admin/',
-          '/debug-clerk/',
           '/test-minimal/',
           '/not-authorized/',
           '/__overflow-debug/',

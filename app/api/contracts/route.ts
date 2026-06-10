@@ -1,33 +1,43 @@
 import { NextResponse } from 'next/server';
-import { auth } from '@clerk/nextjs/server';
+import { Prisma } from '@prisma/client';
 import prisma from '@/lib/prisma';
+import { requireUser } from '@/lib/auth/require-user';
+import { emitLeadEvent, buildPropertySnapshot } from '@/lib/events/emit';
+
+// Contract row shape returned by the GET list queries below (with relations).
+type ContractWithRelations = Prisma.ContractGetPayload<{
+  include: {
+    property: true;
+    offer: true;
+    assignment: { include: { buyer: true } };
+    renovation: {
+      include: {
+        _count: {
+          select: { scopeNodes: true; bids: true; changeOrders: true; tasks: true };
+        };
+      };
+    };
+    rental: {
+      include: {
+        _count: { select: { tenants: true; income: true; expenses: true } };
+      };
+    };
+  };
+}>;
 
 // POST /api/contracts
 // Create a contract from an accepted offer
 export async function POST(request: Request) {
   try {
-    const { userId: clerkUserId } = await auth();
-
-    if (!clerkUserId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const userId = clerkUserId;
+    const guard = await requireUser();
+    if ('error' in guard) return guard.error;
+    const user = { id: guard.userId };
 
     const body = await request.json();
     const { offerId, closingDate, notes } = body;
 
     if (!offerId) {
       return NextResponse.json({ error: 'offerId is required' }, { status: 400 });
-    }
-
-    // Find the user
-    const user = await prisma.user.findUnique({
-      where: { clerkId: userId },
-    });
-
-    if (!user) {
-      return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
     // Find the offer and verify it belongs to the user
@@ -66,21 +76,40 @@ export async function POST(request: Request) {
       );
     }
 
-    // Create the contract
-    const contract = await prisma.contract.create({
-      data: {
+    // Create the contract + emit the 'contract_signed' behavioral outcome
+    // label in the SAME transaction (M1.1) — outcome labels are server-side,
+    // never client best-effort. Both commit or neither does.
+    const contract = await prisma.$transaction(async (tx) => {
+      const created = await tx.contract.create({
+        data: {
+          userId: user.id,
+          propertyId: offer.propertyId,
+          offerId: offer.id,
+          purchasePrice: offer.amount,
+          closingDate: closingDate ? new Date(closingDate) : null,
+          notes: notes || null,
+          status: 'pending',
+        },
+        include: {
+          property: true,
+          offer: true,
+        },
+      });
+
+      await emitLeadEvent(tx, {
         userId: user.id,
         propertyId: offer.propertyId,
-        offerId: offer.id,
-        purchasePrice: offer.amount,
-        closingDate: closingDate ? new Date(closingDate) : null,
-        notes: notes || null,
-        status: 'pending',
-      },
-      include: {
-        property: true,
-        offer: true,
-      },
+        eventType: 'contract_signed',
+        leadSnapshot: buildPropertySnapshot(offer.property),
+        metadata: {
+          contractId: created.id,
+          offerId: offer.id,
+          purchasePrice: created.purchasePrice,
+          source: 'api/contracts#POST',
+        },
+      });
+
+      return created;
     });
 
     // Auto-create closing tasks (only if closing date is set)
@@ -181,25 +210,16 @@ const DEMO_USER_EMAIL = 'tanner@claritydigital.dev';
 // List all contracts for the current user (+ demo data for non-admin users)
 export async function GET() {
   try {
-    const { userId: clerkUserId } = await auth();
-
-    if (!clerkUserId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const userId = clerkUserId;
-
-    // Find the user
-    const user = await prisma.user.findUnique({
-      where: { clerkId: userId },
-    });
+    const guard = await requireUser();
+    if ('error' in guard) return guard.error;
+    const user = { id: guard.userId, email: guard.email };
 
     // Check if user is admin or the demo user themselves
     const isAdmin = user?.email === ADMIN_EMAIL;
     const isDemoUser = user?.email === DEMO_USER_EMAIL;
 
     // For non-admin users (except demo user), also fetch demo data
-    let demoContracts: Awaited<ReturnType<typeof prisma.contract.findMany>> = [];
+    let demoContracts: ContractWithRelations[] = [];
     if (!isAdmin && !isDemoUser) {
       const demoUser = await prisma.user.findFirst({
         where: { email: DEMO_USER_EMAIL },
@@ -248,7 +268,7 @@ export async function GET() {
     }
 
     // Get user's own contracts (if user exists)
-    let contracts: Awaited<ReturnType<typeof prisma.contract.findMany>> = [];
+    let contracts: ContractWithRelations[] = [];
     if (user) {
       contracts = await prisma.contract.findMany({
         where: { userId: user.id },

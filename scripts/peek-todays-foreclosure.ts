@@ -24,7 +24,7 @@ async function main() {
     const a = r.auctionDate ? r.auctionDate.toISOString().slice(0, 10) : "null";
     const apn = (r.apn ?? "").slice(0, 30);
     console.log(
-      `${cap} | fips=${r.countyFips} | case=${r.caseNumber.slice(0, 18)} | ${r.stageCode.padEnd(10)} | auct=${a} | apn=${apn}`,
+      `${cap} | fips=${r.countyFips} | case=${(r.caseNumber ?? "").slice(0, 18)} | ${r.stageCode.padEnd(10)} | auct=${a} | apn=${apn}`,
     );
   }
   await prisma.$disconnect();

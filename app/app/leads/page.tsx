@@ -270,7 +270,7 @@ export default function LeadsPage() {
         // Best-effort: refresh just this lead row by re-fetching the list. The
         // enrich endpoint returns the updated Property row so we could splice
         // it in directly, but a full refresh keeps virtual/dedup logic honest.
-        await reloadLeads();
+        await fetchProperties();
         toast({
           title: "Skip trace complete",
           description: `${data.phoneCount ?? 0} phones, ${data.emailCount ?? 0} emails found.`,

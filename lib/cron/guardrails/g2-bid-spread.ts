@@ -13,7 +13,6 @@ import {
   sendSlackNotification,
   formatCurrency,
   formatPercent,
-  calculateBidSpread,
 } from '../shared';
 
 const logger = createLogger('G2 - Bid Spread');
@@ -66,7 +65,7 @@ async function g2BidSpreadAlert() {
         totalViolations += violations.length;
 
         // Send Slack notification
-        const sent = await sendG2Alert(user.slackWebhook!, violations, user.name);
+        const sent = await sendG2Alert(user.slackWebhook!, violations, user.name ?? 'Unknown');
 
         if (sent) {
           totalNotifications++;

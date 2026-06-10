@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { renderToBuffer } from '@react-pdf/renderer';
+import type { ReactElement } from 'react';
+import { renderToBuffer, type DocumentProps } from '@react-pdf/renderer';
 import { prisma } from '@/lib/prisma';
 import { getAuthenticatedUserId } from '@/lib/auth-helpers';
 import { InvoiceDocument, InvoiceData } from '@/lib/pdf-templates';
@@ -138,7 +139,7 @@ export async function POST(request: NextRequest) {
 
     // Generate PDF
     const pdfBuffer = await renderToBuffer(
-      InvoiceDocument({ data: invoiceData })
+      InvoiceDocument({ data: invoiceData }) as ReactElement<DocumentProps>
     );
 
     // Send email

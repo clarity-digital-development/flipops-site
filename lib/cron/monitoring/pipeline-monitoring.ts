@@ -73,7 +73,7 @@ async function pipelineMonitoring() {
           user.slackWebhook!,
           stalledDeals,
           summary,
-          user.name
+          user.name ?? 'Unknown'
         );
 
         if (sent) {

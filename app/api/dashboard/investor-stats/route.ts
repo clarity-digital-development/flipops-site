@@ -129,38 +129,57 @@ export async function GET() {
       };
     }
 
-    // Flipper stats
+    // Flipper stats.
+    // DealSpec has no purchasePrice/rehabBudget columns — purchase price lives
+    // on the linked Contract, and the rehab budget is BudgetLedger.baseline
+    // (a JSON-string trade map with a `total` key).
+    const baselineTotal = (ledger: { baseline: string } | null): number => {
+      if (!ledger?.baseline) return 0;
+      try {
+        const parsed = JSON.parse(ledger.baseline) ?? {};
+        if (typeof parsed.total === 'number') return parsed.total;
+        return Object.entries(parsed)
+          .filter(([key]) => key !== 'total')
+          .reduce((sum, [, value]) => sum + (typeof value === 'number' ? value : 0), 0);
+      } catch {
+        return 0;
+      }
+    };
+    type RoiDeal = {
+      arv: number | null;
+      contract: { purchasePrice: number } | null;
+      budgetLedger: { baseline: string } | null;
+    };
+    const roiOf = (projects: RoiDeal[]): number | null => {
+      if (!projects.length) return null;
+      const sum = projects.reduce((acc, p) => {
+        const cost = (p.contract?.purchasePrice || 0) + baselineTotal(p.budgetLedger);
+        return acc + (cost > 0 ? (((p.arv || 0) - cost) / cost) * 100 : 0);
+      }, 0);
+      return sum / projects.length;
+    };
+
     if (investorType === 'flipper' || investorType === 'hybrid') {
-      const [totalRenovations, activeRenovations, completedRenovations, totalBudget, avgROI] = await Promise.all([
+      const [totalRenovations, activeRenovations, completedRenovations, budgetDeals, roiDeals] = await Promise.all([
         prisma.dealSpec.count({ where: { userId: dbUserId, propertyId: { not: null }, contractId: { not: null } } }),
         prisma.dealSpec.count({ where: { userId: dbUserId, propertyId: { not: null }, contractId: { not: null }, status: 'active' } }),
         prisma.dealSpec.count({ where: { userId: dbUserId, propertyId: { not: null }, contractId: { not: null }, status: 'completed' } }),
-        prisma.dealSpec.aggregate({
+        prisma.dealSpec.findMany({
           where: { userId: dbUserId, propertyId: { not: null }, contractId: { not: null }, status: { in: ['planning', 'active'] } },
-          _sum: { rehabBudget: true },
+          select: { budgetLedger: { select: { baseline: true } } },
         }),
         prisma.dealSpec.findMany({
-          where: { userId: dbUserId, propertyId: { not: null }, contractId: { not: null }, status: 'completed', arv: { not: null }, purchasePrice: { not: null }, rehabBudget: { not: null } },
-          select: { arv: true, purchasePrice: true, rehabBudget: true },
+          where: { userId: dbUserId, propertyId: { not: null }, contractId: { not: null }, status: 'completed', arv: { not: null } },
+          select: { arv: true, contract: { select: { purchasePrice: true } }, budgetLedger: { select: { baseline: true } } },
         }),
       ]);
-
-      let calculatedAvgROI = 0;
-      if (avgROI.length > 0) {
-        const totalROI = avgROI.reduce((sum, project) => {
-          const totalCost = (project.purchasePrice || 0) + (project.rehabBudget || 0);
-          const roi = totalCost > 0 ? (((project.arv || 0) - totalCost) / totalCost) * 100 : 0;
-          return sum + roi;
-        }, 0);
-        calculatedAvgROI = totalROI / avgROI.length;
-      }
 
       stats.flipper = {
         totalRenovations,
         activeRenovations,
         completedRenovations,
-        totalBudget: totalBudget._sum.rehabBudget || 0,
-        avgROI: calculatedAvgROI,
+        totalBudget: budgetDeals.reduce((sum, d) => sum + baselineTotal(d.budgetLedger), 0),
+        avgROI: roiOf(roiDeals) ?? 0,
       };
 
       // Prior-period flipper signals. `totalRenovations` and `activeRenovations`
@@ -196,7 +215,7 @@ export async function GET() {
             updatedAt: { gte: prevDateFrom, lt: prevDateTo },
           },
         }),
-        prisma.dealSpec.aggregate({
+        prisma.dealSpec.findMany({
           where: {
             userId: dbUserId,
             propertyId: { not: null },
@@ -204,9 +223,9 @@ export async function GET() {
             status: { in: ['planning', 'active'] },
             createdAt: { gte: dateFrom },
           },
-          _sum: { rehabBudget: true },
+          select: { budgetLedger: { select: { baseline: true } } },
         }),
-        prisma.dealSpec.aggregate({
+        prisma.dealSpec.findMany({
           where: {
             userId: dbUserId,
             propertyId: { not: null },
@@ -214,7 +233,7 @@ export async function GET() {
             status: { in: ['planning', 'active'] },
             createdAt: { gte: prevDateFrom, lt: prevDateTo },
           },
-          _sum: { rehabBudget: true },
+          select: { budgetLedger: { select: { baseline: true } } },
         }),
         prisma.dealSpec.findMany({
           where: {
@@ -223,11 +242,9 @@ export async function GET() {
             contractId: { not: null },
             status: 'completed',
             arv: { not: null },
-            purchasePrice: { not: null },
-            rehabBudget: { not: null },
             updatedAt: { gte: dateFrom },
           },
-          select: { arv: true, purchasePrice: true, rehabBudget: true },
+          select: { arv: true, contract: { select: { purchasePrice: true } }, budgetLedger: { select: { baseline: true } } },
         }),
         prisma.dealSpec.findMany({
           where: {
@@ -236,11 +253,9 @@ export async function GET() {
             contractId: { not: null },
             status: 'completed',
             arv: { not: null },
-            purchasePrice: { not: null },
-            rehabBudget: { not: null },
             updatedAt: { gte: prevDateFrom, lt: prevDateTo },
           },
-          select: { arv: true, purchasePrice: true, rehabBudget: true },
+          select: { arv: true, contract: { select: { purchasePrice: true } }, budgetLedger: { select: { baseline: true } } },
         }),
         prisma.dealSpec.count({
           where: {
@@ -260,20 +275,14 @@ export async function GET() {
         }),
       ]);
 
-      const roiOf = (projects: { arv: number | null; purchasePrice: number | null; rehabBudget: number | null }[]) => {
-        if (!projects.length) return null;
-        const sum = projects.reduce((acc, p) => {
-          const cost = (p.purchasePrice || 0) + (p.rehabBudget || 0);
-          return acc + (cost > 0 ? (((p.arv || 0) - cost) / cost) * 100 : 0);
-        }, 0);
-        return sum / projects.length;
-      };
-
       trends.flipper = {
         totalRenovations: pctDelta(currRenovationsStarted, prevRenovationsStarted),
         activeRenovations: null, // point-in-time snapshot
         completedRenovations: pctDelta(currCompletedFlips, prevCompletedFlips),
-        totalBudget: pctDelta(currBudgetCommitted._sum.rehabBudget || 0, prevBudgetCommitted._sum.rehabBudget || 0),
+        totalBudget: pctDelta(
+          currBudgetCommitted.reduce((sum, d) => sum + baselineTotal(d.budgetLedger), 0),
+          prevBudgetCommitted.reduce((sum, d) => sum + baselineTotal(d.budgetLedger), 0)
+        ),
         avgROI: pctDelta(roiOf(currRoiSet), roiOf(prevRoiSet)),
       };
     }

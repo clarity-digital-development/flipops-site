@@ -139,6 +139,8 @@ interface ApiContract {
     status: string;
     buyer: ApiBuyer;
   } | null;
+  // Most-recent DealAnalysis joined in /api/contracts GET (null when none).
+  deal?: { arv: number; estimatedRepairCost: number } | null;
 }
 
 // Define API buyer offer type
@@ -352,7 +354,7 @@ export default function BuyersPage() {
       // exists. Falls back to null so the UI renders '—' instead of the old
       // 1.4x / 0.15x fabrication that looked like real data.
       arvEstimate: contract.deal?.arv ?? null,
-      repairEstimate: contract.deal?.repairBudget ?? null,
+      repairEstimate: contract.deal?.estimatedRepairCost ?? null,
       netToSeller: Math.round(contract.purchasePrice * 0.9),
       blastSentDate: undefined,
       daysOnMarket,
@@ -567,8 +569,8 @@ export default function BuyersPage() {
   const getBuyerWithMetrics = (buyerId: string) => {
     const buyer = effectiveBuyers.find(b => b.id === buyerId);
     // Performance and documents will be added in future API updates
-    const performance: BuyerPerformance | undefined = undefined;
-    const buyBox: BuyBox | undefined = undefined;
+    const performance = undefined as BuyerPerformance | undefined;
+    const buyBox = undefined as BuyBox | undefined;
     const documents: BuyerDocument[] = [];
     return { buyer, performance, buyBox, documents };
   };
@@ -1248,7 +1250,7 @@ export default function BuyersPage() {
                           {effectiveBuyers
                             .filter(b => b.status === 'vip' || b.score >= 85)
                             .map(buyer => {
-                              const perf: BuyerPerformance | undefined = undefined;
+                              const perf = undefined as BuyerPerformance | undefined;
                               return (
                                 <div key={buyer.id} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-muted rounded-lg hover:bg-gray-100 dark:hover:bg-[#252525] transition-colors cursor-pointer">
                                   <div className="flex items-center gap-3 min-w-0">
@@ -1970,11 +1972,11 @@ export default function BuyersPage() {
                                   </div>
                                   <div>
                                     <p className="text-gray-500">Est. ARV</p>
-                                    <p className="font-medium">${listing.arvEstimate.toLocaleString()}</p>
+                                    <p className="font-medium">{listing.arvEstimate != null ? `$${listing.arvEstimate.toLocaleString()}` : '—'}</p>
                                   </div>
                                   <div>
                                     <p className="text-gray-500">Est. Repairs</p>
-                                    <p className="font-medium">${listing.repairEstimate.toLocaleString()}</p>
+                                    <p className="font-medium">{listing.repairEstimate != null ? `$${listing.repairEstimate.toLocaleString()}` : '—'}</p>
                                   </div>
                                   <div>
                                     <p className="text-gray-500">Days Under Contract</p>
@@ -2085,11 +2087,11 @@ export default function BuyersPage() {
                             </div>
                             <div>
                               <Label>ARV</Label>
-                              <p className="text-sm font-medium">${selectedListing.arvEstimate.toLocaleString()}</p>
+                              <p className="text-sm font-medium">{selectedListing.arvEstimate != null ? `$${selectedListing.arvEstimate.toLocaleString()}` : '—'}</p>
                             </div>
                             <div>
                               <Label>Repairs</Label>
-                              <p className="text-sm font-medium">${selectedListing.repairEstimate.toLocaleString()}</p>
+                              <p className="text-sm font-medium">{selectedListing.repairEstimate != null ? `$${selectedListing.repairEstimate.toLocaleString()}` : '—'}</p>
                             </div>
                           </div>
                           <Button

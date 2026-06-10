@@ -6,6 +6,13 @@ async function createTestStalledDeals() {
   try {
     console.log('🧪 Creating test stalled deals for pipeline monitoring...\n');
 
+    // DealSpec.userId is required — own test rows via the local seed user.
+    const owner = await prisma.user.upsert({
+      where: { email: 'seed@flipops.local' },
+      update: {},
+      create: { email: 'seed@flipops.local', name: 'Seed User', targetMarkets: '[]' },
+    });
+
     // Calculate dates for stalled deals
     const now = new Date();
     const fourDaysAgo = new Date(now.getTime() - 4 * 24 * 60 * 60 * 1000);
@@ -30,6 +37,7 @@ async function createTestStalledDeals() {
     console.log('\n📋 Step 2: Creating G1 stalled deal (pending approval)...');
     const g1Deal = await prisma.dealSpec.create({
       data: {
+        userId: owner.id,
         address: '123 Stalled Ave',
         type: 'SFH',
         maxExposureUsd: 250000,
@@ -49,6 +57,7 @@ async function createTestStalledDeals() {
     console.log('\n📋 Step 3: Creating G2 stalled deal (pending bid)...');
     const g2Deal = await prisma.dealSpec.create({
       data: {
+        userId: owner.id,
         address: '456 Bid Pending Rd',
         type: 'SFH',
         maxExposureUsd: 300000,
@@ -91,6 +100,7 @@ async function createTestStalledDeals() {
     console.log('\n📋 Step 4: Creating G3 stalled deal (pending invoice)...');
     const g3Deal = await prisma.dealSpec.create({
       data: {
+        userId: owner.id,
         address: '789 Invoice Pending Ln',
         type: 'Multi-family',
         maxExposureUsd: 400000,
@@ -123,6 +133,7 @@ async function createTestStalledDeals() {
     console.log('\n📋 Step 5: Creating G4 stalled deal (pending change order)...');
     const g4Deal = await prisma.dealSpec.create({
       data: {
+        userId: owner.id,
         address: '321 Change Order St',
         type: 'SFH',
         maxExposureUsd: 350000,

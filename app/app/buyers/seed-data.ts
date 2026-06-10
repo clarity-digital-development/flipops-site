@@ -73,8 +73,10 @@ export interface DispoListing {
   address: string;
   status: "draft" | "active" | "pending" | "assigned" | "closed";
   askPrice: number;
-  arvEstimate: number;
-  repairEstimate: number;
+  // Nullable: real values come from the linked DealAnalysis; null renders '—'
+  // instead of fabricated estimates.
+  arvEstimate: number | null;
+  repairEstimate: number | null;
   netToSeller: number;
   blastSentDate?: string;
   daysOnMarket: number;

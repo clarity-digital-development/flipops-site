@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@clerk/nextjs/server';
 import prisma from '@/lib/prisma';
+import { requireUser } from '@/lib/auth/require-user';
 import { VendorCategory } from '@prisma/client';
 
 /**
@@ -15,20 +15,9 @@ import { VendorCategory } from '@prisma/client';
  */
 export async function GET(request: NextRequest) {
   try {
-    const { userId: clerkUserId } = await auth();
-
-    if (!clerkUserId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const user = await prisma.user.findUnique({
-      where: { clerkId: clerkUserId },
-      select: { id: true },
-    });
-
-    if (!user) {
-      return NextResponse.json({ vendors: [] });
-    }
+    const guard = await requireUser();
+    if ('error' in guard) return guard.error;
+    const user = { id: guard.userId };
 
     const searchParams = request.nextUrl.searchParams;
     const category = searchParams.get('category');

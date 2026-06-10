@@ -87,12 +87,22 @@ async function dataRefreshAndSync() {
         bids: {
           where: { status: { in: ['pending', 'awarded'] } },
         },
-        invoices: true,
         changeOrders: true,
         property: true,
       },
       orderBy: { updatedAt: 'asc' },
     });
+
+    // Invoice has no back-relation on DealSpec — fetch and group by dealId.
+    const allInvoices = deals.length > 0
+      ? await prisma.invoice.findMany({ where: { dealId: { in: deals.map((d) => d.id) } } })
+      : [];
+    const invoicesByDeal = new Map<string, typeof allInvoices>();
+    for (const inv of allInvoices) {
+      const list = invoicesByDeal.get(inv.dealId) ?? [];
+      list.push(inv);
+      invoicesByDeal.set(inv.dealId, list);
+    }
 
     logger.info(`Found ${deals.length} active deals to process`);
     summary.dealsProcessed = deals.length;
@@ -106,7 +116,10 @@ async function dataRefreshAndSync() {
     for (const deal of deals) {
       try {
         // 1. Budget Recalculation
-        const budgetResult = await recalculateBudget(deal);
+        const budgetResult = await recalculateBudget({
+          ...deal,
+          invoices: invoicesByDeal.get(deal.id) ?? [],
+        });
         if (budgetResult) {
           summary.budgetRecalculations.push(budgetResult);
         }
@@ -158,7 +171,7 @@ async function dataRefreshAndSync() {
         ),
       };
 
-      await sendRefreshSummary(user.slackWebhook!, user.name, userSummary);
+      await sendRefreshSummary(user.slackWebhook!, user.name ?? 'Unknown', userSummary);
     }
 
     logger.success(`Data refresh complete: ${summary.dealsProcessed} deals, ` +
@@ -181,8 +194,15 @@ async function recalculateBudget(deal: any): Promise<BudgetRecalcResult | null> 
   if (!deal.budgetLedger) return null;
 
   const ledger = deal.budgetLedger;
-  const baseline = ledger.baseline as Record<string, number> || {};
-  const actuals = ledger.actuals as Record<string, number> || {};
+  // BudgetLedger stores trade maps as JSON strings (SQLite-era schema).
+  const parseTradeMap = (raw: unknown): Record<string, number> => {
+    if (typeof raw === 'string') {
+      try { return JSON.parse(raw) ?? {}; } catch { return {}; }
+    }
+    return (raw as Record<string, number>) || {};
+  };
+  const baseline = parseTradeMap(ledger.baseline);
+  const actuals = parseTradeMap(ledger.actuals);
 
   // Calculate totals
   const totalBaseline = Object.entries(baseline)
@@ -215,9 +235,9 @@ async function recalculateBudget(deal: any): Promise<BudgetRecalcResult | null> 
     actuals.total = projectedActuals;
 
     await prisma.budgetLedger.update({
-      where: { id: ledger.id },
+      where: { dealId: ledger.dealId },
       data: {
-        actuals,
+        actuals: JSON.stringify(actuals),
         updatedAt: new Date(),
       },
     });

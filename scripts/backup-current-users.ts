@@ -42,7 +42,7 @@ async function backupUsers() {
     const backupData = {
       timestamp: new Date().toISOString(),
       userCount: users.length,
-      users: users.map(user => ({
+      users: users.map((user: any) => ({
         id: user.id,
         email: user.email,
         name: user.name,
@@ -69,7 +69,7 @@ async function backupUsers() {
 
     // Show summary of each user
     console.log('👥 Users backed up:');
-    users.forEach((user, i) => {
+    users.forEach((user: any, i: number) => {
       const profile = typeof user.investorProfile === 'string'
         ? JSON.parse(user.investorProfile)
         : user.investorProfile;
@@ -85,9 +85,12 @@ async function backupUsers() {
 
     return backupFile;
   } catch (error) {
-    console.error('❌ Backup failed:', error.message);
+    console.error('❌ Backup failed:', error instanceof Error ? error.message : error);
     throw error;
   }
 }
 
 backupUsers().catch(console.error);
+
+// Treat this script as a module to avoid global-scope const collisions.
+export {};

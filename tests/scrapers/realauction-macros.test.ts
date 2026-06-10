@@ -4,7 +4,9 @@ import path from 'node:path';
 import * as cheerio from 'cheerio';
 import { decodeMacroHtml } from '@/lib/scrapers/vendors/realauction-macros';
 
-const FIXTURE_DIR = path.resolve(__dirname, '..', '..', 'scripts', 'probe-artifacts');
+// Fixtures live with the tests (moved out of scripts/probe-artifacts/, which
+// is throwaway probe output and was cleaned up in M1).
+const FIXTURE_DIR = path.resolve(__dirname, 'fixtures');
 const FIXTURE_JSON = path.join(
   FIXTURE_DIR,
   'realforeclose-xhr-hillsborough-AREA-W-06-05-2026.json',

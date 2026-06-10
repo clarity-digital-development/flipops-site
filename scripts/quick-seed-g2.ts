@@ -35,43 +35,60 @@ async function main() {
     prisma.vendor.create({
       data: {
         name: 'Miami Roofing Pros',
-        trade: ['Roofing'],
+        trade: JSON.stringify(['Roofing']),
         region: 'Miami'
       }
     }),
     prisma.vendor.create({
       data: {
         name: 'Quality Roof Solutions',
-        trade: ['Roofing'],
+        trade: JSON.stringify(['Roofing']),
         region: 'Miami'
       }
     }),
     prisma.vendor.create({
       data: {
         name: 'Premium Roofing Co',
-        trade: ['Roofing'],
+        trade: JSON.stringify(['Roofing']),
         region: 'Miami'
       }
     })
   ]);
 
+  // DealSpec.userId is required — own test rows via the local seed user.
+  // (DealSpec has no policyId/dealType/rehab columns; policy is resolved by
+  // region+grade at evaluation time.)
+  const owner = await prisma.user.upsert({
+    where: { email: 'seed@flipops.local' },
+    update: {},
+    create: { email: 'seed@flipops.local', name: 'Seed User', targetMarkets: '[]' },
+  });
+
   // Create deal for SAFE test (low spread)
   const safeDeal = await prisma.dealSpec.create({
     data: {
+      userId: owner.id,
       address: '123 Safe Test St, Miami FL',
-      policyId: policy.id,
-      dealType: 'flip',
-      rehab: {}
+      type: 'SFH',
+      maxExposureUsd: 100000,
+      targetRoiPct: 20,
+      region: 'Miami',
+      grade: 'Standard',
+      constraints: '[]'
     }
   });
 
   // Create deal for RISKY test (high spread)
   const riskyDeal = await prisma.dealSpec.create({
     data: {
+      userId: owner.id,
       address: '456 Risky Test Ave, Miami FL',
-      policyId: policy.id,
-      dealType: 'flip',
-      rehab: {}
+      type: 'SFH',
+      maxExposureUsd: 100000,
+      targetRoiPct: 20,
+      region: 'Miami',
+      grade: 'Standard',
+      constraints: '[]'
     }
   });
 
@@ -81,7 +98,7 @@ async function main() {
       data: {
         dealId: safeDeal.id,
         vendorId: vendor1.id,
-        items: [
+        items: JSON.stringify([
           {
             trade: 'Roofing',
             task: 'Replace roof',
@@ -89,8 +106,10 @@ async function main() {
             unitPrice: 600,
             totalPrice: 9000
           }
-        ],
+        ]),
         subtotal: 9000,
+        includes: [],
+        excludes: [],
         status: 'pending'
       }
     }),
@@ -98,7 +117,7 @@ async function main() {
       data: {
         dealId: safeDeal.id,
         vendorId: vendor2.id,
-        items: [
+        items: JSON.stringify([
           {
             trade: 'Roofing',
             task: 'Replace roof',
@@ -106,8 +125,10 @@ async function main() {
             unitPrice: 6.3,
             totalPrice: 9450
           }
-        ],
+        ]),
         subtotal: 9450,
+        includes: [],
+        excludes: [],
         status: 'pending'
       }
     }),
@@ -115,7 +136,7 @@ async function main() {
       data: {
         dealId: safeDeal.id,
         vendorId: vendor3.id,
-        items: [
+        items: JSON.stringify([
           {
             trade: 'Roofing',
             task: 'Replace roof',
@@ -123,8 +144,10 @@ async function main() {
             unitPrice: 6.6,
             totalPrice: 9900
           }
-        ],
+        ]),
         subtotal: 9900,
+        includes: [],
+        excludes: [],
         status: 'pending'
       }
     })
@@ -136,7 +159,7 @@ async function main() {
       data: {
         dealId: riskyDeal.id,
         vendorId: vendor1.id,
-        items: [
+        items: JSON.stringify([
           {
             trade: 'Roofing',
             task: 'Replace roof',
@@ -144,8 +167,10 @@ async function main() {
             unitPrice: 1200,
             totalPrice: 24000
           }
-        ],
+        ]),
         subtotal: 24000,
+        includes: [],
+        excludes: [],
         status: 'pending'
       }
     }),
@@ -153,7 +178,7 @@ async function main() {
       data: {
         dealId: riskyDeal.id,
         vendorId: vendor2.id,
-        items: [
+        items: JSON.stringify([
           {
             trade: 'Roofing',
             task: 'Replace roof',
@@ -161,8 +186,10 @@ async function main() {
             unitPrice: 14,
             totalPrice: 28000
           }
-        ],
+        ]),
         subtotal: 28000,
+        includes: [],
+        excludes: [],
         status: 'pending'
       }
     }),
@@ -170,7 +197,7 @@ async function main() {
       data: {
         dealId: riskyDeal.id,
         vendorId: vendor3.id,
-        items: [
+        items: JSON.stringify([
           {
             trade: 'Roofing',
             task: 'Replace roof',
@@ -178,8 +205,10 @@ async function main() {
             unitPrice: 17,
             totalPrice: 34000
           }
-        ],
+        ]),
         subtotal: 34000,
+        includes: [],
+        excludes: [],
         status: 'pending'
       }
     })

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/prisma';
+import { requireUser } from '@/lib/auth/require-user';
+import { emitLeadEvent, buildPropertySnapshot } from '@/lib/events/emit';
 
 /**
  * POST /api/offers
@@ -20,23 +21,9 @@ import { prisma } from '@/lib/prisma';
  */
 export async function POST(request: NextRequest) {
   try {
-    const { userId: clerkId } = await auth();
-
-    if (!clerkId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    // Get internal user ID from Clerk ID
-    const user = await prisma.user.findUnique({
-      where: { clerkId },
-      select: { id: true },
-    });
-
-    if (!user) {
-      return NextResponse.json({ error: 'User not found' }, { status: 404 });
-    }
-
-    const userId = user.id;
+    const guard = await requireUser();
+    if ('error' in guard) return guard.error;
+    const userId = guard.userId;
 
     const body = await request.json();
 
@@ -63,33 +50,52 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Create offer
-    const offer = await prisma.offer.create({
-      data: {
-        userId,
-        propertyId: body.propertyId,
-        analysisId: body.analysisId,
-        amount: body.amount,
-        terms: body.terms,
-        contingencies: body.contingencies ? JSON.stringify(body.contingencies) : null,
-        closingDate: body.closingDate ? new Date(body.closingDate) : null,
-        expiresAt: body.expiresAt ? new Date(body.expiresAt) : null,
-        earnestMoney: body.earnestMoney,
-        dueDate: body.dueDate ? new Date(body.dueDate) : null,
-        notes: body.notes,
-        status: 'draft', // Always start as draft
-      },
-      include: {
-        property: {
-          select: {
-            id: true,
-            address: true,
-            city: true,
-            state: true,
-            ownerName: true,
+    // Create offer + emit the 'offer_made' behavioral outcome label in the
+    // SAME transaction (M1.1) — outcome labels are server-side, never
+    // client best-effort. Both commit or neither does.
+    const offer = await prisma.$transaction(async (tx) => {
+      const created = await tx.offer.create({
+        data: {
+          userId,
+          propertyId: body.propertyId,
+          analysisId: body.analysisId,
+          amount: body.amount,
+          terms: body.terms,
+          contingencies: body.contingencies ? JSON.stringify(body.contingencies) : null,
+          closingDate: body.closingDate ? new Date(body.closingDate) : null,
+          expiresAt: body.expiresAt ? new Date(body.expiresAt) : null,
+          earnestMoney: body.earnestMoney,
+          dueDate: body.dueDate ? new Date(body.dueDate) : null,
+          notes: body.notes,
+          status: 'draft', // Always start as draft
+        },
+        include: {
+          property: {
+            select: {
+              id: true,
+              address: true,
+              city: true,
+              state: true,
+              ownerName: true,
+            },
           },
         },
-      },
+      });
+
+      await emitLeadEvent(tx, {
+        userId,
+        propertyId: body.propertyId,
+        eventType: 'offer_made',
+        leadSnapshot: buildPropertySnapshot(property),
+        metadata: {
+          offerId: created.id,
+          amount: created.amount,
+          terms: created.terms ?? undefined,
+          source: 'api/offers#POST',
+        },
+      });
+
+      return created;
     });
 
     // Parse contingencies for response
@@ -117,23 +123,9 @@ export async function POST(request: NextRequest) {
  */
 export async function GET(request: NextRequest) {
   try {
-    const { userId: clerkId } = await auth();
-
-    if (!clerkId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    // Get internal user ID from Clerk ID
-    const user = await prisma.user.findUnique({
-      where: { clerkId },
-      select: { id: true },
-    });
-
-    if (!user) {
-      return NextResponse.json({ error: 'User not found' }, { status: 404 });
-    }
-
-    const userId = user.id;
+    const guard = await requireUser();
+    if ('error' in guard) return guard.error;
+    const userId = guard.userId;
 
     const searchParams = request.nextUrl.searchParams;
     const status = searchParams.get('status');

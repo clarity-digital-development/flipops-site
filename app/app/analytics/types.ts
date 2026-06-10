@@ -180,7 +180,9 @@ export interface FunnelStage {
   conversionToNext?: number;
 }
 
-export interface MarketingMetrics {
+// Type alias (not interface) so it satisfies recharts' Record-based
+// ChartDataInput via implicit index-signature compatibility.
+export type MarketingMetrics = {
   channel: string;
   spend: number;
   leads: number;
@@ -191,7 +193,7 @@ export interface MarketingMetrics {
   cpd: number;
   roas: number;
   romi: number;
-}
+};
 
 export interface DealProfitability {
   dealId: string;

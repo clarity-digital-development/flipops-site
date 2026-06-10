@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@clerk/nextjs/server';
 import prisma from '@/lib/prisma';
+import { requireUser } from '@/lib/auth/require-user';
 
 /**
  * POST /api/buyers
@@ -20,23 +20,9 @@ import prisma from '@/lib/prisma';
  */
 export async function POST(request: NextRequest) {
   try {
-    const { userId: clerkUserId } = await auth();
-
-    if (!clerkUserId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    // Find the internal user ID from Clerk ID
-    const user = await prisma.user.findUnique({
-      where: { clerkId: clerkUserId },
-      select: { id: true },
-    });
-
-    if (!user) {
-      return NextResponse.json({ buyers: [] }); // Return empty if no user
-    }
-
-    const userId = user.id;
+    const guard = await requireUser();
+    if ('error' in guard) return guard.error;
+    const userId = guard.userId;
 
     const body = await request.json();
 
@@ -92,23 +78,9 @@ export async function POST(request: NextRequest) {
  */
 export async function GET(request: NextRequest) {
   try {
-    const { userId: clerkUserId } = await auth();
-
-    if (!clerkUserId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    // Find the internal user ID from Clerk ID
-    const user = await prisma.user.findUnique({
-      where: { clerkId: clerkUserId },
-      select: { id: true },
-    });
-
-    if (!user) {
-      return NextResponse.json({ buyers: [] }); // Return empty if no user
-    }
-
-    const userId = user.id;
+    const guard = await requireUser();
+    if ('error' in guard) return guard.error;
+    const userId = guard.userId;
 
     const searchParams = request.nextUrl.searchParams;
     const search = searchParams.get('search');

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/prisma';
-import { calculateDistressScoreFromProperty } from '@/lib/reapi/utils/distress-scorer';
+import { requireUser } from '@/lib/auth/require-user';
+import { calculateDistressScoreFromProperty } from '@/lib/scoring/distress-scorer';
 
 // ---------------------------------------------------------------------------
 // POST /api/properties/promote — Option A Phase A5
@@ -32,19 +32,9 @@ interface PromoteBody {
 
 export async function POST(request: NextRequest) {
   try {
-    const { userId: clerkId } = await auth();
-    if (!clerkId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const dbUser = await prisma.user.findUnique({
-      where: { clerkId },
-      select: { id: true },
-    });
-    if (!dbUser) {
-      return NextResponse.json({ error: 'User not found' }, { status: 404 });
-    }
-    const userId = dbUser.id;
+    const guard = await requireUser();
+    if ('error' in guard) return guard.error;
+    const userId = guard.userId;
 
     // -----------------------------------------------------------------------
     // Validate body
@@ -129,7 +119,12 @@ export async function POST(request: NextRequest) {
       taxDelinquent: isTaxDelinquent,
       vacant: false,
       bankruptcy: false,
-      absenteeOwner: false,
+      // M1.8: Parcel.ownerOccupied is the derived situs≈mailing flag
+      // (scripts/derive-owner-occupancy.ts). Explicit FALSE means the owner's
+      // mailing address differs from the property — absentee — which feeds the
+      // scorer's ABSENTEE_FAMILY (12-pt ABSENTEE_OWNER signal). NULL (not yet
+      // derived) and TRUE both stay non-absentee.
+      absenteeOwner: parcel?.ownerOccupied === false,
       estimatedValue: parcel?.marketValue ?? null,
       assessedValue: parcel?.assessedValue ?? null,
       taxDelinquentAmount,

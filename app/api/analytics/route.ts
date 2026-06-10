@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/prisma';
+import { requireUser } from '@/lib/auth/require-user';
 
 // ----------------------------------------------------------------------------
 // Cost category buckets — Invoice rows are tagged by `trade` (HVAC, Plumbing,
@@ -110,18 +110,9 @@ async function buildCostBreakdown(
  */
 export async function GET(request: NextRequest) {
   try {
-    const { userId: clerkId } = await auth();
-    if (!clerkId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    // Look up internal user ID from Clerk ID
-    const user = await prisma.user.findUnique({
-      where: { clerkId },
-      select: { id: true }
-    });
-
-    const userId = user?.id || clerkId;
+    const guard = await requireUser();
+    if ('error' in guard) return guard.error;
+    const userId = guard.userId;
 
     const searchParams = request.nextUrl.searchParams;
     const period = parseInt(searchParams.get('period') || '30');
@@ -450,10 +441,15 @@ export async function GET(request: NextRequest) {
       // Both arrays are honest empties when no invoice rows exist; the UI
       // renders an EmptyState in that case (no Math.random() / fixtures).
       // --------------------------------------------------------------------
+      // Invoice has no `deal` relation in the schema — scope to the user's
+      // deals via dealId IN (...) instead.
+      const userDealIds = (
+        await prisma.dealSpec.findMany({ where: { userId }, select: { id: true } })
+      ).map((d) => d.id);
       const periodInvoices = await prisma.invoice.findMany({
         where: {
           createdAt: { gte: dateFrom },
-          deal: { userId },
+          dealId: { in: userDealIds },
         },
         select: {
           amount: true,
@@ -622,7 +618,7 @@ export async function GET(request: NextRequest) {
     if (tab === 'all' || tab === 'team') {
       // Get user's current team
       const currentUser = await prisma.user.findUnique({
-        where: { clerkId },
+        where: { id: userId },
         select: { currentTeamId: true }
       });
 

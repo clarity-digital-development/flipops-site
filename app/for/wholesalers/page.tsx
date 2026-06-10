@@ -18,7 +18,7 @@ import {
   ShieldCheck,
   Compass,
 } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { motion, type Variants } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Header } from '../../components/header';
 import { Footer } from '../../components/footer';
@@ -28,7 +28,7 @@ import { SectionPill } from '../../components/section-pill';
 /*  Animation helpers                                                  */
 /* ------------------------------------------------------------------ */
 
-const fadeUp = {
+const fadeUp: Variants = {
   hidden: { opacity: 0, y: 24 },
   visible: (i: number) => ({
     opacity: 1,

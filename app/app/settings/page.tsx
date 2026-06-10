@@ -52,6 +52,62 @@ interface Settings {
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
+// Settings → Integrations: live Nylas email connect/disconnect control.
+// Backed by GET /api/email/status, POST /api/email/connect (returns authUrl),
+// POST /api/email/disconnect.
+function EmailIntegrationCard() {
+  const { data, isLoading, mutate } = useSWR<{ connected: boolean; email?: string }>(
+    "/api/email/status",
+    fetcher,
+  );
+  const [busy, setBusy] = useState(false);
+
+  const handleConnect = async () => {
+    setBusy(true);
+    try {
+      const res = await fetch("/api/email/connect");
+      const json = await res.json();
+      if (res.ok && json.authUrl) {
+        window.location.href = json.authUrl;
+        return;
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleDisconnect = async () => {
+    setBusy(true);
+    try {
+      await fetch("/api/email/disconnect", { method: "POST" });
+      await mutate();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (isLoading) {
+    return <Skeleton className="h-9 w-48" />;
+  }
+
+  if (data?.connected) {
+    return (
+      <div className="flex items-center gap-3">
+        <Badge variant="secondary">Connected{data.email ? `: ${data.email}` : ""}</Badge>
+        <Button variant="outline" size="sm" onClick={handleDisconnect} disabled={busy}>
+          Disconnect
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <Button size="sm" onClick={handleConnect} disabled={busy}>
+      Connect Email
+    </Button>
+  );
+}
+
 export default function SettingsPage() {
   const { data: settings, error, isLoading, mutate } = useSWR<Settings>("/api/settings", fetcher);
   const [isSaving, setIsSaving] = useState(false);

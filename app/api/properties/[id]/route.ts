@@ -1,20 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/prisma';
+import { requireUser } from '@/lib/auth/require-user';
 
 /**
- * Helper to get the database user ID from Clerk auth
+ * Helper to get the database user ID from the canonical requireUser() guard.
+ * Returns null on any auth failure — handlers below map that to 401, which
+ * matches this route's historical behavior.
  */
 async function getDbUserId(): Promise<string | null> {
-  const { userId: clerkId } = await auth();
-  if (!clerkId) return null;
-
-  const dbUser = await prisma.user.findUnique({
-    where: { clerkId },
-    select: { id: true },
-  });
-
-  return dbUser?.id || null;
+  const guard = await requireUser();
+  if ('error' in guard) return null;
+  return guard.userId;
 }
 
 /**

@@ -19,9 +19,10 @@ flipper-primary persona, competitors = REsimpli + Goliath Data.
 - **React**: v19
 - **Styling**: Tailwind CSS v4 (not v3 - syntax differs)
 - **UI Components**: Radix UI primitives + shadcn/ui patterns
-- **Database**: Prisma ORM with PostgreSQL (Railway)
-- **Auth**: Clerk
-- **Automation**: TypeScript cron jobs (lib/cron/)
+- **Database**: Prisma ORM with PostgreSQL (Railway) — schema namespace `flipops`
+- **Auth**: Clerk is LIVE today; NextAuth migration is decided but in progress (sequenced across M1/M2/M3 in the roadmap — do not delete Clerk code early). In API routes, `requireUser()` from `lib/auth/require-user.ts` is the ONLY sanctioned auth guard — it wraps Clerk and JIT-provisions the Prisma `User` row (no more "User not found" 404s for valid sessions). Admin routes layer `requireAdmin()` from `lib/auth/require-admin.ts`.
+- **Property data**: self-scraped (FL DOR bulk + county scrapers in `lib/scrapers/`) — all third-party data vendors (REAPI/ATTOM/CoreLogic) are dead ends and their integrations have been removed
+- **Automation**: TypeScript cron jobs (lib/cron/) + BullMQ worker for scrapers
 
 ## Project Structure
 
@@ -48,7 +49,9 @@ components/             # React components
   ui/                   # Base UI components (shadcn/ui style)
 lib/                    # Core business logic
   prisma.ts             # Prisma client singleton (IMPORTANT: use this, don't create new instances)
-  reapi/                # RealEstateAPI integration
+  auth/                 # requireUser() / requireAdmin() route guards (the only sanctioned route auth)
+  scoring/              # Distress scorer v2.1 (distress-scorer.ts — moved here from the deleted lib/reapi/)
+  scrapers/             # Self-hosted county scrapers (vendors/, dispatch/, base/) — the data moat
   vendors/              # Vendor network integrations
     google-places.ts    # Google Places API (New) integration
   cron/                 # TypeScript cron automation
@@ -63,10 +66,12 @@ scripts/                # Utility scripts
   refresh-platform-vendors.ts # Refresh stale vendor data
   setup-user-vendor-network.ts # Link vendors to user accounts
 docs/                   # Documentation
+  roadmap/              # ACTIVE 90-day plan (README.md index + M1/M2/M3 + OPERATIONS)
   OFFERS_CONTRACTS.md   # Offers & contracts documentation
-  development/          # Dev guides (DECISIONS.md, UI-DECISIONS.md, TESTS.md, etc.)
+  development/          # Dev guides (FL-COVERAGE-PLAN.md, UI-DECISIONS.md, NATIONAL-EXPANSION-MAP.md, etc.)
   guardrails/           # G1-G4 implementation docs
   deployment/           # Deployment & credentials guides
+  archive/              # Historical docs moved out of active circulation (2026-06-09 cleanup)
 ```
 
 ## Critical Patterns
@@ -94,15 +99,18 @@ finally {
 
 Routes are protected via Clerk middleware. Check `middleware.ts` for the public route list.
 
-For API routes requiring auth:
+For API routes requiring auth, use the canonical guard — do NOT call Clerk's `auth()` directly
+in routes (centralizing it makes the planned NextAuth swap a 3-file change, and the guard
+JIT-provisions the Prisma `User` row from the Clerk profile):
 ```typescript
-import { auth } from '@clerk/nextjs/server';
+import { requireUser } from '@/lib/auth/require-user';
 
-const { userId: clerkId } = await auth();
-if (!clerkId) {
-  return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-}
+const guard = await requireUser();
+if ('error' in guard) return guard.error;
+const { userId } = guard; // internal Prisma User.id (NOT the Clerk id)
 ```
+
+Admin-only routes use `requireAdmin()` from `@/lib/auth/require-admin` instead.
 
 For API routes using service keys (webhooks, cron):
 ```typescript
@@ -120,7 +128,7 @@ if (!expectedKey || apiKey !== expectedKey) {
 Standard pattern for API routes:
 ```typescript
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@clerk/nextjs/server';
+import { requireUser } from '@/lib/auth/require-user';
 import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
 
@@ -128,7 +136,7 @@ const Schema = z.object({ /* ... */ });
 
 export async function POST(request: NextRequest) {
   try {
-    // 1. Auth check
+    // 1. Auth check: const guard = await requireUser(); if ('error' in guard) return guard.error;
     // 2. Parse & validate body with Zod
     // 3. Business logic
     // 4. Return JSON response
@@ -208,13 +216,22 @@ This project uses Tailwind v4, which has different syntax from v3:
 
 ## Environment Variables
 
-Required variables (see `env.sample`):
-- `DATABASE_URL` - PostgreSQL connection string
-- `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` / `CLERK_SECRET_KEY` - Clerk auth
-- `FO_API_KEY` or `FLIPOPS_API_KEY` - Internal API authentication
-- `REAPI_API_KEY` - RealEstateAPI for property data (currently expired, plan to reactivate)
+Key variables (partial list in `env.sample`; full set lives in `.env.local` / Railway):
+- `DATABASE_URL` - PostgreSQL connection string (Railway; schema namespace `flipops`)
+- `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` / `CLERK_SECRET_KEY` - Clerk auth (live)
+- `FO_API_KEY` or `FLIPOPS_API_KEY` - Internal API authentication (service-key routes)
+- `TELNYX_API_KEY` / `TELNYX_PUBLIC_KEY` / `TELNYX_DEFAULT_SMS_FROM` / `TELNYX_DEFAULT_FROM` / `TELNYX_DEFAULT_RVM_FROM` - Dialer + SMS (Telnyx replaced Campaigns/Twilio plans)
 - `BATCHDATA_API_KEY` - BatchData API for skip tracing ($0.20/record)
 - `GOOGLE_PLACES_API_KEY` - Google Places API (New) for vendor network sourcing
+- `PROXY_URL` - Residential proxy (DataImpulse) for yellow-zone scrapers (`lib/scrapers/base/http-client.ts`)
+- `STRIPE_SECRET_KEY` (+ `STRIPE_PRICE_*`) - Billing (`lib/stripe/client.ts`, `/api/billing`, `/api/webhooks/stripe`)
+- `SENTRY_DSN` / `NEXT_PUBLIC_SENTRY_DSN` - Error monitoring (optional; SDK no-ops when unset)
+- `FIRECRAWL_API_KEY` - Firecrawl scraper engine (optional)
+- `NEXT_PUBLIC_MAPBOX_TOKEN` - Map rendering
+
+There are NO third-party property-data vendor keys anymore — REAPI and ATTOM integrations
+were deleted (a stale `REAPI_API_KEY` may linger in old `.env.local` files; it is unused).
+Property data is self-scraped.
 
 ## Guardrails System (G1-G4)
 
@@ -226,27 +243,47 @@ The app implements 4 automated guardrails:
 
 See `docs/guardrails/` for implementation details.
 
-## Feature Status (Last Reviewed: 2026-01-30, Updated: 2026-01-30)
+## Feature Status (Last Reviewed: 2026-06-09)
 
 > **Note**: Vendor Network System added 2026-01-30. Production-default — vendors UI fetches from `/api/vendors/my` and `/api/vendors/platform` (no demo fallback). Google Places integration, tiered access, and admin scripts wired.
 
 ### ✅ FULLY IMPLEMENTED & WORKING
 
+#### Scrape-First Data Layer (the moat)
+Self-scraped property data replaced all third-party vendors:
+- **10,998,035 FL parcels** — 67/67 counties via FL DOR NAL/SDF bulk ingest (`Parcel` table)
+- **1,976,625 sale events** (`ParcelSale`) — now powering the real comps endpoint
+- **105K+ tax-delinquent records** (~$687M owed), foreclosure/auction records from county scrapers (`lib/scrapers/`)
+- **Real comps**: `/api/comps` queries `ParcelSale JOIN Parcel` (same county, sqft/yearBuilt windows, arms-length `qualCode` filter, haversine distance when coords exist) — consumed by the Underwriting page
+- **Data Health & Coverage page** at `/app/data-sources` (in the sidebar, all personas) — live headline counts, 67-county coverage grid, per-source freshness from `ScrapeRegistry`/`BulkIngestJob`; backed by `/api/data-health`
+- Statewide geocode (lat/lng) + owner-occupancy backfills: ingesters/scripts built, full statewide runs still queued (see roadmap M1.3/M1.8)
+
+#### Behavioral Label Pipeline (LeadEvent — shipped 2026-06-09)
+ML training labels now accrue instead of being silently dropped:
+- `lib/events/emit.ts` — `emitLeadEvent(tx?)` writes `LeadEvent` rows with a scoring snapshot (scorer version + per-family breakdown); pass the `$transaction` client for outcome events
+- Anonymous events accepted at `/api/leads/events` (public in `middleware.ts`) with a client-generated `sessionId` from `lib/behavior/client.ts`; linked to users post-signup via `/api/leads/events/link` (protected); every rejection logs loudly — no silent drops
+- Outcome labels (`offer_made`, `contract_signed`, `closed`) emit transactionally inside the Offer/Contract API route `$transaction`s — never client best-effort
+- Inbound Telnyx SMS stamps `CampaignRecipient.repliedAt` + `Campaign.replyCount` (`lib/telnyx/webhook-router.ts`, non-fatal best-effort)
+- Health stat: `/api/admin/events-health` (today + 7-day event counts, anonymous share, per-day buckets)
+
 #### Cron/Automation System (lib/cron/)
-All 9 scheduled workflows are implemented and production-ready:
+All 8 scheduled workflows are implemented and production-ready, split across two services:
 
-| Workflow | Schedule | Status |
-|----------|----------|--------|
-| G1 - Deal Approval Alert | Every 15 min | ✅ Full |
-| G2 - Bid Spread Alert | Every 15 min | ✅ Full |
-| G3 - Invoice Budget Alert | Every 15 min | ✅ Full |
-| G4 - Change Order Alert | Every 15 min | ✅ Full |
-| Pipeline Monitoring | Daily 9:00 AM | ✅ Full |
-| Contractor Performance | Daily 10:00 AM | ✅ Full |
-| Skip Tracing (BatchData) | Weekly Sunday 7:00 AM | ✅ Full |
-| Data Refresh Sync | Daily 8:00 AM | ✅ Full |
+| Workflow | Schedule | Runs on |
+|----------|----------|---------|
+| G1 - Deal Approval Alert | Every 15 min | cron worker (`npm run worker`) |
+| G2 - Bid Spread Alert | Every 15 min | cron worker |
+| G3 - Invoice Budget Alert | Every 15 min | cron worker |
+| G4 - Change Order Alert | Every 15 min | cron worker |
+| Data Refresh Sync | Daily 8:00 UTC | worker-bullmq (Railway service) |
+| Pipeline Monitoring | Daily 9:00 UTC | worker-bullmq |
+| Contractor Performance | Daily 10:00 UTC | worker-bullmq |
+| Skip Tracing (BatchData) | Weekly Sunday 7:00 UTC | worker-bullmq |
 
-Run with: `npm run worker` or individual: `npm run cron:g1`
+G1-G4 stay on the node-cron worker (process isolation via execSync); the daily/weekly
+monitoring + discovery jobs migrated to the worker-bullmq Railway service
+(`npm run worker:bullmq`, see `lib/cron/worker-bullmq-monitoring.ts`), which also runs
+scraper dispatch queues. Individual runs: `npm run cron:g1` etc.
 
 #### Guardrails API (G1-G4)
 All guardrail endpoints have full implementation with auth:
@@ -256,13 +293,14 @@ All guardrail endpoints have full implementation with auth:
 - **G4** `/api/change-orders/submit` - CO evaluation with simulation
 
 #### Distress Scoring Algorithm
-Location: `lib/reapi/utils/distress-scorer.ts` (v2.0)
+Location: `lib/scoring/distress-scorer.ts` (v2.1, signal-family MAX composition)
 - 0-100 scale with weighted signals
-- HIGH signals: Pre-foreclosure (25), Auction (25), Liens (20)
+- HIGH signals: Pre-foreclosure (25), Auction (25), Future auction (25 base + proximity boost), Lis pendens (22), Liens (20) — FORECLOSURE_FAMILY takes MAX within family before cross-family summing
 - MEDIUM signals: Vacant (15), Out-of-state owner (15), Inherited (15)
 - LOW signals: High equity (10), Long-term owner (15), Portfolio owner (10)
-- Integrated with REAPI search (scoring on-the-fly)
+- Consumed at promote time (`/api/properties/promote`) and mirrored by materialized rescore scripts (`scripts/rescore-tax-delinquent.ts`, `scripts/rescore-auction.ts`)
 - Grade thresholds: A (65+), B (50-64), C (35-49), D (20-34), F (0-19)
+- Tests: `tests/scoring/scorer-v2.1.test.ts`
 
 #### Skip Trace Integration (BatchData)
 - Auto-enrichment for properties scoring 70+
@@ -291,7 +329,7 @@ Complete schema covering:
   - `VendorCategory` enum - 28 trade types (GENERAL_CONTRACTOR, ROOFER, PLUMBER, etc.)
 
 #### UI Pages (app/app/)
-17 authenticated pages: Dashboard, Leads, Tasks, Contracts, Renovations, Rentals, Offers, Underwriting, Dialer, Inbox, Documents (with folder navigation, 3 view modes, template library), Analytics, Settings, Vendors (with network system), Buyers, Onboarding
+Authenticated pages: Dashboard, Leads, Tasks, Contracts, Renovations, Rentals, Offers, Underwriting, Dialer, Inbox, Documents (with folder navigation, 3 view modes, template library), Analytics, Data Health (`/app/data-sources`, added 2026-06-09), Settings, Vendors (with network system), Buyers, Onboarding
 
 #### Demo Data System
 For pre-beta preview, non-admin users see demo data:
@@ -305,20 +343,13 @@ For pre-beta preview, non-admin users see demo data:
 
 1. **Properties Ingest Scoring**
    - `/api/properties/ingest` is generic endpoint (manual imports)
-   - REAPI path scores correctly with full distress algorithm
+   - Promote path (`/api/properties/promote`) scores with the full distress algorithm
    - BatchData is skip-trace only (not property import)
-
-### 🔴 NOT WORKING / BLOCKED
-
-1. **REAPI Key Expired**
-   - Property search on leads page fails
-   - Plan: Reactivate when going live ($599/mo for 30K credits)
 
 ### 📋 NOT STARTED (From Roadmap)
 
-- Outreach: Built-in dialer, SMS/text campaigns, email campaigns (Twilio)
+See `docs/roadmap/README.md` for the authoritative backlog. Long-tail items not yet started:
 - Direct mail integration (Lob/PostGrid)
-- ARV calculator, repair cost estimator, 70% rule calculator
 - Role-based permissions
 - Zapier/Make integration
 - Native mobile app
@@ -381,7 +412,7 @@ Completely redesigned with:
 - **Account & Security** - Link to Clerk security management, delete account (disabled during beta)
 - **Viewport-Fitting Layout** - Uses `h-full flex flex-col overflow-hidden` pattern
 - **Server Persistence** - Settings saved via `/api/user` PUT endpoint
-- **Integrations Tab** - Coming Q2 2025 placeholder with planned integrations grid
+- **Integrations Tab** - Placeholder with planned integrations grid (not yet built)
 
 Settings Form Data:
 ```typescript
@@ -955,7 +986,7 @@ return (
 
 ### UI/UX Fixes (2026-01-29)
 
-See `docs/development/DECISIONS.md` for comprehensive documentation.
+See `docs/development/UI-DECISIONS.md` for comprehensive documentation.
 
 #### Global Styling (`app/globals.css`)
 - **Font**: TikTok Sans via `--font-sans` variable
@@ -974,12 +1005,11 @@ See `docs/development/DECISIONS.md` for comprehensive documentation.
 - **Status Bar**: Minimal footer with `py-0.5 text-[11px]`
 - **Seed Data**: 16 sample properties for demo/development fallback
 
-### Pre-existing TypeScript Errors (Not from redesign)
+### TypeScript Health (Resolved 2026-06-09)
 
-These errors exist in `.next/dev/types/` and need separate fix:
-- Next.js 16 requires `Promise<params>` pattern in dynamic routes
-- Old debug routes still in cache (run `rm -rf .next` to clear)
-- Some Prisma type issues with `BidItem` and nullable fields
+`npm run typecheck` exits 0 (root + workers) as of the M1 cleanup. Notes:
+- Next.js 16 requires the `Promise<params>` pattern in dynamic routes — all routes conform
+- Stale `.next/types` artifacts can reference deleted routes — run `rm -rf .next` to clear
 
 ## Security Status (Fixed 2026-01-28)
 
@@ -1009,9 +1039,12 @@ PORT=3007 npm run dev     # Custom port
 ### Database operations
 ```bash
 npm run prisma:generate   # Regenerate Prisma client
-npm run prisma:migrate    # Run migrations
-npm run prisma:studio     # Open database GUI
+npm run prisma:push       # Sync schema to DB (prisma db push — the ONLY safe schema sync)
+npx prisma studio         # Open database GUI
 ```
+
+**NEVER run `prisma migrate dev`** (the legacy `prisma:migrate` npm script invokes it):
+migration drift against the live Railway DB will offer to reset and WIPE data. `db push` only.
 
 ### Seed demo data
 ```bash
@@ -1054,82 +1087,26 @@ npm run cron:skip-trace     # Skip Tracing & Enrichment
 npm run cron:all            # Run all cron jobs sequentially
 ```
 
-## Homepage / Landing Page (Updated 2026-02-10)
+## Homepage / Landing Page (Updated 2026-06-09)
 
-The marketing homepage (`app/page.tsx`) has been redesigned with differentiated sections that convert investors.
+The marketing homepage (`app/page.tsx`) is a slim v2 page. The earlier v1 sections
+(ROICalculator, ScoringEngine, KPICards, GuardrailsSection, ToolConsolidation, Process, FAQs,
+old Hero) were DELETED in the 2026-06-09 dead-code cleanup — do not reference those components.
 
-### Current Section Order
+### Current Section Order (verified against `app/page.tsx`)
 ```tsx
-<Hero />
-<ROICalculator />
-<ScoringEngine />        // NEW - Behavioral learning
-<KPICards />
-<FeatureTabs />
-<GuardrailsSection />
-<ToolConsolidation />    // NEW - Tool stack comparison
-<ProjectManagementShowcase />
-<Process />
-<FAQs />
-<FinalCTA />
+<Header />
+<main>
+  <Hero />              {/* HeroV2 from app/components/hero-v2.tsx (uses interactive-score-demo + trust-bar) */}
+  <PersonaRouting />    {/* app/components/persona-routing.tsx */}
+  <FeatureTabs />       {/* FeatureTabsV2 from app/components/feature-tabs-v2.tsx */}
+  <SavingsCalculator /> {/* app/components/savings-calculator.tsx */}
+  <FinalCTA />          {/* app/components/final-cta.tsx */}
+</main>
+<Footer />              {/* app/components/footer.tsx (uses newsletter-form) */}
 ```
 
-### Tool Consolidation Section (`app/components/tool-consolidation.tsx`)
-**Purpose:** Show investors the real dollar cost of their fragmented tool stack vs FlipOps all-in-one.
-
-**Key Design Decisions:**
-- Single comparison table layout (not two-card with arrow - too scroll-heavy)
-- Title: "The All-in-One They Promised. Actually Built."
-- Badge: "The Hidden Cost of Fragmentation"
-- 6 tool categories with competitor names, prices, and pain points
-- Dynamic totals: $402+/mo and $4,824+/yr savings calculated from data
-- Footnote mentions additional tools not counted (Salesforce, Mailchimp, QuickBooks, REIsift)
-
-**Data Structure:**
-```typescript
-const toolComparison = [
-  { category: 'Data & Leads', current: { name: 'PropStream', cost: 99, pain: '...' }, flipops: '...' },
-  { category: 'Skip Tracing', current: { name: 'BatchLeads', cost: 99, pain: '...' }, flipops: '...' },
-  { category: 'CRM', current: { name: 'REsimpli', cost: 99, pain: '...' }, flipops: '...' },
-  { category: 'Contracts', current: { name: 'PandaDoc', cost: 30, pain: '...' }, flipops: '...' },
-  { category: 'Project Tracking', current: { name: 'smrtPhone', cost: 75, pain: '...' }, flipops: '...' },
-  { category: 'Rental Portfolio', current: { name: 'Spreadsheet', cost: 0, pain: '...' }, flipops: '...' },
-];
-```
-
-### Scoring Engine Section (`app/components/scoring-engine.tsx`)
-**Purpose:** Communicate ML-powered personalized scoring without using gimmicky "AI" language.
-
-**Key Design Decisions:**
-- Title: "A Scoring Engine That Learns How You Invest"
-- Subtitle: "Every investor has a strategy. FlipOps learns yours."
-- Badge: "Behavioral Learning" (purple)
-- Three-step visual flow (auto-cycles, clickable):
-  1. "You work deals" - Shows leads with Pursued/Skipped badges
-  2. "The algorithm watches" - Animated cycling through 15+ behavioral signals
-  3. "Your scores adapt" - Side-by-side personalization demo
-
-**Personalization Demo:**
-- Two investor profiles: Jake M. (Wholesaler, Phoenix) vs Sarah R. (Flipper, Atlanta)
-- Same interface, completely different top leads and scores
-- Key insight callout: "A wholesaler in Phoenix and a flipper in Atlanta get different top leads — because they should."
-
-**15+ Behavioral Signals Tracked:**
-- Price ranges you pursue
-- Distress profiles you click
-- Property types you skip
-- Markets where you close
-- Deal sizes you prefer
-- Rehab levels you target
-- (and more cycling through animation)
-
-### Guardrails Section (`app/components/guardrails-section.tsx`)
-**Purpose:** Show automated alerts that protect investor margins.
-
-**Key Design Decisions:**
-- Title: "Guardrails That Watch Your Back"
-- Three connected cards (Budget Alert, Deadline Warning, Margin Alert)
-- Each card shows realistic alert data with property addresses
-- Stats footer shows tracking depth (e.g., "12+ cost categories tracked per deal")
+All sections below the hero are `next/dynamic` imports.
 
 ### Homepage 3D Premium Design System
 All homepage sections use a premium "3D floating card" treatment (Apple/Linear aesthetic):

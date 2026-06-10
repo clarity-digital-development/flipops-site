@@ -360,7 +360,7 @@ export const InvoiceDocument: React.FC<{ data: InvoiceData }> = ({ data }) => {
           {data.lineItems.map((item, index) => (
             <View
               key={index}
-              style={[styles.tableRow, index % 2 === 1 && styles.tableRowAlt]}
+              style={index % 2 === 1 ? [styles.tableRow, styles.tableRowAlt] : styles.tableRow}
             >
               <Text style={styles.col1}>{item.description}</Text>
               <Text style={styles.col2}>{item.quantity}</Text>

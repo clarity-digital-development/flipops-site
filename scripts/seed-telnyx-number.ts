@@ -32,15 +32,31 @@ async function main() {
   const connectionId =
     process.env.TELNYX_CALL_CONTROL_CONNECTION_ID ?? null;
 
-  const user = ownerEmail
+  let user = ownerEmail
     ? await prisma.user.findFirst({ where: { email: ownerEmail } })
     : await prisma.user.findFirst({ orderBy: { createdAt: "asc" } });
 
+  if (!user && ownerEmail) {
+    // M1.1/OPS-4: JIT-provision the owner User instead of throwing — mirrors
+    // requireUser()'s provisioning defaults. Idempotent via upsert on the
+    // unique email column (concurrent runs collapse to one row).
+    user = await prisma.user.upsert({
+      where: { email: ownerEmail },
+      update: {},
+      create: {
+        email: ownerEmail,
+        targetMarkets: "[]", // required column; user completes onboarding later
+      },
+    });
+    console.log("[seed-telnyx-number] provisioned User", {
+      id: user.id,
+      email: user.email,
+    });
+  }
+
   if (!user) {
     throw new Error(
-      ownerEmail
-        ? `No User found with email=${ownerEmail}`
-        : "No User rows in DB — sign in to FlipOps once so a User row is created via Clerk webhook before running this seed.",
+      "No User rows in DB and TELNYX_OWNER_EMAIL is not set — set TELNYX_OWNER_EMAIL so this seed can provision the owner User automatically.",
     );
   }
 

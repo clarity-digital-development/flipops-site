@@ -17,7 +17,7 @@ import { prisma } from "@/lib/prisma";
 //   3. Manual invocation:  DATABASE_URL=... npx tsx scripts/rescore-tax-delinquent.ts
 //      Optional --county <FIPS> flag to scope to a single county.
 //
-// Score formula (mirrors quickDistressScore in lib/reapi/utils/distress-scorer.ts
+// Score formula (mirrors quickDistressScore in lib/scoring/distress-scorer.ts
 // for the tax-delinquent path; the synthesizer's plan A3 will land the full
 // algorithm — this is the inline SQL version optimized for batch aggregation):
 //   base = 20            (HIGH-tier signal weight, matches existing Liens=20)
@@ -101,25 +101,46 @@ export async function refreshTaxDelinquencySummary(opts: { countyFips?: string }
       END AS "grade",
       (
         CASE WHEN sub."yearsCount" >= 3 THEN 'Multi-year tax delinquency' ELSE 'Tax delinquent' END
-        || ' (' || sub."yearsCount" || ' year' || (CASE WHEN sub."yearsCount" = 1 THEN '' ELSE 's' END) || ', $'
-        || TRIM(TO_CHAR(sub."totalAmount", 'FM999G999G999G990D00')) || ' owed)'
+        || ' (' || sub."yearsCount" || ' year' || (CASE WHEN sub."yearsCount" = 1 THEN '' ELSE 's' END)
+        -- Only claim a dollar figure when we actually captured amounts for
+        -- this parcel — counties whose source omits amounts (e.g. the
+        -- Hillsborough public delinquent report) otherwise render a
+        -- misleading "$0.00 owed".
+        || CASE
+             WHEN sub."totalAmount" > 0
+             THEN ', $' || TRIM(TO_CHAR(sub."totalAmount", 'FM999G999G999G990D00')) || ' owed)'
+             ELSE ', amount unverified)'
+           END
       ) AS "motivation",
       NOW() AS "computedAt"
     FROM (
       SELECT
-        l."countyFips",
-        l."apn",
-        COALESCE(SUM(l."amount"), 0)::float                                          AS "totalAmount",
-        COUNT(DISTINCT SUBSTRING(l."lienTypeCode" FROM 'DELINQUENT_TAX_(\\d+)'))::int AS "yearsCount",
-        MIN(SUBSTRING(l."lienTypeCode" FROM 'DELINQUENT_TAX_(\\d+)')::int)            AS "earliestYear",
-        MAX(SUBSTRING(l."lienTypeCode" FROM 'DELINQUENT_TAX_(\\d+)')::int)            AS "latestYear",
+        d."countyFips",
+        d."apn",
+        COALESCE(SUM(d."amount"), 0)::float                                          AS "totalAmount",
+        COUNT(DISTINCT SUBSTRING(d."lienTypeCode" FROM 'DELINQUENT_TAX_(\\d+)'))::int AS "yearsCount",
+        MIN(SUBSTRING(d."lienTypeCode" FROM 'DELINQUENT_TAX_(\\d+)')::int)            AS "earliestYear",
+        MAX(SUBSTRING(d."lienTypeCode" FROM 'DELINQUENT_TAX_(\\d+)')::int)            AS "latestYear",
         COUNT(*)::int                                                                 AS "certificateCount"
-      FROM flipops."Lien" l
-      WHERE l."lienCategory" = 'tax'
-        AND l."apn" IS NOT NULL
-        ${countyFilter}
-      GROUP BY l."countyFips", l."apn"
-      HAVING COUNT(DISTINCT SUBSTRING(l."lienTypeCode" FROM 'DELINQUENT_TAX_(\\d+)')) > 0
+      FROM (
+        -- Dedupe to ONE row per delinquency BEFORE aggregating. Every scrape
+        -- run writes a distinct source tag ('scraper:<metro>-tax-<date>'), so
+        -- the same (apn, documentNumber) accumulates one Lien row per run.
+        -- Summing across runs double-counts the same delinquency — e.g. Palm
+        -- Beach showed $18.6M from two runs of a true $9.3M universe
+        -- (M1.4 / AUDIT-A1 data-quality bug). Keep only the most recently
+        -- captured row per (countyFips, apn, documentNumber).
+        SELECT DISTINCT ON (l."countyFips", l."apn", l."documentNumber")
+          l."countyFips", l."apn", l."documentNumber", l."amount", l."lienTypeCode"
+        FROM flipops."Lien" l
+        WHERE l."lienCategory" = 'tax'
+          AND l."apn" IS NOT NULL
+          ${countyFilter}
+        ORDER BY l."countyFips", l."apn", l."documentNumber",
+                 l."recordingDate" DESC, l."source" DESC
+      ) d
+      GROUP BY d."countyFips", d."apn"
+      HAVING COUNT(DISTINCT SUBSTRING(d."lienTypeCode" FROM 'DELINQUENT_TAX_(\\d+)')) > 0
     ) sub
     ON CONFLICT ("countyFips", "apn") DO UPDATE SET
       "totalAmount"      = EXCLUDED."totalAmount",

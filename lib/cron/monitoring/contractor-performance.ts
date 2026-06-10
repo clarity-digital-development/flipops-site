@@ -13,7 +13,6 @@ import {
   sendSlackNotification,
   formatCurrency,
   formatPercent,
-  calculateContractorReliability,
 } from '../shared';
 
 const logger = createLogger('Contractor Performance');
@@ -77,7 +76,7 @@ async function contractorPerformanceTracking() {
         const sent = await sendContractorAlert(
           user.slackWebhook!,
           flaggedContractors,
-          user.name
+          user.name ?? 'Unknown'
         );
 
         if (sent) {

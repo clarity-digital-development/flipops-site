@@ -8,17 +8,29 @@ async function main() {
   // Find or create a test deal with ARV
   const dealId = 'cmfw2sw5r000dmfw4bcqpg3o8'; // Same ID used in G3
 
+  // Seed owner for multi-tenant rows (DealSpec.userId is required).
+  const seedUser = await prisma.user.upsert({
+    where: { email: 'seed@flipops.local' },
+    update: {},
+    create: {
+      email: 'seed@flipops.local',
+      name: 'Seed User',
+      targetMarkets: '[]',
+    },
+  });
+
   // Update the deal to include ARV and proper guardrails
   const deal = await prisma.dealSpec.upsert({
     where: { id: dealId },
     create: {
       id: dealId,
+      userId: seedUser.id,
       address: '456 Budget St, Miami, FL 33133',
       type: 'SFH',
       maxExposureUsd: 150000,  // Max P80 exposure
       targetRoiPct: 15,         // Minimum ROI target
       arv: 300000,              // After Repair Value
-      constraints: []
+      constraints: '[]' // JSON-string column
     },
     update: {
       arv: 300000,              // Add ARV to existing deal
@@ -39,7 +51,8 @@ async function main() {
     where: { dealId },
     create: {
       dealId,
-      baseline: {
+      // BudgetLedger stores trade maps as JSON strings
+      baseline: JSON.stringify({
         total: 125000,
         HVAC: 19000,
         Roofing: 25000,
@@ -48,17 +61,17 @@ async function main() {
         Flooring: 18000,
         Painting: 11000,
         Kitchen: 25000
-      },
-      committed: {
+      }),
+      committed: JSON.stringify({
         total: 59000,  // Committed from G2 awards
         HVAC: 19000,
         Roofing: 25000,
         Electrical: 15000
-      },
-      actuals: {
+      }),
+      actuals: JSON.stringify({
         total: 0  // Reset for clean testing
-      },
-      variance: {},
+      }),
+      variance: '{}',
       contingencyRemaining: 10000
     },
     update: {

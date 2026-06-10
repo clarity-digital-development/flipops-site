@@ -707,7 +707,7 @@ export default function AnalyticsPage() {
                               <YAxis tick={{ fontSize: 11, fill: '#6b7280' }} axisLine={{ stroke: '#e5e7eb' }} tickLine={false} />
                               <Tooltip content={<CustomTooltip formatter={(v) => formatNumber(v)} />} cursor={{ fill: 'hsl(var(--muted))', opacity: 0.3 }} />
                               <Bar dataKey="count" fill="url(#funnelGradient)" radius={[6, 6, 0, 0]} className="drop-shadow-sm">
-                                <LabelList dataKey="percentage" position="top" formatter={(v: number) => `${v}%`} fontSize={10} fill="#6b7280" />
+                                <LabelList dataKey="percentage" position="top" formatter={(v: unknown) => `${v}%`} fontSize={10} fill="#6b7280" />
                               </Bar>
                             </BarChart>
                           </ResponsiveContainer>

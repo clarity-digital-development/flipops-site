@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@clerk/nextjs/server';
 import prisma from '@/lib/prisma';
+import { requireUser } from '@/lib/auth/require-user';
 import { VendorCategory, VendorStatus } from '@prisma/client';
 
 /**
@@ -17,21 +17,10 @@ import { VendorCategory, VendorStatus } from '@prisma/client';
  */
 export async function GET(request: NextRequest) {
   try {
-    const { userId: clerkUserId } = await auth();
-
-    if (!clerkUserId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    // Get the user to check for existing relationships
-    const user = await prisma.user.findUnique({
-      where: { clerkId: clerkUserId },
-      select: { id: true },
-    });
-
-    if (!user) {
-      return NextResponse.json({ error: 'User not found' }, { status: 404 });
-    }
+    const guard = await requireUser();
+    if ('error' in guard) return guard.error;
+    // The user id is needed below to check for existing relationships
+    const user = { id: guard.userId };
 
     const searchParams = request.nextUrl.searchParams;
     const marketId = searchParams.get('marketId');

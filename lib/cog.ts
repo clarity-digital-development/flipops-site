@@ -50,10 +50,18 @@ export async function simulateCO(params: {
   }
 
   // 2) Get baseline costs from ledger
-  // Parse JSON fields with proper typing
-  const baseline = (ledger?.baseline as Record<string, number>) || {};
-  const committed = (ledger?.committed as Record<string, number>) || {};
-  const actuals = (ledger?.actuals as Record<string, number>) || {};
+  // BudgetLedger stores trade maps as JSON strings — parse defensively.
+  const parseLedgerMap = (raw: string | null | undefined): Record<string, number> => {
+    if (!raw) return {};
+    try {
+      return JSON.parse(raw) ?? {};
+    } catch {
+      return {};
+    }
+  };
+  const baseline = parseLedgerMap(ledger?.baseline);
+  const committed = parseLedgerMap(ledger?.committed);
+  const actuals = parseLedgerMap(ledger?.actuals);
 
   // Calculate current total cost (use committed if available, otherwise baseline)
   const totalBaseline = baseline.total || 0;

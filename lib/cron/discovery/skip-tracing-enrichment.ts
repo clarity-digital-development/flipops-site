@@ -175,7 +175,7 @@ async function skipTracingEnrichment() {
         // Send Slack notification
         const stats: EnrichmentStats = {
           userId: user.id,
-          userName: user.name,
+          userName: user.name ?? 'Unknown',
           processed: properties.length,
           successes,
           failures,

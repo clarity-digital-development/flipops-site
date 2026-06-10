@@ -59,6 +59,7 @@ export async function sendEmail(options: SendEmailOptions): Promise<SendEmailRes
         Name: att.name,
         Content: att.content,
         ContentType: att.contentType,
+        ContentID: null,
       })),
     });
 

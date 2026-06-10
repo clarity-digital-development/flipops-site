@@ -47,14 +47,15 @@ export async function GET(req: NextRequest) {
   // Pull every dispatch-audit row in the window. Volume is low at v0
   // (single-digit-per-minute peak) so we can do this client-side. Once we
   // outgrow that, push the aggregations down into GROUP BY SQL.
-  let rows: Array<{ sourceTag: string; status: string; createdAt: Date }> = [];
+  // BulkIngestJob has no createdAt column — startedAt is the row timestamp.
+  let rows: Array<{ sourceTag: string; status: string; startedAt: Date }> = [];
   try {
     rows = await prisma.bulkIngestJob.findMany({
       where: {
         sourceTag: { startsWith: "dialer-dispatch:" },
-        createdAt: { gte: from, lte: to },
+        startedAt: { gte: from, lte: to },
       },
-      select: { sourceTag: true, status: true, createdAt: true },
+      select: { sourceTag: true, status: true, startedAt: true },
       take: 5000,
     });
   } catch (err) {

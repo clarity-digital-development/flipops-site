@@ -28,6 +28,7 @@ import {
   Send,
   GitBranch,
   HardHat,
+  Database,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -98,6 +99,8 @@ const baseSidebar: SidebarEntry[] = [
     ],
   },
   { name: "Analytics", href: "/app/analytics", icon: BarChart },
+  // No visibleTo restriction — Data Health is visible to all personas.
+  { name: "Data Health", href: "/app/data-sources", icon: Database },
 ];
 
 // ============================================================================

@@ -427,7 +427,7 @@ export const ContractDocument: React.FC<{ data: ContractData }> = ({ data }) => 
               {data.scopeItems.map((item, index) => (
                 <View
                   key={index}
-                  style={[styles.scopeRow, index % 2 === 1 && styles.scopeRowAlt]}
+                  style={index % 2 === 1 ? [styles.scopeRow, styles.scopeRowAlt] : styles.scopeRow}
                 >
                   <Text style={styles.scopeCol1}>{item.description}</Text>
                   <Text style={styles.scopeCol2}>{item.quantity}</Text>

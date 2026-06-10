@@ -5,6 +5,12 @@ async function createTestBudgetData() {
   console.log('🏗️  Creating test budget data...\n');
 
   try {
+    // DealSpec.userId is required — own test rows via the local seed user.
+    const owner = await prisma.user.upsert({
+      where: { email: 'seed@flipops.local' },
+      update: {},
+      create: { email: 'seed@flipops.local', name: 'Seed User', targetMarkets: '[]' },
+    });
     // Get all existing deals
     const deals = await prisma.dealSpec.findMany({
       include: {
@@ -66,7 +72,7 @@ async function createTestBudgetData() {
       ];
 
       for (const dealData of sampleDeals) {
-        await prisma.dealSpec.create({ data: dealData });
+        await prisma.dealSpec.create({ data: { ...dealData, userId: owner.id } });
       }
 
       console.log('✅ Created 4 sample deals\n');

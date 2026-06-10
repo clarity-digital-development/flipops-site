@@ -14,13 +14,22 @@ async function createTestBlockedDeal() {
     if (!existingDeal) {
       console.log('❌ No deals found. Creating a test deal first...');
 
-      // Create a test deal
+      // DealSpec.userId is required — own test rows via the local seed user.
+      const owner = await prisma.user.upsert({
+        where: { email: 'seed@flipops.local' },
+        update: {},
+        create: { email: 'seed@flipops.local', name: 'Seed User', targetMarkets: '[]' },
+      });
+
+      // Create a test deal (DealSpec has no `mao` column — dropped)
       const testDeal = await prisma.dealSpec.create({
         data: {
+          userId: owner.id,
           address: '5678 Desert View Dr, Phoenix, AZ',
+          type: 'SFH',
           maxExposureUsd: 300000,
           targetRoiPct: 20,
-          mao: 280000
+          constraints: '[]'
         }
       });
 

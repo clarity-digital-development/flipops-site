@@ -1,16 +1,14 @@
-import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/prisma";
+import { requireUser } from "@/lib/auth/require-user";
 import { NextResponse } from "next/server";
 
 export async function GET() {
   try {
-    const { userId: clerkId } = await auth();
-    if (!clerkId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const guard = await requireUser();
+    if ("error" in guard) return guard.error;
 
     const user = await prisma.user.findFirst({
-      where: { clerkId },
+      where: { id: guard.userId },
       select: {
         timezone: true,
         currency: true,
@@ -40,15 +38,13 @@ export async function GET() {
 
 export async function PUT(request: Request) {
   try {
-    const { userId: clerkId } = await auth();
-    if (!clerkId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const guard = await requireUser();
+    if ("error" in guard) return guard.error;
 
     const body = await request.json();
 
     const user = await prisma.user.findFirst({
-      where: { clerkId },
+      where: { id: guard.userId },
     });
 
     if (!user) {

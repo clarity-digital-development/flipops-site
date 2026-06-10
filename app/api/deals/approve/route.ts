@@ -11,7 +11,7 @@ const ApprovalRequestSchema = z.object({
   dealId: z.string().min(1, 'Deal ID is required'),
   region: z.string().min(1, 'Region is required'),
   grade: z.enum(['Standard', 'Premium', 'Luxury'], {
-    errorMap: () => ({ message: 'Grade must be Standard, Premium, or Luxury' })
+    message: 'Grade must be Standard, Premium, or Luxury'
   })
 });
 
@@ -69,14 +69,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 2. Load Policy for region/grade
-    const policy = await prisma.policy.findUnique({
-      where: {
-        region_grade: {
-          region,
-          grade
-        }
-      }
+    // 2. Load Policy for region/grade.
+    // Policy is unique on (userId, region, grade); this API-key automation
+    // endpoint has no user context, so prefer the global default (userId null).
+    const policy = await prisma.policy.findFirst({
+      where: { region, grade },
+      orderBy: { userId: { sort: 'asc', nulls: 'first' } }
     });
 
     if (!policy) {

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@clerk/nextjs/server';
 import prisma from '@/lib/prisma';
+import { requireUser } from '@/lib/auth/require-user';
 import { VendorCategory } from '@prisma/client';
 
 interface RouteContext {
@@ -16,21 +16,10 @@ interface RouteContext {
  */
 export async function GET(request: NextRequest, context: RouteContext) {
   try {
-    const { userId: clerkUserId } = await auth();
+    const guard = await requireUser();
+    if ('error' in guard) return guard.error;
+    const user = { id: guard.userId };
     const { id } = await context.params;
-
-    if (!clerkUserId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const user = await prisma.user.findUnique({
-      where: { clerkId: clerkUserId },
-      select: { id: true },
-    });
-
-    if (!user) {
-      return NextResponse.json({ error: 'User not found' }, { status: 404 });
-    }
 
     const searchParams = request.nextUrl.searchParams;
     const status = searchParams.get('status');
@@ -123,21 +112,10 @@ export async function GET(request: NextRequest, context: RouteContext) {
  */
 export async function POST(request: NextRequest, context: RouteContext) {
   try {
-    const { userId: clerkUserId } = await auth();
+    const guard = await requireUser();
+    if ('error' in guard) return guard.error;
+    const user = { id: guard.userId };
     const { id } = await context.params;
-
-    if (!clerkUserId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const user = await prisma.user.findUnique({
-      where: { clerkId: clerkUserId },
-      select: { id: true },
-    });
-
-    if (!user) {
-      return NextResponse.json({ error: 'User not found' }, { status: 404 });
-    }
 
     const body = await request.json();
 

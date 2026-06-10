@@ -24,7 +24,7 @@ async function main() {
     GROUP BY "countyFips" ORDER BY n DESC`;
 
   console.log("[1] Coverage by county:");
-  let total = 0n;
+  let total = BigInt(0); // tsconfig targets ES2017 — no BigInt literals
   for (const r of byCounty) {
     const fipsName = await getCountyName(r.countyFips);
     console.log(`  ${r.countyFips}  ${fipsName.padEnd(20)} ${r.n.toLocaleString().padStart(10)}`);

@@ -9,8 +9,8 @@ import {
   calculateDistressScore,
   calculateDistressScoreFromProperty,
   SIGNAL_FAMILIES,
-} from '@/lib/reapi/utils/distress-scorer';
-import type { REAPIPropertyData } from '@/lib/reapi/types';
+} from '@/lib/scoring/distress-scorer';
+import type { REAPIPropertyData } from '@/lib/scoring/distress-scorer';
 
 /** Build a fully-zeroed REAPIPropertyData shell so each test isolates the signals under test. */
 function blankProperty(overrides: Partial<REAPIPropertyData> = {}): REAPIPropertyData {

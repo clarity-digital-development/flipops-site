@@ -10,7 +10,7 @@ const NotificationSchema = z.object({
   message: z.string().optional(),
   dealId: z.string().optional(),
   data: z.any().optional(),
-  metadata: z.record(z.any()).optional(),
+  metadata: z.record(z.string(), z.any()).optional(),
   stats: z.object({
     total: z.number().optional(),
     success: z.number().optional(),
@@ -88,7 +88,7 @@ export async function POST(req: NextRequest) {
     if (error instanceof z.ZodError) {
       return NextResponse.json({
         error: 'Validation failed',
-        details: error.errors,
+        details: error.issues,
       }, { status: 400 });
     }
 

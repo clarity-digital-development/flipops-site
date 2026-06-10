@@ -30,7 +30,6 @@
     "cf-pages": "npm run pages:build",
     "check:slack": "tsx scripts/check-slack.ts",
     "check:smtp": "tsx scripts/check-smtp.ts",
-    "seed:railway": "bash scripts/railway-seed-vars.sh",
     "cron:data-refresh": "tsx lib/cron/monitoring/data-refresh-sync.ts",
     "cron:g1": "tsx lib/cron/guardrails/g1-deal-approval.ts",
     "cron:g2": "tsx lib/cron/guardrails/g2-bid-spread.ts",

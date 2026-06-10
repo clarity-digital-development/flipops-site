@@ -301,7 +301,7 @@ export async function getMessagesWithContact(
       nylas.messages.list({
         identifier: grantId,
         queryParams: {
-          from: contactEmail,
+          from: [contactEmail],
           limit: options?.limit || 25,
           pageToken: options?.pageToken,
         },
@@ -309,7 +309,7 @@ export async function getMessagesWithContact(
       nylas.messages.list({
         identifier: grantId,
         queryParams: {
-          to: contactEmail,
+          to: [contactEmail],
           limit: options?.limit || 25,
         },
       }),

@@ -164,8 +164,8 @@ async function createTestChangeOrderData() {
         deltaUsd: 2000,
         impactDays: 3,
         status: 'proposed',
-        rationale: 'Enhance curb appeal for faster sale',
-        simResults: null
+        rationale: 'Enhance curb appeal for faster sale'
+        // simResults intentionally omitted (defaults to NULL)
       }
     });
 

@@ -4,8 +4,15 @@ const prisma = new PrismaClient();
 
 async function addTestProperty() {
   try {
+    // Property.userId is required — own test rows via the local seed user.
+    const owner = await prisma.user.upsert({
+      where: { email: 'seed@flipops.local' },
+      update: {},
+      create: { email: 'seed@flipops.local', name: 'Seed User', targetMarkets: '[]' },
+    });
     const property = await prisma.property.create({
       data: {
+        userId: owner.id,
         address: '123 Main St',
         city: 'Miami',
         state: 'FL',

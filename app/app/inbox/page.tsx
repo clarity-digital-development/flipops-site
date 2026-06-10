@@ -391,7 +391,7 @@ export default function InboxPage() {
       try {
         const real = await fetchThreads();
         if (cancelled) return;
-        setThreads(real);
+        setThreads(real.threads);
         setLoadError(null);
       } catch (err) {
         if (cancelled) return;
@@ -423,7 +423,7 @@ export default function InboxPage() {
     setRefreshing(true);
     try {
       const real = await fetchThreads();
-      setThreads(real);
+      setThreads(real.threads);
       setLoadError(null);
       toast.success("Inbox refreshed");
     } catch (err) {

@@ -1,27 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@clerk/nextjs/server';
 import prisma from '@/lib/prisma';
+import { requireUser } from '@/lib/auth/require-user';
 
 /**
- * Helper to get userId from Clerk auth
+ * Helper to get userId via the canonical requireUser() guard.
+ * Preserves this route's historical { error, status, userId } shape.
  */
 async function getAuthenticatedUserId() {
-  const { userId: clerkId } = await auth();
-
-  if (!clerkId) {
-    return { error: 'Unauthorized', status: 401, userId: null };
+  const guard = await requireUser();
+  if ('error' in guard) {
+    const status = guard.error.status;
+    return {
+      error: status === 404 ? 'User not found' : 'Unauthorized',
+      status,
+      userId: null,
+    };
   }
-
-  const user = await prisma.user.findUnique({
-    where: { clerkId },
-    select: { id: true },
-  });
-
-  if (!user) {
-    return { error: 'User not found', status: 404, userId: null };
-  }
-
-  return { error: null, status: null, userId: user.id };
+  return { error: null, status: null, userId: guard.userId };
 }
 
 /**
@@ -34,7 +29,7 @@ export async function GET(
 ) {
   try {
     const { error, status, userId } = await getAuthenticatedUserId();
-    if (error) {
+    if (error || !userId) {
       return NextResponse.json({ error }, { status: status! });
     }
 
@@ -108,7 +103,7 @@ export async function PATCH(
 ) {
   try {
     const { error, status, userId } = await getAuthenticatedUserId();
-    if (error) {
+    if (error || !userId) {
       return NextResponse.json({ error }, { status: status! });
     }
 
@@ -219,7 +214,7 @@ export async function DELETE(
 ) {
   try {
     const { error, status, userId } = await getAuthenticatedUserId();
-    if (error) {
+    if (error || !userId) {
       return NextResponse.json({ error }, { status: status! });
     }
 

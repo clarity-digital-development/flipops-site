@@ -245,6 +245,50 @@ async function findPropertyByPhoneScopedToOwner(
   }
 }
 
+/**
+ * M1.1 step 6: stamp CampaignRecipient.repliedAt when an inbound SMS arrives
+ * from a number we recently messaged.
+ *
+ * Looks up the most recent CampaignRecipient for `fromE164` (the lead's phone,
+ * which was the outbound `toPhoneNumber`) with sentAt within the last 30 days
+ * and repliedAt still null — first reply wins, repeat replies don't re-stamp
+ * or double-count. Bumps the parent Campaign.replyCount once per recipient.
+ *
+ * Best-effort like the Notification/Activity blocks: failures must NEVER
+ * break the inbound SMS webhook ack to Telnyx.
+ */
+async function stampCampaignReply(fromE164: string, occurredAt: string): Promise<void> {
+  try {
+    const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const recipient = await prisma.campaignRecipient.findFirst({
+      where: {
+        toPhoneNumber: fromE164,
+        sentAt: { gte: since },
+        repliedAt: null,
+      },
+      orderBy: { sentAt: 'desc' },
+      select: { id: true, campaignId: true },
+    });
+    if (!recipient) return;
+
+    await prisma.campaignRecipient.update({
+      where: { id: recipient.id },
+      data: { repliedAt: occurredAt ? new Date(occurredAt) : new Date() },
+    });
+    await prisma.campaign.update({
+      where: { id: recipient.campaignId },
+      data: { replyCount: { increment: 1 } },
+    });
+    console.log('[telnyx:webhook] campaign reply stamped', {
+      recipientId: recipient.id,
+      campaignId: recipient.campaignId,
+      from: fromE164,
+    });
+  } catch (e) {
+    console.error('[telnyx:webhook] stampCampaignReply failed (non-fatal)', e);
+  }
+}
+
 /** Append a single note entry to a Property.contactNotes JSON array, creating the array if needed. */
 async function appendContactNote(
   propertyId: string,
@@ -460,6 +504,12 @@ async function handleMessageReceived(
     // fall back to scanning all tenants.
     return { action: 'inbound_dropped_no_to', propertyId: null };
   }
+
+  // M1.1: stamp repliedAt for EVERY valid inbound SMS — deliberately BEFORE
+  // property resolution, because CampaignRecipient is keyed by phone number
+  // and a reply can match a recipient even when no Property row matches
+  // (the exact case the property-unmatched early returns below would skip).
+  await stampCampaignReply(fromE164, occurredAt);
 
   const property = await findPropertyByPhoneScopedToOwner(fromE164, toE164);
   if (property === 'unknown_to') {

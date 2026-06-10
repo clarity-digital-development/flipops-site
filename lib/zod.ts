@@ -6,7 +6,7 @@ export const QuantitySchema = z.object({
   value: z.number().positive('Quantity value must be positive'),
   unit: z.string().min(1, 'Unit is required'),
   method: z.enum(['measured', 'calculated', 'estimated', 'counted'], {
-    errorMap: () => ({ message: 'Method must be one of: measured, calculated, estimated, counted' })
+    message: 'Method must be one of: measured, calculated, estimated, counted'
   })
 });
 

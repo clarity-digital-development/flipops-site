@@ -13,7 +13,7 @@ const SkipTraceUpdateSchema = z.object({
 
 export async function POST(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     // API key authentication (required)
@@ -28,7 +28,7 @@ export async function POST(
       );
     }
 
-    const { id } = params;
+    const { id } = await params;
     if (id.startsWith('virt-')) {
       return NextResponse.json(
         {
@@ -112,7 +112,7 @@ export async function POST(
     if (error instanceof z.ZodError) {
       return NextResponse.json({
         error: 'Validation failed',
-        details: error.errors,
+        details: error.issues,
       }, { status: 400 });
     }
 

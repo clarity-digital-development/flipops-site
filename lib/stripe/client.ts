@@ -38,7 +38,7 @@ declare global {
 export const stripe: Stripe =
   globalThis.__flipopsStripe ??
   new Stripe(secret ?? "sk_missing", {
-    apiVersion: (process.env.STRIPE_API_VERSION as Stripe.LatestApiVersion | undefined) ?? "2024-12-18.acacia",
+    apiVersion: (process.env.STRIPE_API_VERSION ?? "2024-12-18.acacia") as Stripe.LatestApiVersion,
     typescript: true,
     appInfo: {
       name: "flipops-site",

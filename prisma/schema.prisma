@@ -778,6 +778,7 @@ model CampaignRecipient {
   sentAt          DateTime?
   deliveredAt     DateTime?
   failedAt        DateTime?
+  repliedAt       DateTime? // stamped when an inbound SMS from toPhoneNumber arrives post-send
   failureReason   String?
   createdAt       DateTime  @default(now())
 
@@ -1754,6 +1755,9 @@ model Parcel {
   lastSalePrice       Float?                 // SALE_PRC1
   lastSaleYear        Int?                   // SALE_YR1
 
+  // Derived (computed by scripts/derive-* SQL passes, not scraped)
+  ownerOccupied       Boolean?               // situs ≈ mailing address compare
+
   // Geometry (optional — centroid for map pins; full polygon deferred)
   latitude            Float?
   longitude           Float?
@@ -1988,7 +1992,8 @@ model RawSnapshot {
 // engine. Append-only.
 model LeadEvent {
   id            String   @id @default(cuid())
-  userId        String
+  userId        String?  // null for pre-auth/anonymous events; linked at signup via sessionId
+  sessionId     String?  // client-generated anonymous session id (pre-launch label capture)
   propertyId    String?
   parcelId      String?
 
@@ -2004,9 +2009,10 @@ model LeadEvent {
 
   occurredAt    DateTime @default(now())
 
-  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user          User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+  @@index([sessionId])
   @@index([propertyId])
   @@index([eventType])
   @@index([occurredAt])

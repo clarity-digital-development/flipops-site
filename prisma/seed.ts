@@ -2,73 +2,79 @@ import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
+// Policy is unique on (userId, region, grade) and the global default rows have
+// userId = null, which Prisma cannot address via upsert/findUnique. Find-or-
+// create instead (update branch was a no-op anyway).
+async function ensureGlobalPolicy(data: {
+  region: string;
+  grade: string;
+  maxExposureUsd: number;
+  targetRoiPct: number;
+  contingencyTargetPct: number;
+  varianceTier1Pct: number;
+  varianceTier2Pct: number;
+  bidSpreadMaxPct: number;
+  coSlaHours: number;
+  updatedBy: string;
+}) {
+  const existing = await prisma.policy.findFirst({
+    where: { userId: null, region: data.region, grade: data.grade },
+  });
+  if (existing) return existing;
+  return prisma.policy.create({ data });
+}
+
 async function main() {
   console.log('Seeding database...');
 
+  // Seed owner for multi-tenant rows (DealSpec.userId is required).
+  const seedUser = await prisma.user.upsert({
+    where: { email: 'seed@flipops.local' },
+    update: {},
+    create: {
+      email: 'seed@flipops.local',
+      name: 'Seed User',
+      targetMarkets: '[]',
+    },
+  });
+
   // Create policies for Miami region (all grades)
   const policies = await Promise.all([
-    prisma.policy.upsert({
-      where: {
-        region_grade: {
-          region: 'Miami',
-          grade: 'Standard'
-        }
-      },
-      update: {},
-      create: {
-        region: 'Miami',
-        grade: 'Standard',
-        maxExposureUsd: 150000,
-        targetRoiPct: 20,
-        contingencyTargetPct: 10,
-        varianceTier1Pct: 3,
-        varianceTier2Pct: 7,
-        bidSpreadMaxPct: 15,
-        coSlaHours: 48,
-        updatedBy: 'system:seed'
-      }
+    ensureGlobalPolicy({
+      region: 'Miami',
+      grade: 'Standard',
+      maxExposureUsd: 150000,
+      targetRoiPct: 20,
+      contingencyTargetPct: 10,
+      varianceTier1Pct: 3,
+      varianceTier2Pct: 7,
+      bidSpreadMaxPct: 15,
+      coSlaHours: 48,
+      updatedBy: 'system:seed'
     }),
-    prisma.policy.upsert({
-      where: {
-        region_grade: {
-          region: 'Miami',
-          grade: 'Premium'
-        }
-      },
-      update: {},
-      create: {
-        region: 'Miami',
-        grade: 'Premium',
-        maxExposureUsd: 250000,
-        targetRoiPct: 22,
-        contingencyTargetPct: 12,
-        varianceTier1Pct: 3,
-        varianceTier2Pct: 7,
-        bidSpreadMaxPct: 15,
-        coSlaHours: 48,
-        updatedBy: 'system:seed'
-      }
+    ensureGlobalPolicy({
+      region: 'Miami',
+      grade: 'Premium',
+      maxExposureUsd: 250000,
+      targetRoiPct: 22,
+      contingencyTargetPct: 12,
+      varianceTier1Pct: 3,
+      varianceTier2Pct: 7,
+      bidSpreadMaxPct: 15,
+      coSlaHours: 48,
+      updatedBy: 'system:seed'
     }),
-    prisma.policy.upsert({
-      where: {
-        region_grade: {
-          region: 'Miami',
-          grade: 'Luxury'
-        }
-      },
-      update: {},
-      create: {
-        region: 'Miami',
-        grade: 'Luxury',
-        maxExposureUsd: 500000,
-        targetRoiPct: 25,
-        contingencyTargetPct: 15,
-        varianceTier1Pct: 3,
-        varianceTier2Pct: 7,
-        bidSpreadMaxPct: 15,
-        coSlaHours: 48,
-        updatedBy: 'system:seed'
-      }
+    ensureGlobalPolicy({
+      region: 'Miami',
+      grade: 'Luxury',
+      maxExposureUsd: 500000,
+      targetRoiPct: 25,
+      contingencyTargetPct: 15,
+      varianceTier1Pct: 3,
+      varianceTier2Pct: 7,
+      bidSpreadMaxPct: 15,
+      coSlaHours: 48,
+      updatedBy: 'system:seed'
     })
   ]);
 
@@ -213,15 +219,16 @@ async function main() {
   // Create a safe deal that passes G1
   const safeDeal = await prisma.dealSpec.create({
     data: {
+      userId: seedUser.id,
       address: '123 Safe Street, Miami, FL 33130',
       type: 'SFH',
       maxExposureUsd: 250000,
       targetRoiPct: 20,
-      constraints: {
+      constraints: JSON.stringify({
         maxDaysToClose: 30,
         cashOnly: true,
         noContingencies: true
-      }
+      })
     }
   });
 
@@ -277,17 +284,17 @@ async function main() {
   await prisma.budgetLedger.create({
     data: {
       dealId: safeDeal.id,
-      baseline: {
+      baseline: JSON.stringify({
         Roofing: 9000,
         Kitchen: 15000,
         Bathroom: 11000,
         Flooring: 5400,
         Painting: 2700,
         total: 43100
-      },
-      committed: {},
-      actuals: {},
-      variance: {},
+      }),
+      committed: '{}',
+      actuals: '{}',
+      variance: '{}',
       contingencyRemaining: 6465 // 15% of baseline
     }
   });
@@ -295,15 +302,16 @@ async function main() {
   // Create a risky deal that violates G1
   const riskyDeal = await prisma.dealSpec.create({
     data: {
+      userId: seedUser.id,
       address: '456 Risky Avenue, Miami, FL 33131',
       type: 'SFH',
       maxExposureUsd: 150000,
       targetRoiPct: 30,
-      constraints: {
+      constraints: JSON.stringify({
         maxDaysToClose: 45,
         cashOnly: false,
         noContingencies: false
-      }
+      })
     }
   });
 
@@ -359,17 +367,17 @@ async function main() {
   await prisma.budgetLedger.create({
     data: {
       dealId: riskyDeal.id,
-      baseline: {
+      baseline: JSON.stringify({
         Roofing: 26000,
         Kitchen: 35000,
         Bathroom: 25000,
         HVAC: 12000,
         Electrical: 3000,
         total: 101000
-      },
-      committed: {},
-      actuals: {},
-      variance: {},
+      }),
+      committed: '{}',
+      actuals: '{}',
+      variance: '{}',
       contingencyRemaining: 15150 // 15% of baseline
     }
   });
@@ -380,7 +388,7 @@ async function main() {
       name: 'Miami Roofing Pros',
       email: 'contact@miamiroofing.com',
       phone: '(305) 555-0100',
-      trade: ['Roofing'],
+      trade: JSON.stringify(['Roofing']),
       region: 'Miami',
       onTimePct: 95,
       onBudgetPct: 92,
@@ -393,7 +401,7 @@ async function main() {
       name: 'Complete Home Renovations',
       email: 'info@completereno.com',
       phone: '(305) 555-0200',
-      trade: ['Kitchen', 'Bathroom', 'Flooring'],
+      trade: JSON.stringify(['Kitchen', 'Bathroom', 'Flooring']),
       region: 'Miami',
       onTimePct: 88,
       onBudgetPct: 85,
@@ -409,9 +417,9 @@ async function main() {
       {
         dealId: safeDeal.id,
         vendorId: vendor1.id,
-        items: [
+        items: JSON.stringify([
           { trade: 'Roofing', task: 'Shingle Replacement', quantity: { value: 1500, unit: 'sqft' }, unitPrice: 6, totalPrice: 9000 }
-        ],
+        ]),
         subtotal: 9000,
         includes: ['Materials', 'Labor', 'Permits'],
         excludes: ['Structural repairs'],
@@ -420,9 +428,9 @@ async function main() {
       {
         dealId: safeDeal.id,
         vendorId: vendor2.id,
-        items: [
+        items: JSON.stringify([
           { trade: 'Roofing', task: 'Shingle Replacement', quantity: { value: 1500, unit: 'sqft' }, unitPrice: 7.8, totalPrice: 11700 }
-        ],
+        ]),
         subtotal: 11700,
         includes: ['Materials', 'Labor', 'Permits', 'Warranty'],
         excludes: ['Structural repairs'],
@@ -440,7 +448,7 @@ async function main() {
       data: {
         dealId: safeDeal.id,
         vendorId: vendor1.id,
-        items: [
+        items: JSON.stringify([
           {
             trade: 'Roofing',
             task: 'Shingle Replacement',
@@ -450,7 +458,7 @@ async function main() {
             includes: ['Materials', 'Labor', 'Permits'],
             excludes: ['Structural repairs']
           }
-        ],
+        ]),
         subtotal: 9000,
         includes: ['Materials', 'Labor', 'Permits', '2-year warranty'],
         excludes: ['Structural repairs', 'Decking replacement'],
@@ -461,7 +469,7 @@ async function main() {
       data: {
         dealId: safeDeal.id,
         vendorId: vendor2.id,
-        items: [
+        items: JSON.stringify([
           {
             trade: 'Roofing',
             task: 'Shingle Replacement',
@@ -471,7 +479,7 @@ async function main() {
             includes: ['Materials', 'Labor'],
             excludes: ['Permits', 'Structural repairs']
           }
-        ],
+        ]),
         subtotal: 9450,
         includes: ['Materials', 'Labor', '1-year warranty'],
         excludes: ['Permits', 'Structural repairs'],
@@ -482,7 +490,7 @@ async function main() {
       data: {
         dealId: safeDeal.id,
         vendorId: 'vendor-3',
-        items: [
+        items: JSON.stringify([
           {
             trade: 'Roofing',
             task: 'Shingle Replacement',
@@ -492,7 +500,7 @@ async function main() {
             includes: ['Materials', 'Labor', 'Permits'],
             excludes: ['Structural repairs']
           }
-        ],
+        ]),
         subtotal: 9900,
         includes: ['Materials', 'Labor', 'Permits', '3-year warranty'],
         excludes: ['Structural repairs'],
@@ -510,7 +518,7 @@ async function main() {
       data: {
         dealId: riskyDeal.id,
         vendorId: vendor1.id,
-        items: [
+        items: JSON.stringify([
           {
             trade: 'Roofing',
             task: 'Tile Replacement',
@@ -520,7 +528,7 @@ async function main() {
             includes: ['Basic materials', 'Labor'],
             excludes: ['Premium tiles', 'Permits', 'Warranty']
           }
-        ],
+        ]),
         subtotal: 24000,
         includes: ['Basic materials', 'Labor'],
         excludes: ['Premium tiles', 'Permits', 'Extended warranty'],
@@ -531,7 +539,7 @@ async function main() {
       data: {
         dealId: riskyDeal.id,
         vendorId: vendor2.id,
-        items: [
+        items: JSON.stringify([
           {
             trade: 'Roofing',
             task: 'Tile Replacement',
@@ -541,7 +549,7 @@ async function main() {
             includes: ['Materials', 'Labor', 'Permits'],
             excludes: ['Structural work']
           }
-        ],
+        ]),
         subtotal: 28000,
         includes: ['Standard materials', 'Labor', 'Permits'],
         excludes: ['Structural reinforcement'],
@@ -552,7 +560,7 @@ async function main() {
       data: {
         dealId: riskyDeal.id,
         vendorId: 'vendor-premium',
-        items: [
+        items: JSON.stringify([
           {
             trade: 'Roofing',
             task: 'Tile Replacement',
@@ -562,7 +570,7 @@ async function main() {
             includes: ['Premium materials', 'Expert labor', 'All permits', '10-year warranty'],
             excludes: []
           }
-        ],
+        ]),
         subtotal: 34000,
         includes: ['Premium materials', 'Expert installation', 'All permits', '10-year warranty'],
         excludes: [],
@@ -594,7 +602,7 @@ async function main() {
         artifact: 'DealSpec',
         action: 'CREATE',
         checksum: 'abc123' + Date.now(),
-        diff: { op: 'add', path: '/', value: { id: safeDeal.id } }
+        diff: JSON.stringify({ op: 'add', path: '/', value: { id: safeDeal.id } })
       },
       {
         dealId: riskyDeal.id,
@@ -602,7 +610,7 @@ async function main() {
         artifact: 'DealSpec',
         action: 'CREATE',
         checksum: 'def456' + Date.now(),
-        diff: { op: 'add', path: '/', value: { id: riskyDeal.id } }
+        diff: JSON.stringify({ op: 'add', path: '/', value: { id: riskyDeal.id } })
       }
     ]
   });
@@ -619,6 +627,7 @@ async function main() {
     },
     create: {
       id: "PANEL_TEST_DEAL_001",
+      userId: seedUser.id,
       address: '456 Panel Test Ave, Miami, FL 33140',
       type: 'SFH',
       maxExposureUsd: 150000,
@@ -628,10 +637,10 @@ async function main() {
       startAt: new Date(Date.now() - 14 * 86400000), // 14 days ago
       dailyBurnUsd: 120,
       arv: 300000,
-      constraints: {
+      constraints: JSON.stringify({
         maxDaysToClose: 45,
         cashOnly: true
-      }
+      })
     }
   });
 
@@ -664,7 +673,7 @@ async function main() {
     update: {},
     create: {
       dealId: "PANEL_TEST_DEAL_001",
-      baseline: {
+      baseline: JSON.stringify({
         total: 100000,
         byTrade: {
           HVAC: 15000,
@@ -676,26 +685,26 @@ async function main() {
           Painting: 5000,
           Roofing: 10000
         }
-      },
-      committed: {
+      }),
+      committed: JSON.stringify({
         total: 32000,
         byTrade: {
           HVAC: 15000,
           Plumbing: 12000,
           Electrical: 5000
         }
-      },
-      actuals: {
+      }),
+      actuals: JSON.stringify({
         total: 28000,
         byTrade: {
           HVAC: 14500,
           Plumbing: 11000,
           Electrical: 2500
         }
-      },
-      variance: {
+      }),
+      variance: JSON.stringify({
         frozenTrades: []
-      },
+      }),
       contingencyRemaining: 8000
     }
   });

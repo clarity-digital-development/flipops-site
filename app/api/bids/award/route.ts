@@ -12,6 +12,17 @@ const BidAwardRequestSchema = z.object({
   winningBidId: z.string().min(1, 'Winning bid ID is required')
 });
 
+/** Bid.items is a JSON-string column — parse defensively. */
+function parseBidItems(raw: string | null | undefined): BidItem[] {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
 export async function POST(request: NextRequest) {
   const requestId = crypto.randomUUID();
   const log = logger.child({ requestId, endpoint: '/api/bids/award' });
@@ -66,7 +77,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 2. Extract trade/task from winning bid to find comparable bids
-    const winningItems = winningBid.items as BidItem[];
+    const winningItems = parseBidItems(winningBid.items);
     if (!winningItems || winningItems.length === 0) {
       log.error({ winningBidId }, 'Winning bid has no items');
       return NextResponse.json(
@@ -95,7 +106,7 @@ export async function POST(request: NextRequest) {
 
     // Filter bids that have items for the same trade
     const comparableBids = allBids.filter(bid => {
-      const items = bid.items as BidItem[];
+      const items = parseBidItems(bid.items);
       return items && items.some(item => item.trade === primaryTrade);
     });
 
@@ -116,7 +127,7 @@ export async function POST(request: NextRequest) {
       comparableBids.map(bid => ({
         id: bid.id,
         vendorId: bid.vendorId,
-        items: bid.items as BidItem[],
+        items: parseBidItems(bid.items),
         subtotal: bid.subtotal
       })),
       primaryTrade

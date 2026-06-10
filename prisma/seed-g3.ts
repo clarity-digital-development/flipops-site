@@ -24,62 +24,45 @@ async function seedG3() {
 
   console.log(`Using deal: ${safeDeal.id}`);
 
-  // Create/update budget ledger with realistic baselines
+  // Create/update budget ledger with realistic baselines.
+  // BudgetLedger stores trade maps as JSON strings.
+  const baselineMap = {
+    Roofing: 30000,
+    HVAC: 20000,
+    Electrical: 15000,
+    Plumbing: 10000,
+    Flooring: 12000,
+    Kitchen: 18000,
+    Bathroom: 15000,
+    Painting: 5000,
+    total: 125000
+  };
+  const committedMap = {
+    Roofing: 28500,    // Some bids awarded
+    HVAC: 19000,
+    Electrical: 0,      // Not awarded yet
+    Plumbing: 0,
+    Flooring: 11500,
+    Kitchen: 0,
+    Bathroom: 0,
+    Painting: 0,
+    total: 59000
+  };
   const budgetLedger = await prisma.budgetLedger.upsert({
     where: { dealId: safeDeal.id },
     update: {
-      baseline: {
-        Roofing: 30000,
-        HVAC: 20000,
-        Electrical: 15000,
-        Plumbing: 10000,
-        Flooring: 12000,
-        Kitchen: 18000,
-        Bathroom: 15000,
-        Painting: 5000,
-        total: 125000
-      },
-      committed: {
-        Roofing: 28500,    // Some bids awarded
-        HVAC: 19000,
-        Electrical: 0,      // Not awarded yet
-        Plumbing: 0,
-        Flooring: 11500,
-        Kitchen: 0,
-        Bathroom: 0,
-        Painting: 0,
-        total: 59000
-      },
-      actuals: {},  // Start fresh for testing
-      variance: {},
+      baseline: JSON.stringify(baselineMap),
+      committed: JSON.stringify(committedMap),
+      actuals: '{}',  // Start fresh for testing
+      variance: '{}',
       contingencyRemaining: 12500  // 10% of baseline
     },
     create: {
       dealId: safeDeal.id,
-      baseline: {
-        Roofing: 30000,
-        HVAC: 20000,
-        Electrical: 15000,
-        Plumbing: 10000,
-        Flooring: 12000,
-        Kitchen: 18000,
-        Bathroom: 15000,
-        Painting: 5000,
-        total: 125000
-      },
-      committed: {
-        Roofing: 28500,
-        HVAC: 19000,
-        Electrical: 0,
-        Plumbing: 0,
-        Flooring: 11500,
-        Kitchen: 0,
-        Bathroom: 0,
-        Painting: 0,
-        total: 59000
-      },
-      actuals: {},
-      variance: {},
+      baseline: JSON.stringify(baselineMap),
+      committed: JSON.stringify(committedMap),
+      actuals: '{}',
+      variance: '{}',
       contingencyRemaining: 12500
     }
   });
@@ -96,7 +79,7 @@ async function seedG3() {
     const vendor1 = await prisma.vendor.create({
       data: {
         name: 'Test HVAC Contractor',
-        trade: ['HVAC'],
+        trade: JSON.stringify(['HVAC']),
         region: 'Miami'
       }
     });
@@ -104,7 +87,7 @@ async function seedG3() {
     const vendor2 = await prisma.vendor.create({
       data: {
         name: 'Test Roofing Co',
-        trade: ['Roofing'],
+        trade: JSON.stringify(['Roofing']),
         region: 'Miami'
       }
     });
@@ -112,7 +95,7 @@ async function seedG3() {
     const vendor3 = await prisma.vendor.create({
       data: {
         name: 'Test General Contractor',
-        trade: ['General', 'Landscaping'],
+        trade: JSON.stringify(['General', 'Landscaping']),
         region: 'Miami'
       }
     });

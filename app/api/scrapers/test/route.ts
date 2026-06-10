@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { auth } from "@clerk/nextjs/server";
+import { requireUser } from "@/lib/auth/require-user";
 import { refreshCounty, listScrapeableCounties } from "@/lib/data-sources";
 
 // ---------------------------------------------------------------------------
@@ -14,20 +14,16 @@ import { refreshCounty, listScrapeableCounties } from "@/lib/data-sources";
 // ---------------------------------------------------------------------------
 
 export async function GET() {
-  const { userId } = await auth();
-  if (!userId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const guard = await requireUser();
+  if ("error" in guard) return guard.error;
   return NextResponse.json({
     counties: listScrapeableCounties(),
   });
 }
 
 export async function POST(request: Request) {
-  const { userId } = await auth();
-  if (!userId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const guard = await requireUser();
+  if ("error" in guard) return guard.error;
 
   let body: { countyFips?: string; category?: string };
   try {

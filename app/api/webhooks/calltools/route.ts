@@ -57,7 +57,7 @@ const CallDataSchema = z.object({
   tags: z.array(z.string()).optional(),
 
   // Custom fields passed through from CallTools
-  custom_fields: z.record(z.any()).optional(),
+  custom_fields: z.record(z.string(), z.any()).optional(),
 });
 
 const WebhookPayloadSchema = z.object({

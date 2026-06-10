@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@clerk/nextjs/server';
 import prisma from '@/lib/prisma';
+import { requireUser } from '@/lib/auth/require-user';
 import { VendorCategory } from '@prisma/client';
 
 interface RouteContext {
@@ -13,21 +13,10 @@ interface RouteContext {
  */
 export async function GET(request: NextRequest, context: RouteContext) {
   try {
-    const { userId: clerkUserId } = await auth();
+    const guard = await requireUser();
+    if ('error' in guard) return guard.error;
+    const user = { id: guard.userId };
     const { id } = await context.params;
-
-    if (!clerkUserId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const user = await prisma.user.findUnique({
-      where: { clerkId: clerkUserId },
-      select: { id: true },
-    });
-
-    if (!user) {
-      return NextResponse.json({ error: 'User not found' }, { status: 404 });
-    }
 
     // Try to find as UserVendor first
     const userVendor = await prisma.userVendor.findFirst({
@@ -141,21 +130,10 @@ export async function GET(request: NextRequest, context: RouteContext) {
  */
 export async function PATCH(request: NextRequest, context: RouteContext) {
   try {
-    const { userId: clerkUserId } = await auth();
+    const guard = await requireUser();
+    if ('error' in guard) return guard.error;
+    const user = { id: guard.userId };
     const { id } = await context.params;
-
-    if (!clerkUserId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const user = await prisma.user.findUnique({
-      where: { clerkId: clerkUserId },
-      select: { id: true },
-    });
-
-    if (!user) {
-      return NextResponse.json({ error: 'User not found' }, { status: 404 });
-    }
 
     const body = await request.json();
 
@@ -278,21 +256,10 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
  */
 export async function DELETE(request: NextRequest, context: RouteContext) {
   try {
-    const { userId: clerkUserId } = await auth();
+    const guard = await requireUser();
+    if ('error' in guard) return guard.error;
+    const user = { id: guard.userId };
     const { id } = await context.params;
-
-    if (!clerkUserId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const user = await prisma.user.findUnique({
-      where: { clerkId: clerkUserId },
-      select: { id: true },
-    });
-
-    if (!user) {
-      return NextResponse.json({ error: 'User not found' }, { status: 404 });
-    }
 
     // Try to soft delete as UserVendor first
     const existingUserVendor = await prisma.userVendor.findFirst({

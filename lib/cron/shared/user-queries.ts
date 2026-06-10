@@ -3,6 +3,7 @@
  * Common Prisma queries used across multiple workflows
  */
 
+import { randomUUID } from 'crypto';
 import { User } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 
@@ -147,13 +148,12 @@ export async function createNotification(data: {
 }) {
   return await prisma.notification.create({
     data: {
+      eventId: randomUUID(),
       userId: data.userId,
       type: data.type,
-      title: data.title,
-      message: data.message,
-      metadata: data.metadata || {},
-      read: false,
-      createdAt: new Date(),
+      // Notification has no separate title column — fold it into the message.
+      message: data.title ? `${data.title}: ${data.message}` : data.message,
+      metadata: JSON.stringify(data.metadata ?? {}),
     },
   });
 }

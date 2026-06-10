@@ -18,6 +18,10 @@ import { bulkUpsertLiens, type LienUpsertInput } from "../base/bulk-upsert-lien"
 //   6. Confirm the modal's "Download" button
 //   7. Capture the file via Playwright's download event handler
 //   8. Parse CSV → 28k records
+//   8.5 SECOND PASS (M1.4): download "Public - Certificates (Unpaid)"
+//       (report id 2475) the same way — it carries Face Amount + Account
+//       Balance Amount keyed by account number + tax year, filling the
+//       amount column the delinquent report lacks. Best-effort.
 //   9. Persist (same logic as HTML scraper: in-memory parcel index + bulk
 //      Lien upsert) — shared via SHARED_PERSIST helper.
 //
@@ -52,6 +56,8 @@ export interface HillsboroughTaxDelinquentCsvResult {
   csvBytes: number;
   persisted: number;
   apnResolved: number;
+  /** # of records whose amount was filled from the Certificates (Unpaid) report (M1.4). */
+  amountsResolved: number;
   skippedHallucinated: number;
 }
 
@@ -67,15 +73,23 @@ export async function scrapeHillsboroughTaxDelinquentCsv(): Promise<Hillsborough
 
   let csvText = "";
   let csvBytes = 0;
+  let certCsvText = "";
 
   try {
     const page = await sess.newPage();
 
-    // Set up the download promise BEFORE the click that triggers it.
+    // Re-armable download capture — this run downloads TWO report CSVs
+    // (delinquent universe, then certificate amounts), so each trigger
+    // re-arms a fresh promise. Set up BEFORE the click that triggers it.
     let resolveDownload: ((d: Download) => void) | null = null;
-    const downloadPromise = new Promise<Download>((res) => {
+    let downloadPromise = new Promise<Download>((res) => {
       resolveDownload = res;
     });
+    const armDownload = () => {
+      downloadPromise = new Promise<Download>((res) => {
+        resolveDownload = res;
+      });
+    };
     page.on("download", (d) => resolveDownload?.(d));
 
     // 1) Land on reports page (no auth)
@@ -171,6 +185,83 @@ export async function scrapeHillsboroughTaxDelinquentCsv(): Promise<Hillsborough
       rawResponse: { csvBytes, csvSample: csvText.slice(0, 60_000) },
       legalRisk: "yellow",
     });
+
+    // 8.5) SECOND PASS (M1.4 amount fix): the "Public - Delinquent Report"
+    //      has NO amount column — that's why Hillsborough's 18,385 summary
+    //      rows summed to $0 (AUDIT-A1). The same govhub portal exposes
+    //      "Public - Certificates (Unpaid)" (report id 2475, probed
+    //      2026-06-09: 7,289 rows) with Face Amount + Account Balance Amount
+    //      keyed by the SAME TaxSys account number + tax year, so we join
+    //      amounts onto the delinquent rows in memory. Best-effort: failure
+    //      here must not sink the universe scrape (rows persist with
+    //      amount=null exactly as before).
+    try {
+      armDownload();
+      await page.goto(REPORTS_URL, { waitUntil: "domcontentloaded", timeout: 30_000 });
+      await page.waitForTimeout(4_000);
+
+      const certClicked = await page.evaluate(() => {
+        const a = Array.from(document.querySelectorAll("a")).find((el) =>
+          /Public\s*-\s*Certificates\s*\(Unpaid\)/i.test(el.textContent || ""),
+        );
+        if (a) { (a as HTMLAnchorElement).click(); return true; }
+        return false;
+      });
+      if (!certClicked) throw new Error("could not find 'Public - Certificates (Unpaid)' report link");
+      await page.waitForTimeout(6_000);
+
+      await page.evaluate(() => {
+        const ft = document.getElementById("filetype") as HTMLSelectElement | null;
+        if (ft) ft.value = "csv";
+      });
+      await page.evaluate(() => {
+        const btns = Array.from(document.querySelectorAll("button, input[type=submit]"));
+        const t = btns.find((b) => /^Search$/i.test((b as HTMLElement).innerText?.trim() ?? ""));
+        if (t) (t as HTMLButtonElement).click();
+      });
+      await page.waitForTimeout(15_000);
+
+      const certCsvBtnClicked = await page.evaluate(() => {
+        const btn = Array.from(document.querySelectorAll("button")).find((b) =>
+          /download_options\(.?csv.?\)/i.test(b.getAttribute("onclick") || ""),
+        );
+        if (btn) { (btn as HTMLButtonElement).click(); return true; }
+        return false;
+      });
+      if (!certCsvBtnClicked) throw new Error("could not find CSV format button (cert report)");
+      await page.waitForTimeout(2_500);
+
+      const certDlBtnClicked = await page.evaluate(() => {
+        const ft = document.getElementById("filetype") as HTMLSelectElement | null;
+        if (ft) ft.value = "csv";
+        const btn = document.getElementById("download-report") as HTMLButtonElement | null;
+        if (btn) { btn.click(); return true; }
+        return false;
+      });
+      if (!certDlBtnClicked) throw new Error("could not find modal download button (cert report)");
+
+      console.log(`[hillsborough-csv] certificate-amounts download triggered — awaiting file…`);
+      const certDl = await Promise.race([
+        downloadPromise,
+        new Promise<never>((_, rej) =>
+          setTimeout(() => rej(new Error("download timeout after 120s (cert report)")), 120_000),
+        ),
+      ]);
+      const certStream = await certDl.createReadStream();
+      if (!certStream) throw new Error("download stream not available (cert report)");
+      const certChunks: Buffer[] = [];
+      for await (const chunk of certStream) {
+        certChunks.push(typeof chunk === "string" ? Buffer.from(chunk) : chunk);
+      }
+      certCsvText = Buffer.concat(certChunks).toString("utf8");
+      console.log(
+        `[hillsborough-csv] certificate CSV downloaded ${(certCsvText.length / 1024).toFixed(0)}KB`,
+      );
+    } catch (err) {
+      console.warn(
+        `[hillsborough-csv] certificate-amount pass failed (continuing without amounts): ${(err as Error).message}`,
+      );
+    }
   } finally {
     await sess.close();
   }
@@ -202,8 +293,17 @@ export async function scrapeHillsboroughTaxDelinquentCsv(): Promise<Hillsborough
     `[hillsborough-csv] indexed ${parcels.length.toLocaleString()} parcels (addr ${parcelByAddrCity.size.toLocaleString()}, owner ${parcelByOwnerCity.size.toLocaleString()}) in ${((Date.now() - t0) / 1000).toFixed(1)}s`,
   );
 
+  // Index certificate amounts by `${account}-${taxYear}` (M1.4 amount fix).
+  const certAmounts = parseCertificateAmounts(certCsvText);
+  if (certAmounts.size > 0) {
+    console.log(
+      `[hillsborough-csv] certificate amounts indexed: ${certAmounts.size.toLocaleString()} account-years`,
+    );
+  }
+
   // Build the bulk-upsert payload in memory (no per-row Prisma round-trip).
   let apnResolved = 0;
+  let amountsResolved = 0;
   let skippedHallucinated = 0;
   const upsertRows: LienUpsertInput[] = [];
 
@@ -222,6 +322,12 @@ export async function scrapeHillsboroughTaxDelinquentCsv(): Promise<Hillsborough
     }
     if (apn) apnResolved++;
 
+    // Amount from the Certificates (Unpaid) report join; null when no unpaid
+    // certificate exists for this account-year (e.g. pre-cert-sale current
+    // delinquencies or redeemed certs).
+    const amount = certAmounts.get(`${r.account}-${r.taxYear}`) ?? null;
+    if (amount !== null) amountsResolved++;
+
     upsertRows.push({
       countyFips:       COUNTY_FIPS,
       apn,
@@ -230,11 +336,14 @@ export async function scrapeHillsboroughTaxDelinquentCsv(): Promise<Hillsborough
       lienCategory:     "tax",
       lienTypeCode:     `DELINQUENT_TAX_${r.taxYear}`,
       recordingDate:    today,
-      amount:           null, // public report doesn't expose amount due
+      amount,
       defendantName:    r.ownerName,
       plaintiffAddress: `${r.situsStreet}|${r.situsCity}|${r.situsZip}`,
     });
   }
+  console.log(
+    `[hillsborough-csv] amounts resolved for ${amountsResolved.toLocaleString()}/${upsertRows.length.toLocaleString()} rows via Certificates (Unpaid)`,
+  );
 
   console.log(`[hillsborough-csv] bulk-upserting ${upsertRows.length} rows…`);
   const bulkResult = await bulkUpsertLiens(upsertRows);
@@ -247,6 +356,7 @@ export async function scrapeHillsboroughTaxDelinquentCsv(): Promise<Hillsborough
     csvBytes,
     persisted: bulkResult.persisted,
     apnResolved,
+    amountsResolved,
     skippedHallucinated,
   };
 }
@@ -301,6 +411,79 @@ function parseCsvRows(csvText: string): DelinquentRecord[] {
     });
   }
   return records;
+}
+
+// ---------------------------------------------------------------------------
+// Certificate-amounts parsing (M1.4 amount fix)
+// ---------------------------------------------------------------------------
+
+/**
+ * Parse the "Public - Certificates (Unpaid)" CSV into a
+ * `${account}-${taxYear}` → amount map. Probed columns (2026-06-09):
+ *   [Tax Yr, Account Number, Alternate Key, Cert Status, Cert #, Issued Date,
+ *    Bidder #, Cert Buyer, Cert Buyer Address, Owner Name, Face Amount,
+ *    Interest Rate, Account Balance Amount, Date Redeemed, Purchased Date,
+ *    Deed Status, Account Status, Standard Flags]
+ * Prefers Face Amount (the advertised delinquent tax — stable across runs);
+ * falls back to Account Balance Amount (payoff incl. accrued interest).
+ * Tolerant header lookup so report edits don't silently zero the join.
+ */
+function parseCertificateAmounts(csvText: string): Map<string, number> {
+  const map = new Map<string, number>();
+  if (!csvText) return map;
+
+  let rows: Array<Record<string, string>>;
+  try {
+    rows = parseCsv(csvText, {
+      columns: true,
+      skip_empty_lines: true,
+      trim: true,
+      relax_quotes: true,
+      relax_column_count: true,
+    }) as Array<Record<string, string>>;
+  } catch (err) {
+    console.warn(`[hillsborough-csv] certificate CSV parse failed: ${(err as Error).message}`);
+    return map;
+  }
+  if (rows.length === 0) return map;
+
+  const keys = Object.keys(rows[0]);
+  const findKey = (re: RegExp): string | null => keys.find((k) => re.test(k)) ?? null;
+  const kTaxYear = findKey(/^tax\s*yr/i);
+  const kAccount = findKey(/^account\s*number/i);
+  const kFace    = findKey(/^face\s*amount/i);
+  const kBalance = findKey(/balance/i);
+  if (!kTaxYear || !kAccount || (!kFace && !kBalance)) {
+    console.warn(
+      `[hillsborough-csv] certificate CSV header mismatch — got [${keys.join(", ")}]; skipping amount join`,
+    );
+    return map;
+  }
+
+  for (const row of rows) {
+    const taxYear = parseInt(row[kTaxYear] ?? "", 10);
+    if (!Number.isFinite(taxYear) || taxYear < 1990 || taxYear > 2030) continue;
+    const account = (row[kAccount] ?? "").trim();
+    if (!/^[A-Z]\d{9,12}$/.test(account)) continue;
+
+    const face = parseMoney(kFace ? row[kFace] : undefined);
+    const balance = parseMoney(kBalance ? row[kBalance] : undefined);
+    const amount = face > 0 ? face : balance;
+    if (amount <= 0 || amount > 1e8) continue;
+
+    // One certificate per account-year is the norm; if the report ever lists
+    // duplicates (e.g. transfer rows) keep the max rather than summing.
+    const key = `${account}-${taxYear}`;
+    map.set(key, Math.max(map.get(key) ?? 0, amount));
+  }
+  return map;
+}
+
+/** "$18,789.95" | "18789.95" | "0.00" → number (0 on garbage). */
+function parseMoney(raw: string | undefined): number {
+  if (!raw) return 0;
+  const n = parseFloat(raw.replace(/[$,\s]/g, ""));
+  return Number.isFinite(n) && n >= 0 ? n : 0;
 }
 
 // ---------------------------------------------------------------------------

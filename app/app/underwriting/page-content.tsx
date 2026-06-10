@@ -76,6 +76,10 @@ interface Property {
   state: string;
   zip: string | null;
   county: string | null;
+  // Present on /api/properties UNION rows; used to locate the subject parcel
+  // in the FL DOR data for /api/comps.
+  apn?: string | null;
+  countyFips?: string | null;
   propertyType: string | null;
   bedrooms: number | null;
   bathrooms: number | null;
@@ -103,6 +107,9 @@ interface Property {
   absenteeOwner: boolean;
   metadata: string | null;
   createdAt: Date;
+  // Outreach pipeline status (new/contacted/hot/negotiating/dnc) — present on
+  // promoted rows; used by PipelineBreadcrumb stage derivation.
+  outreachStatus?: string | null;
 }
 
 interface PropertyMetadata {
@@ -130,11 +137,19 @@ interface Comp {
   address: string;
   soldDate: string;
   soldPrice: number;
-  beds: number;
-  baths: number;
+  // FL DOR roll comps have no bed/bath data — null for real comps, populated
+  // for the synthetic demo comps.
+  beds: number | null;
+  baths: number | null;
   sqft: number;
-  yearBuilt: number;
-  distance: number;
+  yearBuilt: number | null;
+  // Real haversine miles from /api/comps, or null when either side lacks
+  // coordinates (pre-M1.3 geocode backfill). Never a fabricated number.
+  distance: number | null;
+  // Same-ZIP fallback flag — rendered in place of distance when distance is null.
+  zipMatch?: boolean;
+  apn?: string | null;
+  provenance?: string;
   pricePerSqft: number;
   similarity: number;
   selected: boolean;
@@ -578,11 +593,17 @@ function CompCard({
 
           {/* Property details */}
           <div className="flex items-center gap-3 mt-2 text-xs text-gray-500 dark:text-gray-400">
-            <span>{comp.beds}bd / {comp.baths}ba</span>
+            {comp.beds != null && comp.baths != null && (
+              <span>{comp.beds}bd / {comp.baths}ba</span>
+            )}
             <span>{comp.sqft.toLocaleString()} sf</span>
             <span className="flex items-center gap-1">
               <MapPin className="h-3 w-3" />
-              {comp.distance.toFixed(2)}mi
+              {comp.distance != null
+                ? `${comp.distance.toFixed(2)}mi`
+                : comp.zipMatch
+                  ? "Same ZIP"
+                  : "Same county"}
             </span>
           </div>
         </div>
@@ -1339,17 +1360,17 @@ export default function UnderwritingPage() {
 
     try {
       setLoadingComps(true);
-      const params = new URLSearchParams({
-        city: selectedProperty.city,
-        state: selectedProperty.state,
-        excludeId: selectedPropertyId,
-        limit: '10',
-      });
-
-      if (selectedProperty.propertyType) params.set('propertyType', selectedProperty.propertyType);
-      if (selectedProperty.bedrooms) params.set('beds', String(selectedProperty.bedrooms));
-      if (selectedProperty.bathrooms) params.set('baths', String(selectedProperty.bathrooms));
+      // /api/comps queries recorded FL DOR sales (ParcelSale JOIN Parcel).
+      // Locate the subject by countyFips/county/ZIP + APN; sqft/yearBuilt
+      // narrow the comp set (±25% / ±15y).
+      const params = new URLSearchParams({ limit: '10' });
+      if (selectedProperty.state) params.set('state', selectedProperty.state);
+      if (selectedProperty.countyFips) params.set('countyFips', selectedProperty.countyFips);
+      else if (selectedProperty.county) params.set('county', selectedProperty.county);
+      if (selectedProperty.zip) params.set('zip', selectedProperty.zip);
+      if (selectedProperty.apn) params.set('apn', selectedProperty.apn);
       if (selectedProperty.squareFeet) params.set('sqft', String(selectedProperty.squareFeet));
+      if (selectedProperty.yearBuilt) params.set('yearBuilt', String(selectedProperty.yearBuilt));
 
       const response = await fetch(`/api/comps?${params.toString()}`);
       if (response.ok) {
@@ -1405,7 +1426,14 @@ export default function UnderwritingPage() {
         let totalWeight = 0;
         let weightedSum = 0;
         selected.forEach(comp => {
-          const distanceWeight = 1 / (1 + comp.distance);
+          // Distance is null when coords are missing (pre-geocode-backfill) —
+          // fall back to a flat proximity prior: same-ZIP comps weigh like a
+          // ~1mi comp, county-only comps like a ~3mi comp.
+          const distanceWeight = comp.distance != null
+            ? 1 / (1 + comp.distance)
+            : comp.zipMatch
+              ? 0.5
+              : 0.25;
           const similarityWeight = comp.similarity / 100;
           const weight = (distanceWeight * 0.4 + similarityWeight * 0.6);
           totalWeight += weight;

@@ -7,6 +7,13 @@ async function createTestActiveDeals() {
   try {
     console.log('🏠 Creating test active deals for Property Data Refresh...\n');
 
+    // DealSpec.userId is required — own test rows via the local seed user.
+    const owner = await prisma.user.upsert({
+      where: { email: 'seed@flipops.local' },
+      update: {},
+      create: { email: 'seed@flipops.local', name: 'Seed User', targetMarkets: '[]' },
+    });
+
     // Create 5 active deals with varying ARV values
     const deals = [
       {
@@ -69,7 +76,7 @@ async function createTestActiveDeals() {
     // Create the deals
     for (const dealData of deals) {
       const deal = await prisma.dealSpec.create({
-        data: dealData
+        data: { ...dealData, userId: owner.id }
       });
       console.log(`✅ Created deal: ${deal.address}`);
       console.log(`   ARV: $${deal.arv?.toLocaleString()}, Max Exposure: $${deal.maxExposureUsd.toLocaleString()}, Target ROI: ${deal.targetRoiPct}%`);

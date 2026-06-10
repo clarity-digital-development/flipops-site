@@ -51,13 +51,17 @@
 
 | Month | Theme | Items | Done | In progress |
 |---|---|---|---|---|
-| **M1** — `M1-foundations.md` | Stop the bleeding, ship the receipts | 9 | 0 | 0 |
+| **M1** — `M1-foundations.md` | Stop the bleeding, ship the receipts | 9 | 6 | 3 (PARTIAL) |
 | **M2** — `M2-coverage-and-intelligence.md` | Coverage multiplier + first model | 7 | 0 | 0 |
 | **M3** — `M3-signals-and-demo.md` | New signals, AVM, investor demo | 7 | 0 | 0 |
 | **OPS** — `OPERATIONS.md` | Provisioning, credentials, carry-overs | rolling | — | — |
 
-**Active month: M1.** Recommended first items: M1.1 (label bleed — calendar-gated) and
-M1.3 (FGIO geocode — highest leverage-per-hour).
+**Active month: M1.** Done: M1.1 (label pipeline — anonymous events + transactional outcomes
++ repliedAt stamping + events-health stat), M1.2 (real comps), M1.5 (cleanup + scorer
+extraction), M1.6 (requireUser sweep + JIT provisioning), M1.7 (Data Health page), M1.9
+(CLAUDE.md fix). Remaining PARTIAL work: M1.3 + M1.8 (statewide geocode and owner-occupancy
+backfill RUNS — code/schema ready), M1.4 (re-run Broward/Hillsborough scrapers + rescore in
+prod — fixes are code-complete).
 
 ---
 
@@ -65,6 +69,9 @@ M1.3 (FGIO geocode — highest leverage-per-hour).
 
 > Append-only. Newest first. Every pivot gets one line: date · what changed · why · affected items.
 
+- **2026-06-09** — M1 executed via 10-lane workflow; statewide geocode + owner-occupancy
+  backfills queued as post-deploy runs. M1.1/M1.2/M1.5/M1.6/M1.7/M1.9 DONE; M1.3/M1.4/M1.8
+  PARTIAL (details in M1-foundations.md).
 - **2026-06-09** — Roadmap created from State of the Union audit. Baseline plan = the 90-day
   sequence in `FLIPOPS-STATE-OF-THE-UNION-2026-06-09.md`.
 - **2026-06-09** — Auth reality check: user said "migrated away from Clerk" but repo has zero

@@ -63,7 +63,7 @@ async function g4ChangeOrderGatekeeper() {
         totalViolations += violations.length;
 
         // Send Slack notification
-        const sent = await sendG4Alert(user.slackWebhook!, violations, user.name);
+        const sent = await sendG4Alert(user.slackWebhook!, violations, user.name ?? 'Unknown');
 
         if (sent) {
           totalNotifications++;

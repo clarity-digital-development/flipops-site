@@ -239,10 +239,11 @@ describe('Gate G2 - Bid Award (Spread Control)', () => {
         update: {},
         create: {
           dealId: 'SAFE_DEAL_001',
-          baseline: { Roofing: 10000, total: 10000 },
-          committed: {},
-          actuals: {},
-          variance: {},
+          // BudgetLedger stores trade maps as JSON strings
+          baseline: JSON.stringify({ Roofing: 10000, total: 10000 }),
+          committed: '{}',
+          actuals: '{}',
+          variance: '{}',
           contingencyRemaining: 1500
         }
       });

@@ -633,7 +633,7 @@ function ContractsDemo() {
                         <div className="bg-white dark:bg-zinc-900 rounded-lg p-4 border border-gray-200 dark:border-zinc-700">
                           <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">Key Dates</div>
                           <div className="space-y-2">
-                            {contract.keyDates.map((date, j) => (
+                            {contract.keyDates.map((date: { label: string; date: string; badge?: string }, j) => (
                               <div key={date.label} className="flex items-center justify-between text-sm">
                                 <span className="text-gray-600 dark:text-gray-400">{date.label}</span>
                                 <div className="flex items-center gap-2">

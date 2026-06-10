@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireUser } from '@/lib/auth/require-user';
+import { emitLeadEvent, buildPropertySnapshot } from '@/lib/events/emit';
 
 // GET /api/contracts/[id]
 // Get contract details
@@ -73,9 +74,10 @@ export async function PATCH(
     const body = await request.json();
     const { status, closingDate, signedAt, escrowOpenedAt, closedAt, notes, documentUrls } = body;
 
-    // Get the contract
+    // Get the contract (property included for the 'closed' outcome snapshot)
     const contract = await prisma.contract.findUnique({
       where: { id },
+      include: { property: true },
     });
 
     if (!contract) {
@@ -107,14 +109,35 @@ export async function PATCH(
     if (notes !== undefined) updateData.notes = notes;
     if (documentUrls !== undefined) updateData.documentUrls = JSON.stringify(documentUrls);
 
-    // Update the contract
-    const updatedContract = await prisma.contract.update({
-      where: { id },
-      data: updateData,
-      include: {
-        property: true,
-        offer: true,
-      },
+    // Update the contract; when the status transitions to 'closed', emit the
+    // 'closed' behavioral outcome label in the SAME transaction (M1.1) —
+    // outcome labels are server-side, never client best-effort.
+    const becameClosed = status === 'closed' && contract.status !== 'closed';
+    const updatedContract = await prisma.$transaction(async (tx) => {
+      const updated = await tx.contract.update({
+        where: { id },
+        data: updateData,
+        include: {
+          property: true,
+          offer: true,
+        },
+      });
+
+      if (becameClosed) {
+        await emitLeadEvent(tx, {
+          userId,
+          propertyId: contract.propertyId,
+          eventType: 'closed',
+          leadSnapshot: buildPropertySnapshot(contract.property),
+          metadata: {
+            contractId: contract.id,
+            purchasePrice: contract.purchasePrice,
+            source: 'api/contracts/[id]#PATCH',
+          },
+        });
+      }
+
+      return updated;
     });
 
     return NextResponse.json({
