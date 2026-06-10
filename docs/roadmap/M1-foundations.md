@@ -97,7 +97,7 @@ this was a Week-2 FL-COVERAGE-PLAN item that simply never ran.
 ---
 
 ### M1.4 — Tax-delinquency data-quality bugs (3 counties)
-**Status:** PARTIAL (2026-06-09 — root causes fixed in code, prod re-runs pending) · **Effort:** 1-2 days · **Deps:** none
+**Status:** DONE (2026-06-10 — all 3 county bugs fixed AND data live: Broward 1 row→6,860/$47.55M (TaxSys CSV scraper; nightly ~1-3AM ET regen window confirmed — first 3:19AM retry succeeded), Hillsborough $0→$24.5M (certificate join), Palm Beach $18.6M→$9.3M (double-count). Total: $758.8M/112,494 parcels across 6 metros. govhub scrapers are residential-egress-only pending sticky-session proxy — OPS-6.) · **Effort:** 1-2 days · **Deps:** none
 **Outcome:** Root causes diagnosed and fixed: Broward's LienHub county-held source truthfully
 has ~1 row most of the year — replaced with a new TaxSys govhub CSV scraper
 (`lib/scrapers/vendors/broward-tax-delinquent-csv.ts`, now primary in dispatch); Hillsborough
