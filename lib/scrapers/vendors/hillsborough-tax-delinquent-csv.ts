@@ -66,8 +66,21 @@ export interface HillsboroughTaxDelinquentCsvResult {
  * shape on the persistence side. The HTML scraper at hillsborough-tax-
  * delinquent.ts remains available for testing + fallback.
  */
-export async function scrapeHillsboroughTaxDelinquentCsv(): Promise<HillsboroughTaxDelinquentCsvResult> {
-  const sess = new PlaywrightSession({ engine: "stealth-chromium", headless: true });
+export async function scrapeHillsboroughTaxDelinquentCsv(
+  opts: { useProxy?: boolean } = {},
+): Promise<HillsboroughTaxDelinquentCsvResult> {
+  // Default useProxy: true — datacenter egress (Railway worker) gets a
+  // bot-walled govhub page (200 but report links absent). KNOWN LIMITATION:
+  // DataImpulse rotates IPs per request, breaking this multi-step Playwright
+  // flow mid-session — sticky-session proxy support is the pending fix.
+  // Operators run from residential egress with SCRAPER_DIRECT_EGRESS=1.
+  // SCRAPER_DIRECT_EGRESS=1 maps to useProxy UNDEFINED (not false): explicit
+  // false sets Chromium proxy "direct://", which times out page.goto on local
+  // Windows — undefined omits the proxy key, matching the verified local-run
+  // conditions. Containers must never set this flag.
+  const useProxy =
+    opts.useProxy ?? (process.env.SCRAPER_DIRECT_EGRESS === "1" ? undefined : true);
+  const sess = new PlaywrightSession({ engine: "stealth-chromium", headless: true, useProxy });
   const sourceTag = `scraper:hillsborough-tax-${new Date().toISOString().slice(0, 10)}`;
   const today = new Date();
 

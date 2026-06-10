@@ -92,9 +92,22 @@ export interface BrowardTaxDelinquentCsvResult {
  * (no Lien upserts, no bronze capture) — local verification only.
  */
 export async function scrapeBrowardTaxDelinquentCsv(
-  opts: { dryRun?: boolean } = {},
+  opts: { dryRun?: boolean; useProxy?: boolean } = {},
 ): Promise<BrowardTaxDelinquentCsvResult> {
-  const sess = new PlaywrightSession({ engine: "stealth-chromium", headless: true });
+  // Default useProxy: true — datacenter egress (Railway worker) gets a
+  // bot-walled govhub page (200 but report links absent). KNOWN LIMITATION:
+  // DataImpulse rotates IPs per request, which breaks this multi-step
+  // Playwright flow mid-session (listing loads, then the CSV format button
+  // vanishes) — sticky-session proxy support is the pending fix. Until then,
+  // operators run from residential egress: SCRAPER_DIRECT_EGRESS=1 (or
+  // opts.useProxy=false) forces direct://.
+  // SCRAPER_DIRECT_EGRESS=1 maps to useProxy UNDEFINED (not false): the
+  // explicit false sets Chromium proxy "direct://", which times out page.goto
+  // on local Windows — undefined omits the proxy key entirely, matching the
+  // verified local-run conditions. Containers must never set this flag.
+  const useProxy =
+    opts.useProxy ?? (process.env.SCRAPER_DIRECT_EGRESS === "1" ? undefined : true);
+  const sess = new PlaywrightSession({ engine: "stealth-chromium", headless: true, useProxy });
   const sourceTag = `scraper:broward-tax-${new Date().toISOString().slice(0, 10)}`;
   const today = new Date();
 

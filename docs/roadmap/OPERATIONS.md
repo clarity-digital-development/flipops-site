@@ -24,7 +24,7 @@ All of these were exposed in plaintext during dev sessions (chat logs / CLI outp
 - [x] API key + public key in .env.local + Railway (both services)
 - [ ] **Messaging Profile → Inbound Settings**: webhook URL `https://flipops.io/api/webhooks/telnyx`, API version 2, failover = same URL
 - [ ] Assign +19046220099 to the Messaging Profile
-- [ ] **TelnyxNumber DB seed** — `scripts/seed-telnyx-number.ts` exists and is idempotent, but **BLOCKED on a User row existing** (DB has 0 users; Clerk webhook isn't wired locally; M1.1 jit-provisioning OR first prod sign-in fixes this). Run: `DATABASE_URL=... TELNYX_DEFAULT_SMS_FROM=+19046220099 TELNYX_OWNER_EMAIL=tannercarlson@vvsvault.com npx tsx scripts/seed-telnyx-number.ts`
+- [x] **TelnyxNumber DB seed** — DONE 2026-06-10: User row self-provisioned (tannercarlson@vvsvault.com) + TelnyxNumber +19046220099 ("Jacksonville primary"). messagingProfileId/connectionId still null — fill when Telnyx portal config lands.
 - [ ] Later (Sprint-3 features): Telephony Credential (WebRTC FlipPhone) → TELNYX_TELEPHONY_CREDENTIAL_ID + TELNYX_SIP_USERNAME; Call Control App (RVM) → TELNYX_CALL_CONTROL_CONNECTION_ID; AI Assistant (Oppenheimer) → TELNYX_ASSISTANT_ID
 
 ## OPS-3 — Other provider provisioning (each blocks one Sprint-3 feature)
@@ -52,6 +52,15 @@ All of these were exposed in plaintext during dev sessions (chat logs / CLI outp
 - **prisma db push cadence**: after any schema change. Sequence: edit schema → db push →
   generate → THEN write code referencing new models (parallel agents writing code against
   unpushed schema = typecheck noise).
+
+## OPS-6 — govhub/TaxSys scrapers are residential-egress-only (2026-06-10)
+
+The Broward + Hillsborough tax-delinquent CSV scrapers (TaxSys govhub portals) CANNOT run on the Railway worker yet:
+- Datacenter egress: page 200s but report links absent (bot-wall).
+- DataImpulse proxy: per-request IP rotation breaks the multi-step Playwright session (listing loads on IP A, CSV format button vanishes on IP B). **Fix = sticky-session proxy support** in PlaywrightSession (DataImpulse supports session pinning via username params) — backlog item.
+- Operator runbook (residential machine): `SCRAPER_DIRECT_EGRESS=1 DATABASE_URL=<public> npx tsx scripts/run-tax-scrape-local.ts --scraper broward-tax-delinquent` (same for `hillsborough-tax-delinquent`), then `rescore-tax-delinquent.ts`. Cadence: monthly is plenty (certificates are an annual cycle).
+- `SCRAPER_DIRECT_EGRESS=1` maps to useProxy **undefined** — explicit `useProxy:false` sets Chromium `direct://`, which times out page.goto on local Windows.
+- Suspected nightly report-regeneration window (~1-2 AM ET) hides the CSV format button — retry outside that window before debugging.
 
 ## Known landmines (learned the hard way — don't re-trip)
 
