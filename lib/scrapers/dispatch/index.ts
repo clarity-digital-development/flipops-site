@@ -7,6 +7,7 @@ import { runMiamiDadeTaxDelinquent } from "./miami-dade-tax-delinquent";
 import { runOrangeTaxDelinquent } from "./orange-tax-delinquent";
 import { runPalmBeachTaxDelinquent } from "./palm-beach-tax-delinquent";
 import { runRealAuction } from "./realauction-fl-foreclosures";
+import { runRealTaxDeedFl } from "./realtaxdeed-fl-tax-deeds";
 import { ingestFlDorStatewide } from "./fl-dor-statewide-nal-sdf";
 
 // ---------------------------------------------------------------------------
@@ -23,6 +24,7 @@ export const DISPATCH: Record<string, ScraperAdapter> = {
   "fl-dor-statewide-nal-sdf":    ingestFlDorStatewide,   // Phase 2 = no-op stub; Phase 4 = HEAD-check + ingest
   "duval-clerk-recordings":      runDuvalClerk,           // incremental-date (cursor = last scraped ISO day)
   "realauction-fl-foreclosures": runRealAuction,          // sequential enumerate 16 counties × tracks
+  "realtaxdeed-fl-tax-deeds":    runRealTaxDeedFl,        // calendar-first enumerate 29 realtaxdeed counties (M2.2)
   "duval-tax-delinquent":        runDuvalTaxDelinquent,
   "hillsborough-tax-delinquent": runHillsboroughTaxDelinquent, // Phase 4 swaps HTML walk for CSV export
   "orange-tax-delinquent":       runOrangeTaxDelinquent,  // seasonal: April-July only (registry-enforced)

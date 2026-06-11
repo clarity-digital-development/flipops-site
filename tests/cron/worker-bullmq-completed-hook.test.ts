@@ -32,6 +32,21 @@ describe("handleScrapeCompleted", () => {
     );
   });
 
+  it("calls refresh for realtaxdeed-fl-tax-deeds (M2.2 — tax-deed rows feed AuctionSummary)", async () => {
+    const refresh = vi.fn().mockResolvedValue({ rowsAffected: 89, durationMs: 40 });
+    const log = vi.fn();
+
+    await handleScrapeCompleted(
+      { data: { sourceKey: "realtaxdeed-fl-tax-deeds" } },
+      { refresh, log, error: vi.fn() },
+    );
+
+    expect(refresh).toHaveBeenCalledTimes(1);
+    expect(log).toHaveBeenCalledWith(
+      expect.stringContaining("AuctionSummary refreshed after realtaxdeed-fl-tax-deeds"),
+    );
+  });
+
   it("does NOT call refresh when sourceKey is NOT in the allow-set", async () => {
     const refresh = vi.fn();
     const log = vi.fn();
@@ -70,11 +85,12 @@ describe("handleScrapeCompleted", () => {
     );
   });
 
-  it("sanity: the allow-set currently contains exactly the realauction key (regression guard)", () => {
+  it("sanity: the allow-set currently contains exactly the realauction + realtaxdeed keys (regression guard)", () => {
     // If this fails, somebody added a new source key without writing tests
     // for its expected behavior. Update the set AND extend the filter-PASS
     // test above to cover the new key, then update this assertion.
-    expect(AUCTION_SUMMARY_REFRESH_SOURCE_KEYS.size).toBe(1);
+    expect(AUCTION_SUMMARY_REFRESH_SOURCE_KEYS.size).toBe(2);
     expect(AUCTION_SUMMARY_REFRESH_SOURCE_KEYS.has("realauction-fl-foreclosures")).toBe(true);
+    expect(AUCTION_SUMMARY_REFRESH_SOURCE_KEYS.has("realtaxdeed-fl-tax-deeds")).toBe(true);
   });
 });

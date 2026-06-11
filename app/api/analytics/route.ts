@@ -512,16 +512,91 @@ export async function GET(request: NextRequest) {
       response.hasVendorInvoiceData = periodInvoices.length > 0;
     }
 
-    // Marketing analytics (mock data - would need campaign tracking table)
-    if (tab === 'all' || tab === 'marketing') {
-      response.marketingMetrics = [
-        { channel: 'PPC', spend: 28000, leads: 562, contracts: 45, closedDeals: 38, cpl: 49.82, cpa: 622, cpd: 737, roas: 52.3, romi: 41.2 },
-        { channel: 'SEO', spend: 5000, leads: 245, contracts: 12, closedDeals: 10, cpl: 20.41, cpa: 417, cpd: 500, roas: 28.4, romi: 22.6 },
-        { channel: 'Direct Mail', spend: 8000, leads: 186, contracts: 9, closedDeals: 8, cpl: 43.01, cpa: 889, cpd: 1000, roas: 18.5, romi: 14.2 },
-        { channel: 'Cold Call', spend: 6000, leads: 142, contracts: 7, closedDeals: 6, cpl: 42.25, cpa: 857, cpd: 1000, roas: 15.8, romi: 11.3 },
-        { channel: 'SMS', spend: 3000, leads: 87, contracts: 5, closedDeals: 4, cpl: 34.48, cpa: 600, cpd: 750, roas: 12.6, romi: 9.8 },
-        { channel: 'Referral', spend: 2000, leads: 25, contracts: 11, closedDeals: 10, cpl: 80, cpa: 182, cpd: 200, roas: 85.2, romi: 72.5 },
-      ];
+    // ------------------------------------------------------------------------
+    // Signal Sources (M2.6) — replaces the old hardcoded PPC/SEO/Direct Mail
+    // MarketingMetrics fiction. Funnel by Property.dataSource:
+    //
+    //   surfaced      — universe size in the freshness layer (tax/auction
+    //                   materialized aggregates; null for sources without a
+    //                   queryable surfaced pool, e.g. on-demand ZIP pulls)
+    //   inWorkspace   — Property rows the user owns from that source
+    //                   (promote-on-engagement or import)
+    //   contacted     — owned rows with a real lastContactDate
+    //   skipTraced    — owned rows with enriched=true (BatchData skip trace)
+    //   skipTraceCost — skipTraced × $0.20/record (BatchData actual rate)
+    //
+    // All counts come straight from the DB — honest zeros, never fabricated.
+    // Counts are all-time (lead-source performance is cumulative; period-
+    // scoping a sparse funnel would render misleading empty charts).
+    // ------------------------------------------------------------------------
+    if (tab === 'all' || tab === 'marketing' || tab === 'signal-sources') {
+      const SKIP_TRACE_COST_PER_RECORD = 0.2;
+
+      const SIGNAL_SOURCE_LABELS: Record<string, string> = {
+        'parcel-auction-bridge': 'Foreclosure Auctions',
+        'parcel-lien-bridge': 'Tax Delinquent',
+        'parcel-zip-pull': 'ZIP Parcel Pull',
+      };
+
+      const [bySource, contactedBySource, enrichedBySource, surfacedTax, surfacedAuction] =
+        await Promise.all([
+          prisma.property.groupBy({
+            by: ['dataSource'],
+            where: { userId },
+            _count: { _all: true },
+          }),
+          prisma.property.groupBy({
+            by: ['dataSource'],
+            where: { userId, lastContactDate: { not: null } },
+            _count: { _all: true },
+          }),
+          prisma.property.groupBy({
+            by: ['dataSource'],
+            where: { userId, enriched: true },
+            _count: { _all: true },
+          }),
+          prisma.taxDelinquencySummary.count(),
+          prisma.auctionSummary.count({ where: { score: { not: null } } }),
+        ]);
+
+      const inWorkspaceMap = new Map(bySource.map((r) => [r.dataSource, r._count._all]));
+      const contactedMap = new Map(contactedBySource.map((r) => [r.dataSource, r._count._all]));
+      const enrichedMap = new Map(enrichedBySource.map((r) => [r.dataSource, r._count._all]));
+
+      // Always include the two freshness-layer sources (their surfaced pool
+      // is real even at zero workspace adoption), plus any source the user
+      // actually has rows from.
+      const sourceKeys = new Set<string>([
+        'parcel-auction-bridge',
+        'parcel-lien-bridge',
+        ...inWorkspaceMap.keys(),
+      ]);
+
+      response.signalSources = Array.from(sourceKeys)
+        .map((key) => {
+          const inWorkspace = inWorkspaceMap.get(key) ?? 0;
+          const surfaced =
+            key === 'parcel-lien-bridge'
+              ? surfacedTax
+              : key === 'parcel-auction-bridge'
+                ? surfacedAuction
+                : null;
+          const skipTraced = enrichedMap.get(key) ?? 0;
+          return {
+            source: key,
+            label: SIGNAL_SOURCE_LABELS[key] ?? key,
+            surfaced,
+            inWorkspace,
+            contacted: contactedMap.get(key) ?? 0,
+            skipTraced,
+            skipTraceCost: parseFloat((skipTraced * SKIP_TRACE_COST_PER_RECORD).toFixed(2)),
+          };
+        })
+        .sort(
+          (a, b) =>
+            b.inWorkspace - a.inWorkspace || (b.surfaced ?? 0) - (a.surfaced ?? 0),
+        );
+      response.hasSignalSourceData = Array.from(inWorkspaceMap.values()).some((n) => n > 0);
     }
 
     // Profitability analytics - real data from deal analyses

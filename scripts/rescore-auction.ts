@@ -11,6 +11,9 @@ import { prisma } from "@/lib/prisma";
 //
 // Per the verifier of OPTION-A-LEADS-INTEGRATION-DESIGN.json (HG2):
 //   nextAuctionDate := MIN(auctionDate WHERE stageCode='SCHEDULED' AND auctionDate > NOW())
+// M2.2 extension: stageCode='TAX_DEED' (realtaxdeed scraper — scheduled
+// tax-deed sales) is treated like SCHEDULED for nextAuctionDate and
+// scheduledCount, so tax-deed sale dates flow into the auction UI unchanged.
 //
 // Score / grade / motivation are MATERIALIZED so the /api/properties UNION
 // can ORDER BY score in SQL without an over-fetch-and-rescore loop. This is
@@ -108,11 +111,11 @@ export async function refreshAuctionSummary(opts: { countyFips?: string } = {}):
           FROM flipops."Foreclosure" f2
           WHERE f2."countyFips" = f."countyFips"
             AND f2."apn"        = f."apn"
-            AND f2."stageCode"  = 'SCHEDULED'
+            AND f2."stageCode"  IN ('SCHEDULED','TAX_DEED')
             AND f2."auctionDate" > NOW()
         )                                                                    AS "nextAuctionDate",
         COUNT(*) FILTER (WHERE f."stageCode" IN ('SOLD','DISMISSED'))::int    AS "pastAuctionCount",
-        COUNT(*) FILTER (WHERE f."stageCode" = 'SCHEDULED')::int              AS "scheduledCount",
+        COUNT(*) FILTER (WHERE f."stageCode" IN ('SCHEDULED','TAX_DEED'))::int AS "scheduledCount",
         MAX(f."judgmentAmount")::float                                        AS "judgmentAmountMax",
         MIN(f."openingBid")::float                                            AS "openingBidMin",
         (ARRAY_AGG(f."caseNumber" ORDER BY f."capturedAt" DESC NULLS LAST))[1] AS "lastCaseNumber",

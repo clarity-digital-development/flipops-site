@@ -17,8 +17,8 @@ sheriff/arrest + probate dockets (true per-county portals — extend after platf
 
 ---
 
-### M2.1 — F2.1 Civitek mortgage/lien scraper (THE coverage multiplier)
-**Status:** TODO · **Effort:** 1-2 weeks (the big one) · **Deps:** none; FL-COVERAGE-PLAN §F2.1 is the spec
+### M2.1 — Official-records mortgage/lien scrapers: ACCLAIM + LANDMARK families (THE coverage multiplier)
+**Status:** SPEC DONE (2026-06-10 — recon found Civitek MyFloridaCounty ORI is DEAD/NXDOMAIN; counties migrated to vendor SaaS. Families: Acclaim (Broward+Duval — prod Duval scraper is already an Acclaim client), Landmark (PB/Lee/Levy — small-county reuse CONFIRMED live), OnCore (Orange), custom (Miami-Dade/Hillsborough). Spec + fixtures: .gstack/qa-reports/CIVITEK-BUILD-SPEC.md. Build order: generalize Duval→Acclaim 4-6d, then Landmark 5-7d.) → BUILD IN PROGRESS · **Effort:** 1-2 weeks (the big one) · **Deps:** none; FL-COVERAGE-PLAN §F2.1 is the spec
 **Why:** The 296-field mortgage/lien bucket is 30% of the entire Cotality dictionary and
 effectively empty (208 Mortgage rows; HOA/mechanics-lien schema at 0 rows). Landing it moves
 effective coverage ~17% → ~48%. This was always the plan's "single highest-leverage build."
@@ -43,7 +43,7 @@ estimation becomes possible (assessed/market value minus open mortgage balance).
 ---
 
 ### M2.2 — B2: Tax-deed applications signal
-**Status:** TODO · **Effort:** 2-4 days (cheapest catalog build) · **Deps:** none
+**Status:** DONE (2026-06-10 — realtaxdeed.ts live: 29 verified county hosts, 93 rows/3 counties smoke, 51 future TAX_DEED, AuctionSummary inherits (53 rows, 75/A), scorer v2.2 + CONDITION_FAMILY scaffolding, 17/17 tests. Registry seeded, daily 7AM ET cron. LANDMINE found: RealAuction pins auction date at cookie-mint — XHR date param IGNORED; prod foreclosure scraper may misattribute dates — verify in Wave B.) · **Effort:** 2-4 days (cheapest catalog build) · **Deps:** none
 **Why:** FL Ch.197 escalation — certificate holder applies for deed, sale is months away:
 owner distress with a third-party CLOCK. Rides `*.realtaxdeed.com` — the SAME RealAuction
 platform as the production foreclosure scraper (cookie+XHR path, no Playwright) — plus
@@ -63,7 +63,7 @@ surfaces "Tax deed sale ~Aug 12" on affected rows.
 ---
 
 ### M2.3 — ML foundations: feature mart + training loop
-**Status:** TODO · **Effort:** ~1 week · **Deps:** M1.3 (geocode for spatial features)
+**Status:** PARTIAL (2026-06-10 — design + skeleton DONE: schema patch APPLIED (ParcelFeature/ZipMarketStats/ModelVersion + propensity12mo pushed), export/train/apply scripts compile + live-tested. Remaining: build-parcel-features.ts mart populate + first real training run. Duval unusable for v1 training (all earliestYear=2025); use Miami-Dade+Broward.) · **Effort:** ~1 week · **Deps:** M1.3 (geocode for spatial features)
 **What/How:**
 1. `ParcelFeature` silver mart for active metros (start: Duval + Miami-Dade): one row per
    parcel with model-ready features (value ratios, sqft/lot, age, owner-occupancy, absentee,
@@ -108,7 +108,7 @@ surface in the score-breakdown tooltip: "23% chance of sale in 12 mo (model v1)"
 ---
 
 ### M2.6 — Lead provenance/freshness chips + Signal Source analytics
-**Status:** TODO · **Effort:** 3-4 days · **Deps:** none
+**Status:** DONE (2026-06-10 — per-signal receipt chips in lead sheet, freshness header off data-health cache, Marketing fiction deleted → honest Signal Sources tab with $0.20 skip-trace actuals, live-verified SQL.) · **Effort:** 3-4 days · **Deps:** none
 **Why:** Trust in scraped data requires receipts. No lead currently says which scraper produced
 its signals or when. And the Analytics "Marketing" tab is structural fiction (hardcoded ad-spend
 on a platform that buys no ads).
@@ -125,7 +125,7 @@ on a platform that buys no ads).
 ---
 
 ### M2.7 — SDF sale-history backfill (2009-2023) + Dixie County fix
-**Status:** TODO · **Effort:** 2-3 days (mostly runtime) · **Deps:** none
+**Status:** PARTIAL-BLOCKED (2026-06-10 — Dixie FIXED (filename double-dot regex, 3,402 rows); 2025F statewide refresh ran; multi-vintage runner ready. 2009-2023 BLOCKED on OPS-7: vintages are free-by-email from DOR (PTOTechnology@floridarevenue.com) — USER ACTION.) · **Effort:** 2-3 days (mostly runtime) · **Deps:** none
 **Why:** ParcelSale spans only 2024-01→2026-02; the plan promised 2009+. Sale-history depth
 directly feeds AVM quality (M3.3) and time-on-market features. Dixie (12029) has zero rows.
 **What/How:** prior-vintage FL DOR SDF files (same ingester, older vintages); investigate the

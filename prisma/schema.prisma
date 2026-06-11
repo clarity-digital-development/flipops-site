@@ -1808,6 +1808,15 @@ model TaxDelinquencySummary {
   grade             String?   // "A" | "B" | "C" | "D" | "F"
   motivation        String?   // short human-readable motivation summary
 
+  // M2.4 Layer-1 output: calibrated P(qualified sale within 12 months), 0..1.
+  // Written ONLY by scripts/ml/apply-predictions.ts in chunked batch UPDATEs.
+  // NULL = never scored by a model (cold-start rows fall back to the
+  // hand-tuned scorer — SCORING-ARCHITECTURE invariant #5).
+  propensity12mo           Float?
+  // ModelVersion.id provenance (invariant #1: every stored score carries its
+  // model version). FK-by-value, no relation.
+  propensityModelVersionId String?
+
   computedAt        DateTime  @default(now())
 
   @@id([countyFips, apn])
@@ -1815,6 +1824,7 @@ model TaxDelinquencySummary {
   @@index([totalAmount])
   @@index([score(sort: Desc)])
   @@index([countyFips, score(sort: Desc)])
+  @@index([propensity12mo(sort: Desc)])
 }
 
 // ---------------------------------------------------------------------------
@@ -2017,4 +2027,166 @@ model LeadEvent {
   @@index([eventType])
   @@index([occurredAt])
   @@index([userId, eventType])
+}
+// ---------------------------------------------------------------------------
+// ParcelFeature — model-ready feature mart ("silver" layer), one row per
+// parcel in active metros (start: Duval 12031 + Miami-Dade 12086).
+//
+// Populated by a future scripts/ml/build-parcel-features.ts (single SQL UPSERT
+// per county, mirrors rescore-tax-delinquent.ts). Read paths:
+//   - scripts/ml/export-training-data.ts  (training frame export)
+//   - M2.4 batch inference (apply-predictions.ts reads features, writes
+//     propensity back to TaxDelinquencySummary)
+// ---------------------------------------------------------------------------
+model ParcelFeature {
+  id                      String   @id @default(cuid())
+
+  // Natural key — joins by value to Parcel / TaxDelinquencySummary /
+  // AuctionSummary. Same convention as the other materialized marts.
+  countyFips              String                 // "12031"
+  apn                     String                 // PARCEL_ID from the roll
+
+  // -- Location (denormalized for grouping / spatial features) ------------
+  situsZip                String?                // 5-digit ZIP from Parcel
+  latitude                Float?                 // centroid (M1.3 geocode)
+  longitude               Float?
+
+  // -- Value features ------------------------------------------------------
+  marketValue             Float?                 // JV copy (export convenience)
+  assessedValue           Float?                 // AV_SD copy
+  // assessedValue / marketValue. The "assessed-ratio baseline" in
+  // SCORING-ARCHITECTURE invariant #2 is built directly on this ratio —
+  // it is the floor every learned model must beat.
+  assessedToMarketRatio   Float?
+  landToMarketRatio       Float?                 // landValue / marketValue
+  // marketValue / squareFeet — cheap AVM-ish normalizer, NULL when sqft=0.
+  valuePerSqft            Float?
+
+  // -- Physical characteristics -------------------------------------------
+  squareFeet              Int?                   // TOT_LVG_AR
+  lotSize                 Float?                 // LND_SQFOOT
+  ageYears                Int?                   // computedAt.year - ACT_YR_BLT
+  propertyType            String?                // DOR_UC land-use code (categorical)
+
+  // -- Ownership / occupancy ----------------------------------------------
+  ownerOccupied           Boolean?               // situs ≈ mailing compare (derive-owner-occupancy)
+  absenteeOwner           Boolean?               // NOT ownerOccupied, mailing present
+  outOfStateOwner         Boolean?               // mailing state != "FL"
+  corporateOwner          Boolean?               // ownerName matches LLC/INC/CORP/TRUST pattern
+
+  // -- Sale recency ---------------------------------------------------------
+  lastSalePrice           Float?                 // most recent ParcelSale (or roll SALE_PRC1)
+  yearsSinceLastSale      Float?                 // computedAt - last saleDate, years
+
+  // -- Per-signal-family flags + ages --------------------------------------
+  // One (flag, ageDays) pair per scorer v2.1 family that has real data today.
+  // ageDays = days since the family's anchor event at computedAt; NULL when
+  // the flag is false. Families without a data source yet (VACANCY, LIFE_EVENT,
+  // EQUITY, CONDITION) get columns when their scrapers land — add them here
+  // with a featureVersion bump, never reuse a column.
+
+  // TAX_FAMILY — anchor: delinquency onset = Apr 1 of (earliestYear + 1),
+  // the FL Ch.197 statutory delinquency date for tax year earliestYear.
+  taxDelinquent           Boolean  @default(false)
+  taxDelinquencyAgeDays   Int?
+  taxYearsCount           Int?                   // TaxDelinquencySummary.yearsCount
+  taxTotalAmount          Float?                 // TaxDelinquencySummary.totalAmount
+
+  // FORECLOSURE_FAMILY — anchor: earliest Foreclosure.filingDate (fallback
+  // firstCapturedAt). auctionInDays is signed: negative = future auction.
+  foreclosureActive       Boolean  @default(false)
+  foreclosureAgeDays      Int?
+  auctionScheduled        Boolean  @default(false)
+  auctionInDays           Int?                   // nextAuctionDate - computedAt, days
+
+  // -- ZIP aggregates (FK-by-value snapshot from ZipMarketStats) ------------
+  // Copied at compute time, NOT joined at read time — see header decision #1.
+  zipMedianSalePrice      Float?
+  zipPricePerSqft         Float?
+  zipSaleVelocity12mo     Float?                 // qualified sales / parcel, trailing 12mo
+  zipTrend12moPct         Float?                 // median price t12m vs prior 12m, percent
+
+  // -- Versioning / provenance ----------------------------------------------
+  featureVersion          Int      @default(1)   // bump on ANY semantic change
+  computedAt              DateTime @default(now())
+
+  @@unique([countyFips, apn])
+  // Export scan: WHERE countyFips = $1 AND featureVersion = $2 ORDER BY apn
+  // (keyset pagination on apn within county).
+  @@index([countyFips, featureVersion, apn])
+  @@index([situsZip])
+  @@index([computedAt])
+}
+
+// ---------------------------------------------------------------------------
+// ZipMarketStats — per-ZIP market aggregates from ParcelSale × Parcel.
+//
+// Refresh cadence: monthly with the retrain (SCORING-ARCHITECTURE "Cadence"),
+// or after major sale-history lands (M2.7 SDF backfill). Single SQL UPSERT.
+// "Qualified sale" = salePrice >= $10k arm's-length proxy until DOR qualCode
+// mapping is finalized — keep this definition in sync with
+// scripts/ml/export-training-data.ts (QUALIFIED_SALE_FLOOR).
+// ---------------------------------------------------------------------------
+model ZipMarketStats {
+  // 5-digit ZIP as primary key — one row per ZIP, nationwide-safe.
+  zip                String   @id
+  state              String                  // "FL" — partition for state-scoped refresh
+
+  medianSalePrice    Float?                  // median qualified sale price, trailing 12mo
+  pricePerSqft       Float?                  // median (salePrice / squareFeet), trailing 12mo
+  // Turnover: qualified sales trailing 12mo / parcel count in ZIP.
+  // A rate (not raw count) so dense Miami-Dade ZIPs and rural ZIPs compare.
+  saleVelocity12mo   Float?
+  // Median qualified price trailing 12mo vs the PRIOR 12mo window, percent.
+  // NULL when either window has < minimum sample.
+  trend12moPct       Float?
+  // Qualified-sale count in the trailing-12mo window. Consumers (and the
+  // hierarchical shrinkage in M2.4) MUST treat small-sample ZIPs with
+  // suspicion — shrink toward the county/state prior, don't trust a median
+  // of 3 sales.
+  sampleSize         Int      @default(0)
+
+  computedAt         DateTime @default(now())
+
+  @@index([state])
+}
+
+// ---------------------------------------------------------------------------
+// ModelVersion — registry for every trained model artifact.
+// SCORING-ARCHITECTURE invariant #1: every stored score carries its model
+// version; no silent weight changes. Invariant #2: a version is `promoted`
+// only after it beats the incumbent on holdout (calibration-by-decile +
+// ranking AUC) AND the assessed-ratio baseline floor.
+//
+// Rows are written by the training loop (see scripts/ml/README.md step 4),
+// never deleted — demote by flipping `promoted`, keep the row for provenance.
+// ---------------------------------------------------------------------------
+model ModelVersion {
+  id          String   @id @default(cuid())
+
+  // Stable model family identifier: "propensity-v1" (M2.4 Layer 1),
+  // later "account-ranker" (M3 Layer 2). The KEY names the problem;
+  // `version` counts retrains within the key.
+  modelKey    String
+  version     Int                              // monotonically increasing per modelKey
+  trainedAt   DateTime @default(now())
+
+  // metrics.json from train_propensity.py verbatim: { auc, baselineAuc,
+  // calibrationByDecile: [{decile, meanPredicted, observedRate, n}],
+  // nTrainRows, nHoldoutRows, params, labelWindow }.
+  metrics     Json
+  // Ordered feature names exactly as the booster consumed them — required to
+  // reproduce inference and to diff feature drift between versions.
+  featureList Json
+  // True for at most ONE version per modelKey at a time (enforced in the
+  // promote script, not the DB — partial unique indexes aren't expressible
+  // in Prisma). apply-predictions.ts refuses to write scores from an
+  // unpromoted version unless --force.
+  promoted    Boolean  @default(false)
+  notes       String?                          // human context: "first Civitek-era retrain", eval caveats
+
+  createdAt   DateTime @default(now())
+
+  @@unique([modelKey, version])
+  @@index([modelKey, promoted])
 }

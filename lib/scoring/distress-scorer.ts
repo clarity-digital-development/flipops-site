@@ -22,6 +22,14 @@
  * - PropertyScoreInput extended with hasScheduledAuction / nextAuctionDate
  *   / hasLisPendens — populated by the UNION builder in M2.3.
  *
+ * Updated 2026-06-10 (M2.2, v2.2):
+ * - Added TAX_DEED_APPLICATION (TAX_FAMILY, base 28) with FUTURE_AUCTION-style
+ *   proximity decay on the scheduled tax-deed sale date (FL Ch.197 escalation:
+ *   certificate holder applied for deed — a third-party clock is running).
+ * - Added empty CONDITION_FAMILY scaffolding (CODE_VIOLATION / SINKHOLE /
+ *   STORM_DAMAGE / CONDEMNED) as 0-weighted placeholders for M3's
+ *   property-distress sources.
+ *
  * v2.0 baseline (2025-12-13):
  * - LONG_TERM_OWNER: 10 -> 15 pts
  * - ABSENTEE_OWNER (in-state): 10 -> 12 pts
@@ -34,7 +42,7 @@
  * scored behavioral event (M1.1 step 7) so training data is reproducible
  * across scorer revisions. Bump whenever weights/families/signals change.
  */
-export const SCORER_VERSION = "2.1";
+export const SCORER_VERSION = "2.2";
 
 /**
  * Property data shape the scorer reads (formerly REAPI search-response shape).
@@ -238,13 +246,17 @@ export const SIGNAL_FAMILIES = {
     'FUTURE_AUCTION',
     'LIS_PENDENS',
   ],
-  TAX_FAMILY: ['TAX_DELINQUENT', 'LIEN_JUDGMENT'],
+  TAX_FAMILY: ['TAX_DELINQUENT', 'LIEN_JUDGMENT', 'TAX_DEED_APPLICATION'],
   VACANCY_FAMILY: ['VACANT'],
   ABSENTEE_FAMILY: ['OUT_OF_STATE_OWNER', 'ABSENTEE_OWNER'],
   LIFE_EVENT_FAMILY: ['INHERITED', 'DEATH_TRANSFER'],
   EQUITY_FAMILY: ['HIGH_EQUITY', 'FREE_CLEAR', 'NEGATIVE_EQUITY'],
   OWNERSHIP_FAMILY: ['LONG_TERM_OWNER', 'PORTFOLIO_OWNER', 'CORPORATE_OWNED'],
   BANK_FAMILY: ['REO'],
+  // M2.2 scaffolding — property-condition distress (M3 sources: code
+  // enforcement / Accela, sinkhole disclosures, storm-damage assessments,
+  // condemnation orders). All 0-weighted placeholders until M3 wires data.
+  CONDITION_FAMILY: ['CODE_VIOLATION', 'SINKHOLE', 'STORM_DAMAGE', 'CONDEMNED'],
   LISTING_FAMILY: ['PRICE_REDUCED'],
   FINANCING_FAMILY: ['PRIVATE_LENDER', 'ADJUSTABLE_RATE'],
   TRANSFER_FAMILY: ['QUIT_CLAIM'],
@@ -405,6 +417,51 @@ export function calculateDistressScore(property: REAPIPropertyData): DistressSco
     tdPts
   );
 
+  // TAX_DEED_APPLICATION (M2.2, v2.2) — 28 base with FUTURE_AUCTION-style
+  // proximity decay on the scheduled tax-deed SALE date. FL Ch.197: the
+  // certificate holder has applied for a deed and the clerk has scheduled a
+  // sale — unlike plain delinquency, a third party controls the clock, so
+  // this outranks TAX_DELINQUENT (20 base / 30 boosted-cap) inside TAX_FAMILY
+  // once the sale is within ~30 days.
+  // Decay schedule (days-until-sale):
+  //   <= 14 days: +5 boost (max urgency, capped 33)
+  //   <= 30 days: base 28
+  //   <= 60 days: -3 mild decay
+  //   <= 90 days: -5 decay
+  //    > 90 days: -8 decay (sale is months out — still a live application)
+  const hasTaxDeedApplication = !!(property as REAPIPropertyData & { hasTaxDeedApplication?: boolean })
+    .hasTaxDeedApplication;
+  const taxDeedSaleDate = (property as REAPIPropertyData & { taxDeedSaleDate?: Date | string | null })
+    .taxDeedSaleDate;
+  let tdaPts = 0;
+  let tdaDaysOut: number | null = null;
+  if (hasTaxDeedApplication && taxDeedSaleDate) {
+    const d = taxDeedSaleDate instanceof Date ? taxDeedSaleDate : new Date(taxDeedSaleDate);
+    if (!isNaN(d.getTime())) {
+      tdaDaysOut = Math.round((d.getTime() - Date.now()) / 86400000);
+      tdaPts = 28;
+      if (tdaDaysOut <= 14) tdaPts += 5;
+      else if (tdaDaysOut <= 30) tdaPts += 0;
+      else if (tdaDaysOut <= 60) tdaPts -= 3;
+      else if (tdaDaysOut <= 90) tdaPts -= 5;
+      else tdaPts -= 8;
+      tdaPts = Math.max(0, Math.min(tdaPts, 33));
+    } else {
+      tdaPts = 28; // application known, unparseable date — treat as base
+    }
+  } else if (hasTaxDeedApplication) {
+    tdaPts = 28; // application known, sale not yet scheduled — base
+  }
+  record(
+    'TAX_DEED_APPLICATION',
+    28,
+    tdaPts > 0,
+    tdaPts > 0
+      ? `Tax deed sale scheduled${tdaDaysOut !== null ? ` (${tdaDaysOut} days out)` : ''}`
+      : 'Tax deed application filed (FL Ch.197)',
+    tdaPts
+  );
+
   // ============================================
   // VACANCY FAMILY
   // ============================================
@@ -462,6 +519,25 @@ export function calculateDistressScore(property: REAPIPropertyData): DistressSco
   // BANK FAMILY
   // ============================================
   record('REO', 10, !!property.reo, 'Bank-owned property (REO)');
+
+  // ============================================
+  // CONDITION FAMILY (M2.2 scaffolding — 0-weighted placeholders)
+  // ============================================
+  // TODO(M3): wire real weights once property-distress sources land —
+  // code enforcement (Accela, M3.2), sinkhole disclosures, storm-damage
+  // assessments, condemnation orders. Inputs are read so M3 only has to
+  // populate the flags + assign weights; with weight/points 0 these can
+  // never affect the score today (composeFamilyMax skips points <= 0).
+  const cond = property as REAPIPropertyData & {
+    hasCodeViolation?: boolean;
+    hasSinkhole?: boolean;
+    hasStormDamage?: boolean;
+    isCondemned?: boolean;
+  };
+  record('CODE_VIOLATION', 0, !!cond.hasCodeViolation, 'Open code-enforcement violation', 0);
+  record('SINKHOLE', 0, !!cond.hasSinkhole, 'Sinkhole activity reported/disclosed', 0);
+  record('STORM_DAMAGE', 0, !!cond.hasStormDamage, 'Storm/hurricane damage assessed', 0);
+  record('CONDEMNED', 0, !!cond.isCondemned, 'Structure condemned/unsafe order', 0);
 
   // ============================================
   // LISTING FAMILY
@@ -574,6 +650,16 @@ export interface PropertyScoreInput {
   hasScheduledAuction?: boolean;
   nextAuctionDate?: Date | null;
   hasLisPendens?: boolean;
+  // v2.2 (M2.2) — tax-deed application: Foreclosure rows with
+  // stageCode='TAX_DEED' source='realtaxdeed' for the parcel. saleDate may be
+  // null when the application exists but the sale is not yet scheduled.
+  hasTaxDeedApplication?: boolean;
+  taxDeedSaleDate?: Date | null;
+  // v2.2 (M2.2) — CONDITION_FAMILY placeholders (0-weighted until M3).
+  hasCodeViolation?: boolean;
+  hasSinkhole?: boolean;
+  hasStormDamage?: boolean;
+  isCondemned?: boolean;
 }
 
 export function calculateDistressScoreFromProperty(p: PropertyScoreInput): DistressScore {
@@ -581,6 +667,12 @@ export function calculateDistressScoreFromProperty(p: PropertyScoreInput): Distr
     hasScheduledAuction?: boolean;
     nextAuctionDate?: Date | null;
     hasLisPendens?: boolean;
+    hasTaxDeedApplication?: boolean;
+    taxDeedSaleDate?: Date | null;
+    hasCodeViolation?: boolean;
+    hasSinkhole?: boolean;
+    hasStormDamage?: boolean;
+    isCondemned?: boolean;
   } = {
     foreclosure: p.foreclosure,
     preForeclosure: p.preForeclosure,
@@ -596,6 +688,14 @@ export function calculateDistressScoreFromProperty(p: PropertyScoreInput): Distr
     hasScheduledAuction: p.hasScheduledAuction ?? false,
     nextAuctionDate: p.nextAuctionDate ?? null,
     hasLisPendens: p.hasLisPendens ?? false,
+    // v2.2 — tax-deed application (TAX_FAMILY)
+    hasTaxDeedApplication: p.hasTaxDeedApplication ?? false,
+    taxDeedSaleDate: p.taxDeedSaleDate ?? null,
+    // v2.2 — condition-family placeholders (0-weighted until M3)
+    hasCodeViolation: p.hasCodeViolation ?? false,
+    hasSinkhole: p.hasSinkhole ?? false,
+    hasStormDamage: p.hasStormDamage ?? false,
+    isCondemned: p.isCondemned ?? false,
   };
   return calculateDistressScore(adapted as REAPIPropertyData);
 }

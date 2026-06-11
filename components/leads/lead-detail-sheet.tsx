@@ -19,6 +19,7 @@ import {
   Sparkles,
   Gavel,
   Scale,
+  Database,
 } from "lucide-react";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { VisuallyHidden } from "@radix-ui/react-visually-hidden";
@@ -76,6 +77,12 @@ export interface DetailLead {
   scheduledCount?: number | null;
   pastAuctionCount?: number | null;
   dataSource?: string | null;
+  // M2.6 — provenance receipts (source key + per-signal capture dates from
+  // the /api/properties UNION; null when the branch has no receipt).
+  signalSource?: string | null;
+  taxSignalCapturedAt?: string | null;
+  auctionSignalCapturedAt?: string | null;
+  createdAt?: string;
 }
 
 interface ScoreSignal {
@@ -162,6 +169,87 @@ function formatCurrency(n?: number | null): string {
   return `$${n.toLocaleString()}`;
 }
 
+// ---------------------------------------------------------------------------
+// M2.6 — per-signal provenance receipts.
+// Maps machine source keys to human labels; unknown keys render as-is so
+// newly-added sources surface automatically instead of silently hiding.
+// ---------------------------------------------------------------------------
+const SOURCE_LABELS: Record<string, string> = {
+  "county-tax-roll": "County tax roll",
+  "parcel-lien-bridge": "County tax roll",
+  "realauction-fl-foreclosures": "RealAuction calendar",
+  "parcel-auction-bridge": "RealAuction calendar",
+  "parcel-zip-pull": "FL parcel records",
+};
+
+function sourceLabel(key?: string | null): string | null {
+  if (!key) return null;
+  return SOURCE_LABELS[key] ?? key;
+}
+
+function formatCapturedDate(d?: string | null): string | null {
+  if (!d) return null;
+  const date = new Date(d);
+  if (isNaN(date.getTime())) return null;
+  return date.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
+interface ProvenanceChip {
+  signal: string;
+  source: string;
+  capturedAt: string | null; // pre-formatted; null = no receipt date known
+}
+
+/**
+ * Build one receipt chip per distress signal present on the lead. Honest by
+ * construction: chips only render when we have a real source key; capture
+ * dates only render when the source table actually recorded one.
+ */
+function buildProvenanceChips(lead: DetailLead): ProvenanceChip[] {
+  const chips: ProvenanceChip[] = [];
+  const fallbackSource = sourceLabel(lead.signalSource ?? lead.dataSource);
+
+  if (lead.taxDelinquent) {
+    // taxSignalCapturedAt implies the county tax roll is the signal's origin
+    // even when the row itself came from another branch (auction hybrid).
+    const source = lead.taxSignalCapturedAt
+      ? sourceLabel("county-tax-roll")
+      : fallbackSource;
+    if (source) {
+      chips.push({
+        signal: "Tax Delinquent",
+        source,
+        capturedAt: formatCapturedDate(lead.taxSignalCapturedAt),
+      });
+    }
+  }
+
+  const hasAuctionSignal =
+    lead.foreclosure || lead.preForeclosure || lead.nextAuctionDate != null;
+  if (hasAuctionSignal) {
+    const source = lead.auctionSignalCapturedAt
+      ? sourceLabel("realauction-fl-foreclosures")
+      : fallbackSource;
+    if (source) {
+      chips.push({
+        signal: lead.nextAuctionDate != null ? "Auction" : "Foreclosure",
+        source,
+        capturedAt: formatCapturedDate(lead.auctionSignalCapturedAt),
+      });
+    }
+  }
+
+  if (lead.vacant && fallbackSource) {
+    chips.push({ signal: "Vacant", source: fallbackSource, capturedAt: null });
+  }
+
+  return chips;
+}
+
 function formatAuctionDate(d?: string | Date | null): {
   abs: string;
   rel: string;
@@ -232,6 +320,9 @@ export function LeadDetailSheet({
     });
 
   const scoreBreakdown = parseScoreBreakdown(lead);
+
+  // M2.6 — per-signal source + captured-date receipts.
+  const provenanceChips = buildProvenanceChips(lead);
 
   const scoreColor =
     (lead.score ?? 0) >= 85
@@ -359,6 +450,35 @@ export function LeadDetailSheet({
                       </span>
                     ))}
                   </div>
+
+                  {/* M2.6 — provenance receipts: where each signal came from
+                      and when it was last captured. Dates only render when
+                      the source table recorded one — no fabricated freshness. */}
+                  {provenanceChips.length > 0 && (
+                    <div className="mt-2 flex flex-col gap-1">
+                      {provenanceChips.map((chip) => (
+                        <div
+                          key={chip.signal}
+                          className="inline-flex items-center gap-1.5 self-start rounded-md border border-border bg-muted/40 px-2 py-1 text-[10px] text-muted-foreground"
+                        >
+                          <Database className="h-3 w-3 shrink-0" />
+                          <span className="font-medium text-foreground/80">
+                            {chip.signal}
+                          </span>
+                          <span aria-hidden>·</span>
+                          <span className="truncate">{chip.source}</span>
+                          {chip.capturedAt && (
+                            <>
+                              <span aria-hidden>·</span>
+                              <span className="whitespace-nowrap">
+                                captured {chip.capturedAt}
+                              </span>
+                            </>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </section>
               )}
 

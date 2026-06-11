@@ -14,6 +14,7 @@ import { refreshAuctionSummary } from "@/scripts/rescore-auction";
 // Foreclosure rows that contribute to AuctionSummary scoring.
 export const AUCTION_SUMMARY_REFRESH_SOURCE_KEYS = new Set<string>([
   "realauction-fl-foreclosures",
+  "realtaxdeed-fl-tax-deeds", // M2.2 — tax-deed rows feed AuctionSummary too
 ]);
 
 /**

@@ -27,6 +27,14 @@ export interface FlDorSdfConfig {
   vintage: string;
   /** Batch size for INSERT. SDF rows are smaller than NAL so we can go bigger. */
   batchSize?: number;
+  /**
+   * Skip rows with saleYear > maxSaleYear (and rows with no parseable
+   * saleYear). Used by the multi-vintage backfill: each roll-year-V SDF
+   * covers sales from years V-1 and V, so when vintage V+1 is already
+   * ingested, backfilling vintage V with maxSaleYear=V-1 avoids writing
+   * the overlapping year twice under a second source tag.
+   */
+  maxSaleYear?: number;
 }
 
 interface SaleRow {
@@ -107,6 +115,7 @@ export class FlDorSdfIngester {
 
         const sale = sdfRowToSaleRow(row, county.fips);
         if (!sale) continue;
+        if (this.config.maxSaleYear !== undefined && (sale.saleYear === null || sale.saleYear > this.config.maxSaleYear)) continue;
         batch.push(sale);
         fetched++;
 

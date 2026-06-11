@@ -14,7 +14,7 @@ import { type Property } from "./seed-data";
 import { trackLeadEvent, trackLeadsViewed } from "@/lib/behavior/client";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Button } from "@/components/ui/button";
-import { Gavel, Home, Search } from "lucide-react";
+import { Clock, Gavel, Home, Search } from "lucide-react";
 
 // ---------------------------------------------------------------------------
 // Leads page — map-first redesign.
@@ -71,6 +71,32 @@ export default function LeadsPage() {
   useEffect(() => {
     fetchProperties();
   }, [fetchProperties]);
+
+  // ------------------------------------------------------------------------
+  // M2.6 — freshness header. Piggybacks on /api/data-health (10-min server
+  // cache, no duplicated queries) and takes MAX(lastRunAt) across sources.
+  // Best-effort: when the endpoint is unavailable the caption simply hides.
+  // ------------------------------------------------------------------------
+  const [dataCurrentAsOf, setDataCurrentAsOf] = useState<Date | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch("/api/data-health");
+        if (!res.ok) return;
+        const data = await res.json();
+        const newest = ((data.sources ?? []) as { lastRunAt: string | null }[])
+          .map((s) => (s.lastRunAt ? new Date(s.lastRunAt).getTime() : 0))
+          .reduce((a, b) => Math.max(a, b), 0);
+        if (!cancelled && newest > 0) setDataCurrentAsOf(new Date(newest));
+      } catch {
+        // best-effort — header renders without the freshness caption
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // ------------------------------------------------------------------------
   // Filter pipeline — ZIP + distress chips + score threshold, memoized.
@@ -396,6 +422,18 @@ export default function LeadsPage() {
             <p className="text-sm text-muted-foreground mt-0.5">
               Surface distressed properties, score motivation, and promote the ones worth your time.
             </p>
+            {dataCurrentAsOf && (
+              <p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground/80">
+                <Clock className="h-3 w-3" />
+                Data current as of{" "}
+                {dataCurrentAsOf.toLocaleString("en-US", {
+                  month: "short",
+                  day: "numeric",
+                  hour: "numeric",
+                  minute: "2-digit",
+                })}
+              </p>
+            )}
           </div>
           <Button onClick={handleZipSearch} disabled={zip.length !== 5}>
             <Search className="h-4 w-4 mr-2" />

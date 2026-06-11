@@ -53,6 +53,19 @@ All of these were exposed in plaintext during dev sessions (chat logs / CLI outp
   generate → THEN write code referencing new models (parallel agents writing code against
   unpushed schema = typecheck noise).
 
+## OPS-7 — USER ACTION: request prior-vintage SDF files from FL DOR (2026-06-10)
+
+The 2009-2023 sale history (M2.7) is NOT downloadable anywhere — DOR's portal hosts only 2025F
+(verified dead ends: SharePoint vintage folders, Wayback, FGDL (layers pulled Oct 2025), old DOR
+FTP, EDR). Prior vintages are **free by email request**:
+
+- [ ] **Email PTOTechnology@floridarevenue.com**: request "Final SDF files, vintages 2010F
+  through 2024F, all 67 counties" (each vintage V covers sale years V-1..V).
+- [ ] When zips arrive: drop in `data/raw/fl-dor-sdf-backfill/<vintage>/` and run
+  `npx tsx -r dotenv/config scripts/fl-dor-sdf-backfill.ts dotenv_config_path=.env.local`
+  — auto-detects, newest-first, cross-vintage dedup via saleYear caps. ~30-60 min/vintage.
+- Unlocks: comps depth, AVM training (M3.3), time-on-market features, propensity label depth.
+
 ## OPS-6 — govhub/TaxSys scrapers are residential-egress-only (2026-06-10)
 
 The Broward + Hillsborough tax-delinquent CSV scrapers (TaxSys govhub portals) CANNOT run on the Railway worker yet:

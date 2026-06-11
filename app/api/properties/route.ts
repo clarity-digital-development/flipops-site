@@ -100,6 +100,12 @@ interface LeadRow {
   lastCaseNumber: string | null;
   scheduledCount: number | null;
   pastAuctionCount: number | null;
+  // M2.6 provenance receipts — per-branch source key + signal capture dates.
+  // NULL-padded on branches where the signal/table doesn't apply (the
+  // established UNION-shape-stability pattern).
+  signalSource: string | null;
+  taxSignalCapturedAt: string | null;
+  auctionSignalCapturedAt: string | null;
 }
 
 const MAX_LIMIT = 500;
@@ -278,7 +284,12 @@ export async function GET(request: NextRequest) {
         NULL::float                       AS judgment_amount,
         NULL::text                        AS last_case_number,
         NULL::int                         AS scheduled_count,
-        NULL::int                         AS past_auction_count
+        NULL::int                         AS past_auction_count,
+        -- M2.6 provenance: owned rows carry their import source; signal-level
+        -- capture dates live on the virtual-branch source tables only.
+        p."dataSource"                    AS signal_source,
+        NULL::text                        AS tax_signal_captured_at,
+        NULL::text                        AS auction_signal_captured_at
       FROM flipops."Property" p
       WHERE p."userId" = ${userId}
         AND ${distressMineSql}
@@ -348,7 +359,12 @@ export async function GET(request: NextRequest) {
         NULL::float                                      AS judgment_amount,
         NULL::text                                       AS last_case_number,
         NULL::int                                        AS scheduled_count,
-        NULL::int                                        AS past_auction_count
+        NULL::int                                        AS past_auction_count,
+        -- M2.6 provenance: the aggregate is computed from county tax-roll
+        -- Lien rows; computedAt is the freshness receipt for this signal.
+        'county-tax-roll'                                AS signal_source,
+        s."computedAt"::text                             AS tax_signal_captured_at,
+        NULL::text                                       AS auction_signal_captured_at
       FROM flipops."TaxDelinquencySummary" s
       LEFT JOIN flipops."Parcel" par
         ON par."countyFips" = s."countyFips" AND par."apn" = s."apn"
@@ -439,7 +455,17 @@ export async function GET(request: NextRequest) {
         s."judgmentAmountMax"::float                      AS judgment_amount,
         s."lastCaseNumber"                                AS last_case_number,
         s."scheduledCount"                                AS scheduled_count,
-        s."pastAuctionCount"                              AS past_auction_count
+        s."pastAuctionCount"                              AS past_auction_count,
+        -- M2.6 provenance: auction rows come from the RealAuction calendar
+        -- sweep; lastCapturedAt is the scrape receipt. The secondary tax
+        -- signal (when present) gets its own computedAt via a scalar
+        -- subquery — cheap here, AuctionSummary is only a few hundred rows.
+        'realauction-fl-foreclosures'                     AS signal_source,
+        (SELECT tds."computedAt"::text
+           FROM flipops."TaxDelinquencySummary" tds
+          WHERE tds."countyFips" = s."countyFips"
+            AND tds."apn" = s."apn")                      AS tax_signal_captured_at,
+        s."lastCapturedAt"::text                          AS auction_signal_captured_at
       FROM flipops."AuctionSummary" s
       INNER JOIN flipops."Parcel" par
         ON par."countyFips" = s."countyFips" AND par."apn" = s."apn"
@@ -556,6 +582,10 @@ export async function GET(request: NextRequest) {
       lastCaseNumber: (r.last_case_number as string | null) ?? null,
       scheduledCount: (r.scheduled_count as number | null) ?? null,
       pastAuctionCount: (r.past_auction_count as number | null) ?? null,
+      // M2.6 provenance receipts.
+      signalSource: (r.signal_source as string | null) ?? null,
+      taxSignalCapturedAt: (r.tax_signal_captured_at as string | null) ?? null,
+      auctionSignalCapturedAt: (r.auction_signal_captured_at as string | null) ?? null,
     }));
 
     // Counts — for the demo stats bar. Cheap single-row queries.

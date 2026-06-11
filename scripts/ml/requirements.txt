@@ -1,0 +1,7 @@
+# scripts/ml/train_propensity.py dependencies (Python 3.11)
+#   python -m venv .venv-ml && .venv-ml/Scripts/pip install -r scripts/ml/requirements.txt
+# NOTE: --self-test mode needs NONE of these (stdlib only).
+lightgbm>=4.3
+scikit-learn>=1.4
+pandas>=2.2
+pyarrow>=16.0

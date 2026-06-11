@@ -70,10 +70,25 @@ import { cn } from "@/lib/utils";
 import type {
   KPIMetrics,
   FunnelStage,
-  MarketingMetrics,
   TeamMetrics,
   VendorMetrics
 } from "./types";
+
+// ============================================================================
+// SIGNAL SOURCES (M2.6) — real funnel by lead dataSource. Replaces the old
+// hardcoded PPC/SEO/Direct Mail MarketingMetrics fiction.
+// ============================================================================
+
+interface SignalSourceRow {
+  source: string;
+  label: string;
+  /** Freshness-layer universe size; null when not queryable (e.g. ZIP pulls). */
+  surfaced: number | null;
+  inWorkspace: number;
+  contacted: number;
+  skipTraced: number;
+  skipTraceCost: number;
+}
 
 // ============================================================================
 // CONSTANTS
@@ -300,15 +315,6 @@ const DEFAULT_TRENDS = [
   { date: new Date('2024-01-29'), value: 485000 }
 ];
 
-const DEFAULT_MARKETING: MarketingMetrics[] = [
-  { channel: 'PPC', spend: 28000, leads: 562, contracts: 45, closedDeals: 38, cpl: 49.82, cpa: 622, cpd: 737, roas: 52.3, romi: 41.2 },
-  { channel: 'SEO', spend: 5000, leads: 245, contracts: 12, closedDeals: 10, cpl: 20.41, cpa: 417, cpd: 500, roas: 28.4, romi: 22.6 },
-  { channel: 'Direct Mail', spend: 8000, leads: 186, contracts: 9, closedDeals: 8, cpl: 43.01, cpa: 889, cpd: 1000, roas: 18.5, romi: 14.2 },
-  { channel: 'Cold Call', spend: 6000, leads: 142, contracts: 7, closedDeals: 6, cpl: 42.25, cpa: 857, cpd: 1000, roas: 15.8, romi: 11.3 },
-  { channel: 'SMS', spend: 3000, leads: 87, contracts: 5, closedDeals: 4, cpl: 34.48, cpa: 600, cpd: 750, roas: 12.6, romi: 9.8 },
-  { channel: 'Referral', spend: 2000, leads: 25, contracts: 11, closedDeals: 10, cpl: 80, cpa: 182, cpd: 200, roas: 85.2, romi: 72.5 }
-];
-
 const DEFAULT_TEAM: TeamMetrics[] = [
   { userId: '1', userName: 'Sarah Chen', role: 'Acquisition', touchesPerDay: 48, firstResponseTime: 5, appointmentSetRate: 0.42, offerRate: 0.65, winRate: 0.58, followUpSLA: 0.96, totalActivities: 1440, totalDeals: 28, totalRevenue: 1120000 },
   { userId: '2', userName: 'Mike Rodriguez', role: 'Acquisition', touchesPerDay: 42, firstResponseTime: 8, appointmentSetRate: 0.38, offerRate: 0.60, winRate: 0.52, followUpSLA: 0.92, totalActivities: 1260, totalDeals: 24, totalRevenue: 960000 },
@@ -359,7 +365,9 @@ export default function AnalyticsPage() {
   // built from inferred-from-grossProfit multipliers.
   const [hasCostData, setHasCostData] = useState(false);
   const [trends, setTrends] = useState(DEFAULT_TRENDS);
-  const [marketingMetrics, setMarketingMetrics] = useState<MarketingMetrics[]>(DEFAULT_MARKETING);
+  // Signal Sources (M2.6) — always real DB counts; honest zeros, no fixtures.
+  const [signalSources, setSignalSources] = useState<SignalSourceRow[]>([]);
+  const [hasSignalSourceData, setHasSignalSourceData] = useState(false);
   const [teamMetrics, setTeamMetrics] = useState<TeamMetrics[]>(DEFAULT_TEAM);
   const [vendorMetrics, setVendorMetrics] = useState<VendorMetrics[]>(DEFAULT_VENDORS);
 
@@ -415,7 +423,8 @@ export default function AnalyticsPage() {
           })));
         }
         if (data.trends) setKpiTrends(data.trends);
-        if (data.marketingMetrics) setMarketingMetrics(data.marketingMetrics);
+        if (data.signalSources) setSignalSources(data.signalSources);
+        setHasSignalSourceData(Boolean(data.hasSignalSourceData));
         if (data.teamMetrics) setTeamMetrics(data.teamMetrics);
         if (data.vendorMetrics && data.vendorMetrics.length > 0) {
           setVendorMetrics(data.vendorMetrics);
@@ -467,11 +476,11 @@ export default function AnalyticsPage() {
         csvContent += `ROMI,${kpis.romi}x\n`;
         break;
 
-      case "marketing":
-        filename = "marketing-performance";
-        csvContent = "Channel,Spend,Leads,Contracts,Closed Deals,CPL,CPA,ROAS,ROMI\n";
-        marketingMetrics.forEach(m => {
-          csvContent += `${m.channel},$${m.spend},${m.leads},${m.contracts},${m.closedDeals},$${m.cpl.toFixed(2)},$${m.cpa},${m.roas}x,${m.romi}x\n`;
+      case "signal-sources":
+        filename = "signal-source-performance";
+        csvContent = "Source,Surfaced,In Workspace,Contacted,Skip Traces,Skip-Trace Cost\n";
+        signalSources.forEach(s => {
+          csvContent += `${s.label},${s.surfaced ?? ''},${s.inWorkspace},${s.contacted},${s.skipTraced},$${s.skipTraceCost.toFixed(2)}\n`;
         });
         break;
 
@@ -586,16 +595,19 @@ export default function AnalyticsPage() {
             </div>
             {!loading && (() => {
               // Per-tab data honesty: only show "Live Data" when the active
-              // tab is actually backed by real DB queries. Marketing /
-              // Acquisition / Vendors are fixture-driven today.
+              // tab is actually backed by real DB queries. Signal Sources is
+              // always live (real counts, honest zeros); Acquisition /
+              // Vendors remain fixture-driven today.
               const tabMode: 'live' | 'demo' | 'mixed' =
                 activeTab === 'executive'
                   ? (hasRealData ? 'live' : 'demo')
-                  : activeTab === 'profitability'
-                    ? (hasProfitabilityData ? 'live' : 'demo')
-                    : activeTab === 'team'
-                      ? 'mixed'
-                      : 'demo';
+                  : activeTab === 'signal-sources'
+                    ? 'live'
+                    : activeTab === 'profitability'
+                      ? (hasProfitabilityData ? 'live' : 'demo')
+                      : activeTab === 'team'
+                        ? 'mixed'
+                        : 'demo';
               const label = tabMode === 'live' ? 'Live Data' : tabMode === 'mixed' ? 'Partial Live Data' : 'Demo Data';
               const variant: 'default' | 'secondary' | 'outline' =
                 tabMode === 'live' ? 'default' : tabMode === 'mixed' ? 'outline' : 'secondary';
@@ -664,7 +676,7 @@ export default function AnalyticsPage() {
           <div className="shrink-0 px-4 pt-2">
             <TabsList className="grid grid-cols-6 w-full max-w-2xl">
               <TabsTrigger value="executive" className="text-xs">Executive</TabsTrigger>
-              <TabsTrigger value="marketing" className="text-xs">Marketing</TabsTrigger>
+              <TabsTrigger value="signal-sources" className="text-xs">Signal Sources</TabsTrigger>
               <TabsTrigger value="acquisition" className="text-xs">Acquisition</TabsTrigger>
               <TabsTrigger value="profitability" className="text-xs">Profitability</TabsTrigger>
               <TabsTrigger value="team" className="text-xs">Team</TabsTrigger>
@@ -792,157 +804,106 @@ export default function AnalyticsPage() {
             </ScrollArea>
           </TabsContent>
 
-          {/* Marketing Dashboard */}
-          <TabsContent value="marketing" className="flex-1 min-h-0 mt-0 p-0">
+          {/* Signal Sources Dashboard (M2.6) — real funnel by lead dataSource.
+              Replaced the old Marketing tab's hardcoded PPC/SEO/Direct Mail
+              fixtures with honest DB-backed counts. */}
+          <TabsContent value="signal-sources" className="flex-1 min-h-0 mt-0 p-0">
             <ScrollArea className="h-full">
               <div className="p-4 space-y-4">
                 {loading ? (
                   <>
-                    <Card><CardContent className="p-4"><TableSkeleton rows={6} /></CardContent></Card>
-                    <div className="grid grid-cols-2 gap-4">
-                      <ChartCardSkeleton height={200} />
-                      <ChartCardSkeleton height={200} />
-                    </div>
+                    <Card><CardContent className="p-4"><TableSkeleton rows={4} /></CardContent></Card>
+                    <ChartCardSkeleton height={140} />
                   </>
                 ) : (
                   <>
-                    {/* Channel Performance Table */}
-                    <Card>
-                      <CardHeader className="pb-2 pt-3">
-                        <CardTitle className="text-sm font-medium">Channel Performance</CardTitle>
-                      </CardHeader>
-                      <CardContent className="p-0">
-                        <Table>
-                          <TableHeader>
-                            <TableRow className="hover:bg-transparent">
-                              <TableHead className="text-xs">Channel</TableHead>
-                              <TableHead className="text-xs text-right">Spend</TableHead>
-                              <TableHead className="text-xs text-right">Leads</TableHead>
-                              <TableHead className="text-xs text-right">CPL</TableHead>
-                              <TableHead className="text-xs text-right">Contracts</TableHead>
-                              <TableHead className="text-xs text-right">ROMI</TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {marketingMetrics.map((m) => (
-                              <TableRow key={m.channel}>
-                                <TableCell className="text-xs font-medium py-2">{m.channel}</TableCell>
-                                <TableCell className="text-xs text-right py-2 tabular-nums">{formatCurrency(m.spend)}</TableCell>
-                                <TableCell className="text-xs text-right py-2 tabular-nums">{m.leads}</TableCell>
-                                <TableCell className="text-xs text-right py-2 tabular-nums">{formatCurrency(m.cpl)}</TableCell>
-                                <TableCell className="text-xs text-right py-2 tabular-nums">{m.contracts}</TableCell>
-                                <TableCell className="text-xs text-right font-medium text-emerald-600 py-2 tabular-nums">{m.romi.toFixed(1)}x</TableCell>
-                              </TableRow>
-                            ))}
-                          </TableBody>
-                        </Table>
-                      </CardContent>
-                    </Card>
-
-                    {/* Charts */}
-                    <div className="grid grid-cols-2 gap-4">
+                    {/* Signal Source Performance — surfaced → workspace →
+                        contacted funnel per data source. Honest zeros. */}
+                    {signalSources.length === 0 ? (
+                      <Card>
+                        <CardContent className="py-8">
+                          <EmptyState
+                            compact
+                            icon={<Target className="h-8 w-8" />}
+                            title="No signal source data yet"
+                            description="Promote surfaced leads from the Leads page to start tracking how each data source performs."
+                            actionLabel="Open Leads"
+                            actionHref="/app/leads"
+                          />
+                        </CardContent>
+                      </Card>
+                    ) : (
                       <Card>
                         <CardHeader className="pb-2 pt-3">
-                          <CardTitle className="text-sm font-medium">Lead Source Distribution</CardTitle>
+                          <CardTitle className="text-sm font-medium">Signal Source Performance</CardTitle>
+                          <p className="text-xs text-muted-foreground">
+                            Surfaced by the data layer → saved to your workspace → contacted. Skip-trace cost at $0.20/record actuals.
+                          </p>
                         </CardHeader>
-                        <CardContent>
-                          <div className="flex h-48">
-                            <div className="flex flex-col justify-center space-y-1 pr-3">
-                              {marketingMetrics.map((m, i) => {
-                                const totalLeads = marketingMetrics.reduce((acc, curr) => acc + curr.leads, 0);
+                        <CardContent className="p-0">
+                          <Table>
+                            <TableHeader>
+                              <TableRow className="hover:bg-transparent">
+                                <TableHead className="text-xs">Source</TableHead>
+                                <TableHead className="text-xs text-right">Surfaced</TableHead>
+                                <TableHead className="text-xs text-right">In Workspace</TableHead>
+                                <TableHead className="text-xs text-right">Contacted</TableHead>
+                                <TableHead className="text-xs text-right">Skip Traces</TableHead>
+                                <TableHead className="text-xs text-right">Skip-Trace Cost</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {signalSources.map((s) => (
+                                <TableRow key={s.source}>
+                                  <TableCell className="text-xs font-medium py-2">{s.label}</TableCell>
+                                  <TableCell className="text-xs text-right py-2 tabular-nums">
+                                    {s.surfaced != null ? formatNumber(s.surfaced) : '—'}
+                                  </TableCell>
+                                  <TableCell className="text-xs text-right py-2 tabular-nums">{formatNumber(s.inWorkspace)}</TableCell>
+                                  <TableCell className="text-xs text-right py-2 tabular-nums">{formatNumber(s.contacted)}</TableCell>
+                                  <TableCell className="text-xs text-right py-2 tabular-nums">{formatNumber(s.skipTraced)}</TableCell>
+                                  <TableCell className="text-xs text-right py-2 tabular-nums">
+                                    {s.skipTraced > 0 ? `$${s.skipTraceCost.toFixed(2)}` : '—'}
+                                  </TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        </CardContent>
+                      </Card>
+                    )}
+
+                    {/* Contact rate per source — only sources with workspace
+                        rows; honest empty text otherwise. */}
+                    <Card>
+                      <CardHeader className="pb-2 pt-3">
+                        <CardTitle className="text-sm font-medium">Contact Rate by Source</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        {hasSignalSourceData ? (
+                          <div className="space-y-3">
+                            {signalSources
+                              .filter((s) => s.inWorkspace > 0)
+                              .map((s) => {
+                                const rate = (s.contacted / s.inWorkspace) * 100;
                                 return (
-                                  <div key={m.channel} className="flex items-center gap-1.5 group cursor-pointer hover:bg-muted/50 rounded p-1 -m-1 transition-colors">
-                                    <div className="w-2.5 h-2.5 rounded-sm flex-shrink-0 transition-transform group-hover:scale-125" style={{ backgroundColor: COLORS[i % COLORS.length] }} />
-                                    <span className="text-[10px] whitespace-nowrap font-medium">{m.channel}:</span>
-                                    <span className="text-[10px] text-muted-foreground tabular-nums">{m.leads}</span>
-                                    <div className="flex-1 h-1 bg-muted rounded ml-1 overflow-hidden min-w-[36px]">
-                                      <div
-                                        className="h-full transition-all duration-300 group-hover:opacity-100 opacity-60"
-                                        style={{ width: `${(m.leads / totalLeads) * 100}%`, backgroundColor: COLORS[i % COLORS.length] }}
-                                      />
+                                  <div key={s.source} className="flex items-center justify-between">
+                                    <span className="text-xs font-medium">{s.label}</span>
+                                    <div className="flex items-center gap-3">
+                                      <Progress value={rate} className="w-32 h-1.5" />
+                                      <span className="text-xs text-muted-foreground w-12 text-right tabular-nums">{rate.toFixed(1)}%</span>
                                     </div>
                                   </div>
                                 );
                               })}
-                            </div>
-                            <div className="flex-1">
-                              <ResponsiveContainer width="100%" height="100%">
-                                <PieChart>
-                                  <Pie
-                                    data={marketingMetrics}
-                                    dataKey="leads"
-                                    nameKey="channel"
-                                    cx="50%"
-                                    cy="50%"
-                                    innerRadius="40%"
-                                    outerRadius="75%"
-                                    paddingAngle={2}
-                                    strokeWidth={0}
-                                  >
-                                    {marketingMetrics.map((entry, index) => (
-                                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} className="hover:opacity-80 transition-opacity cursor-pointer drop-shadow-sm" />
-                                    ))}
-                                  </Pie>
-                                  <Tooltip content={<CustomTooltip formatter={formatNumber} />} />
-                                </PieChart>
-                              </ResponsiveContainer>
-                            </div>
                           </div>
-                        </CardContent>
-                      </Card>
-
-                      <Card className="overflow-hidden">
-                        <CardHeader className="pb-2 pt-3">
-                          <CardTitle className="text-sm font-medium">Weekly Campaign Performance</CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                          <ResponsiveContainer width="100%" height={192}>
-                            <AreaChart data={[
-                              { week: 'W1', ppc: 145, seo: 62, email: 43 },
-                              { week: 'W2', ppc: 162, seo: 68, email: 51 },
-                              { week: 'W3', ppc: 138, seo: 71, email: 47 },
-                              { week: 'W4', ppc: 177, seo: 75, email: 58 }
-                            ]}>
-                              <defs>
-                                <linearGradient id="ppcGradient" x1="0" y1="0" x2="0" y2="1">
-                                  <stop offset="0%" stopColor="#3B82F6" stopOpacity={0.9} />
-                                  <stop offset="100%" stopColor="#3B82F6" stopOpacity={0.6} />
-                                </linearGradient>
-                                <linearGradient id="seoGradient" x1="0" y1="0" x2="0" y2="1">
-                                  <stop offset="0%" stopColor="#10B981" stopOpacity={0.9} />
-                                  <stop offset="100%" stopColor="#10B981" stopOpacity={0.6} />
-                                </linearGradient>
-                                <linearGradient id="emailGradient" x1="0" y1="0" x2="0" y2="1">
-                                  <stop offset="0%" stopColor="#F59E0B" stopOpacity={0.9} />
-                                  <stop offset="100%" stopColor="#F59E0B" stopOpacity={0.6} />
-                                </linearGradient>
-                              </defs>
-                              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" className="dark:stroke-zinc-700" />
-                              <XAxis dataKey="week" tick={{ fontSize: 11, fill: '#6b7280' }} axisLine={{ stroke: '#e5e7eb' }} tickLine={false} />
-                              <YAxis tick={{ fontSize: 11, fill: '#6b7280' }} axisLine={{ stroke: '#e5e7eb' }} tickLine={false} />
-                              <Tooltip content={<CustomTooltip formatter={formatNumber} />} />
-                              <Area type="monotone" dataKey="email" stackId="1" stroke="#F59E0B" strokeWidth={0} fill="url(#emailGradient)" />
-                              <Area type="monotone" dataKey="seo" stackId="1" stroke="#10B981" strokeWidth={0} fill="url(#seoGradient)" />
-                              <Area type="monotone" dataKey="ppc" stackId="1" stroke="#3B82F6" strokeWidth={0} fill="url(#ppcGradient)" />
-                            </AreaChart>
-                          </ResponsiveContainer>
-                          <div className="flex items-center justify-center gap-4 mt-2">
-                            <div className="flex items-center gap-1.5">
-                              <div className="w-2.5 h-2.5 rounded-sm bg-blue-500" />
-                              <span className="text-[10px] text-muted-foreground">PPC</span>
-                            </div>
-                            <div className="flex items-center gap-1.5">
-                              <div className="w-2.5 h-2.5 rounded-sm bg-emerald-500" />
-                              <span className="text-[10px] text-muted-foreground">SEO</span>
-                            </div>
-                            <div className="flex items-center gap-1.5">
-                              <div className="w-2.5 h-2.5 rounded-sm bg-amber-500" />
-                              <span className="text-[10px] text-muted-foreground">Email</span>
-                            </div>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    </div>
+                        ) : (
+                          <p className="text-xs text-muted-foreground italic py-2">
+                            No leads saved to your workspace yet — contact rates will appear once surfaced leads are promoted.
+                          </p>
+                        )}
+                      </CardContent>
+                    </Card>
                   </>
                 )}
               </div>
@@ -1004,20 +965,31 @@ export default function AnalyticsPage() {
                         <CardTitle className="text-sm font-medium">Lead Quality by Source</CardTitle>
                       </CardHeader>
                       <CardContent>
-                        <div className="space-y-3">
-                          {marketingMetrics.map((m) => {
-                            const qualRate = (m.contracts / m.leads * 100).toFixed(1);
-                            return (
-                              <div key={m.channel} className="flex items-center justify-between">
-                                <span className="text-xs font-medium">{m.channel}</span>
-                                <div className="flex items-center gap-3">
-                                  <Progress value={parseFloat(qualRate)} className="w-32 h-1.5" />
-                                  <span className="text-xs text-muted-foreground w-12 text-right tabular-nums">{qualRate}%</span>
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
+                        {/* M2.6 — real contact-rate per signal source (was
+                            hardcoded PPC/SEO fixtures). Honest empty text
+                            when the workspace has no leads yet. */}
+                        {hasSignalSourceData ? (
+                          <div className="space-y-3">
+                            {signalSources
+                              .filter((s) => s.inWorkspace > 0)
+                              .map((s) => {
+                                const qualRate = ((s.contacted / s.inWorkspace) * 100).toFixed(1);
+                                return (
+                                  <div key={s.source} className="flex items-center justify-between">
+                                    <span className="text-xs font-medium">{s.label}</span>
+                                    <div className="flex items-center gap-3">
+                                      <Progress value={parseFloat(qualRate)} className="w-32 h-1.5" />
+                                      <span className="text-xs text-muted-foreground w-12 text-right tabular-nums">{qualRate}%</span>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                          </div>
+                        ) : (
+                          <p className="text-xs text-muted-foreground italic py-2">
+                            No workspace leads yet — promote surfaced leads to see quality by source.
+                          </p>
+                        )}
                       </CardContent>
                     </Card>
 

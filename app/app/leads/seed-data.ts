@@ -77,6 +77,16 @@ export interface Property {
   lastCaseNumber?: string | null;
   scheduledCount?: number | null;
   pastAuctionCount?: number | null;
+
+  // === M2.6 — provenance/freshness receipts ===
+  /** Per-branch source key from the /api/properties UNION: the Property
+   * row's dataSource (mine), 'county-tax-roll' (tax-virtual), or
+   * 'realauction-fl-foreclosures' (auction-virtual). Live endpoint only. */
+  signalSource?: string | null;
+  /** TaxDelinquencySummary.computedAt when the row carries a tax signal. */
+  taxSignalCapturedAt?: string | null;
+  /** AuctionSummary.lastCapturedAt when the row carries an auction signal. */
+  auctionSignalCapturedAt?: string | null;
 }
 
 export const seedProperties: Property[] = [

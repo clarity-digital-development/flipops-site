@@ -76,7 +76,17 @@ interface PropertyRow {
   absenteeOwner?: boolean;
   phoneNumbers?: string | null;
   emails?: string | null;
+  // M2.6 — provenance (full Property row comes through the timeline payload)
+  dataSource?: string | null;
+  createdAt?: string;
 }
+
+// M2.6 — human labels for machine source keys; unknown keys render as-is.
+const PROVENANCE_SOURCE_LABELS: Record<string, string> = {
+  "parcel-lien-bridge": "County tax roll",
+  "parcel-auction-bridge": "RealAuction calendar",
+  "parcel-zip-pull": "FL parcel records",
+};
 
 interface ContactNote {
   date: string | null;
@@ -439,6 +449,15 @@ function HeroSection({
                 color="border-rose-300 text-rose-700 dark:border-rose-700 dark:text-rose-400"
               />
             </div>
+
+            {/* M2.6 — provenance receipt: where this lead came from and when
+                it landed in the workspace. Hidden when dataSource is absent. */}
+            {property.dataSource ? (
+              <p className="mt-2 text-[11px] text-muted-foreground">
+                Source: {PROVENANCE_SOURCE_LABELS[property.dataSource] ?? property.dataSource}
+                {property.createdAt ? <> · added {formatDate(property.createdAt)}</> : null}
+              </p>
+            ) : null}
 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-5">
               <div className="rounded-md bg-muted/40 dark:bg-muted/30 px-3 py-2">

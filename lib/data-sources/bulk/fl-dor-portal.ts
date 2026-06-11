@@ -116,9 +116,14 @@ export async function listDorFiles(opts: { categories?: Array<"NAL" | "SDF" | "N
 
 /**
  * Parse "Baker 12 Final NAL 2025.zip" → { county: "Baker", coNo: 12, vintage: "2025" }
+ *
+ * Tolerant of DOR filename typos (verified live on the 2025F roll):
+ *   "Dixie 25 Final SDF 2025..zip"   ← double dot (this dropped Dixie's
+ *                                       entire SDF track in the F1 ingest)
+ *   "Collier 21 Final SDF  2025.zip" ← double space (handled by \s+)
  */
 function parseDorFilename(name: string): { county: string; coNo: number; vintage: string } | null {
-  const m = name.match(/^(.+?)\s+(\d{1,2})\s+(?:Final|Initial|Prelim\w*)?\s*(?:NAL|SDF|NAP)\s+(\d{4})\.zip$/i);
+  const m = name.match(/^(.+?)\s+(\d{1,2})\s+(?:Final|Initial|Prelim\w*)?\s*(?:NAL|SDF|NAP)\s+(\d{4})\s*\.+zip$/i);
   if (!m) return null;
   return { county: m[1].trim(), coNo: Number.parseInt(m[2], 10), vintage: m[3] };
 }

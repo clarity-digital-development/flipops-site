@@ -90,6 +90,25 @@ const SEEDS: RegistrySeed[] = [
   },
 
   // -------------------------------------------------------------------------
+  // RealTaxDeed 29-county tax-deed sale calendars (M2.2). Calendar-first
+  // adapter — reads each county's auction calendar, then XHRs only the dates
+  // that have sales. Direct egress (RealAuction WAF 403s DataImpulse).
+  // -------------------------------------------------------------------------
+  {
+    sourceKey: "realtaxdeed-fl-tax-deeds",
+    domain: "realtaxdeed.com",
+    countyFips: null, // multi-county; adapter enumerates internally
+    state: "FL",
+    scraperFn: "scrapeRealTaxDeedAll",
+    cronExpr: "0 11 * * *", // 7 AM ET daily (after the realauction morning slots)
+    strategy: "snapshot-diff",
+    legalRisk: "yellow",
+    rateLimitMs: 2500,
+    proxyMode: "none",
+    notes: "29 counties; tax-deed sale rows → Foreclosure stageCode=TAX_DEED source=realtaxdeed. Cookie+XHR+macro path shared with realauction.",
+  },
+
+  // -------------------------------------------------------------------------
   // Top-6 metros tax-delinquent — full snapshot-diff monthly.
   // -------------------------------------------------------------------------
   {
