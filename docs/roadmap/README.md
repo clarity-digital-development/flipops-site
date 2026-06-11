@@ -52,7 +52,7 @@
 | Month | Theme | Items | Done | In progress |
 |---|---|---|---|---|
 | **M1** — `M1-foundations.md` | Stop the bleeding, ship the receipts | 9 | 9 | 0 — COMPLETE |
-| **M2** — `M2-coverage-and-intelligence.md` | Coverage multiplier + first model | 7 | 2 | 3 (M2.1 spec→build, M2.3 mart+train, M2.7 blocked on OPS-7) |
+| **M2** — `M2-coverage-and-intelligence.md` | Coverage multiplier + first model | 7 | 5 | 2 (M2.1 Landmark/OnCore, M2.7 OPS-7) |
 | **M3** — `M3-signals-and-demo.md` | New signals, AVM, investor demo | 7 | 0 | 0 |
 | **OPS** — `OPERATIONS.md` | Provisioning, credentials, carry-overs | rolling | — | — |
 
@@ -69,6 +69,7 @@ prod — fixes are code-complete).
 
 > Append-only. Newest first. Every pivot gets one line: date · what changed · why · affected items.
 
+- **2026-06-11 (M2 Wave B)** — FIRST LEARNED MODEL PROMOTED: propensity-v1 AUC 0.8281 vs 0.5155 baseline, 45,983 parcels scored live. Acclaim adapter live (2.5K mortgages + 4.4K liens, Duval+Broward). NextAuth swap complete (Clerk serverside dead). RealAuction date-pinning bug confirmed: 394 rows corrected + per-(county,date) cookie fix. Landmark captcha-blocked (OPS-8 decision).
 - **2026-06-10 (M2 Wave A)** — Civitek pivot: MyFloridaCounty ORI portal is DEAD; M2.1 retargeted to Acclaim+Landmark vendor families (small-county reuse confirmed live: Levy≡PB platform). M2.2 tax-deed DONE (29 counties, live rows). M2.7 blocked on DOR email (OPS-7, user action). RealAuction cookie-date-pinning landmine found — prod foreclosure date attribution needs verification.
 - **2026-06-10 (scoring directive)** — User: scores must be LEARNED, not hand-tuned — two tiers: platform ML (per-county signal→outcome weights, retrains over time) + account-level behavioral personalization. Contract written to SCORING-ARCHITECTURE.md; M2.4 = Layer 1; M3 ranker = Layer 2 (corpus-gated). Scorer v2.1 demoted to bootstrap/fallback.
 - **2026-06-10 (later)** — M1 COMPLETE 9/9. Geocode finished at 94.8% (10.43M parcels): big-6 metros sourced from county GIS portals after FGIO Hub exporter failed them; Lee needed keyset pagination (32x faster than offset). Owner-occupancy 96%. Residual: ~570K Broward/PB condo units (no per-unit geometry in land-parcel layers). Next: M2.

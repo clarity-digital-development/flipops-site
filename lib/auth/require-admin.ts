@@ -5,12 +5,16 @@
 // app/api/admin/*. Returns either { error: NextResponse } (caller returns it)
 // or { userId } (the authenticated admin's DB user id).
 //
-// Admin identity:
-//   - Clerk user must be signed in.
-//   - User.email must match process.env.ADMIN_EMAIL (or the hardcoded
-//     fallback "tannercarlson@vvsvault.com" — the pre-launch admin).
+// M2.5: internals swapped from Clerk to Auth.js (NextAuth v5). PUBLIC
+// SIGNATURE unchanged.
 //
-// Future: when role-based access lands in Clerk's publicMetadata, this
+// Admin identity:
+//   - Auth.js session must exist (Credentials provider — email + password).
+//   - User.email must match process.env.ADMIN_EMAIL (or the hardcoded
+//     fallback "tannercarlson@vvsvault.com" — the pre-launch admin),
+//     case-insensitive.
+//
+// Future: when role-based access lands (e.g. a User.role column), this
 // helper is the ONE place to extend. Anything that doesn't go through
 // requireAdmin() is a bug.
 //
@@ -29,7 +33,7 @@
 // ---------------------------------------------------------------------------
 
 import { NextResponse } from "next/server";
-import { auth } from "@clerk/nextjs/server";
+import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 
 const FALLBACK_ADMIN_EMAIL = "tannercarlson@vvsvault.com";
@@ -53,13 +57,14 @@ function isAdminEmail(email: string | null | undefined): boolean {
  * NextResponse if present.
  */
 export async function requireAdmin(): Promise<RequireAdminResult> {
-  const { userId: clerkId } = await auth();
-  if (!clerkId) {
+  const session = await auth();
+  const email = session?.user?.email ?? null;
+  if (!email) {
     return { error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) };
   }
 
   const user = await prisma.user.findUnique({
-    where: { clerkId },
+    where: { email },
     select: { id: true, email: true },
   });
 

@@ -8,14 +8,16 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 //   2. authenticated non-admin → 403
 //   3. authenticated admin → success with userId
 //
-// Mocks @clerk/nextjs/server.auth() + the prisma User.findUnique lookup so
-// the test runs offline (no Railway PG dependency).
+// M2.5: mocks the Auth.js (NextAuth v5) auth() session accessor from @/auth
+// (was @clerk/nextjs/server) + the prisma User.findUnique lookup so the test
+// runs offline (no Railway PG dependency). The Auth.js session shape is
+// { user: { id, email } } | null.
 // ---------------------------------------------------------------------------
 
 const mockAuth = vi.fn();
 const mockUserFindUnique = vi.fn();
 
-vi.mock("@clerk/nextjs/server", () => ({
+vi.mock("@/auth", () => ({
   auth: () => mockAuth(),
 }));
 
@@ -38,7 +40,7 @@ describe("requireAdmin()", () => {
   });
 
   it("returns 401 when not signed in", async () => {
-    mockAuth.mockResolvedValue({ userId: null });
+    mockAuth.mockResolvedValue(null);
     const result = await requireAdmin();
     expect("error" in result).toBe(true);
     if ("error" in result) {
@@ -49,8 +51,20 @@ describe("requireAdmin()", () => {
     expect(mockUserFindUnique).not.toHaveBeenCalled();
   });
 
-  it("returns 404 when Clerk session is valid but no User row exists", async () => {
-    mockAuth.mockResolvedValue({ userId: "clerk_user_orphan" });
+  it("returns 401 when the session has no email", async () => {
+    mockAuth.mockResolvedValue({ user: { id: "db-uid-x", email: null } });
+    const result = await requireAdmin();
+    expect("error" in result).toBe(true);
+    if ("error" in result) {
+      expect(result.error.status).toBe(401);
+    }
+    expect(mockUserFindUnique).not.toHaveBeenCalled();
+  });
+
+  it("returns 404 when session is valid but no User row exists", async () => {
+    mockAuth.mockResolvedValue({
+      user: { id: "db-uid-orphan", email: "orphan@example.com" },
+    });
     mockUserFindUnique.mockResolvedValue(null);
     const result = await requireAdmin();
     expect("error" in result).toBe(true);
@@ -60,7 +74,9 @@ describe("requireAdmin()", () => {
   });
 
   it("returns 403 when signed-in user is NOT the admin email", async () => {
-    mockAuth.mockResolvedValue({ userId: "clerk_user_civilian" });
+    mockAuth.mockResolvedValue({
+      user: { id: "db-uid-1", email: "someone-else@example.com" },
+    });
     mockUserFindUnique.mockResolvedValue({
       id: "db-uid-1",
       email: "someone-else@example.com",
@@ -75,7 +91,9 @@ describe("requireAdmin()", () => {
   });
 
   it("returns userId+email when signed-in user IS the admin email", async () => {
-    mockAuth.mockResolvedValue({ userId: "clerk_admin" });
+    mockAuth.mockResolvedValue({
+      user: { id: "db-uid-admin", email: "tannercarlson@vvsvault.com" },
+    });
     mockUserFindUnique.mockResolvedValue({
       id: "db-uid-admin",
       email: "tannercarlson@vvsvault.com",
@@ -89,7 +107,9 @@ describe("requireAdmin()", () => {
   });
 
   it("admin email comparison is case-insensitive", async () => {
-    mockAuth.mockResolvedValue({ userId: "clerk_admin_caps" });
+    mockAuth.mockResolvedValue({
+      user: { id: "db-uid-2", email: "TannerCarlson@VVSvault.com" },
+    });
     mockUserFindUnique.mockResolvedValue({
       id: "db-uid-2",
       email: "TannerCarlson@VVSvault.com",
@@ -100,7 +120,9 @@ describe("requireAdmin()", () => {
 
   it("respects ADMIN_EMAIL env override when set", async () => {
     process.env.ADMIN_EMAIL = "alt-admin@flipops.io";
-    mockAuth.mockResolvedValue({ userId: "clerk_alt_admin" });
+    mockAuth.mockResolvedValue({
+      user: { id: "db-uid-3", email: "alt-admin@flipops.io" },
+    });
     mockUserFindUnique.mockResolvedValue({
       id: "db-uid-3",
       email: "alt-admin@flipops.io",
@@ -109,7 +131,9 @@ describe("requireAdmin()", () => {
     expect("error" in result).toBe(false);
 
     // Confirm the hardcoded fallback no longer matches when env overrides.
-    mockAuth.mockResolvedValue({ userId: "clerk_was_admin" });
+    mockAuth.mockResolvedValue({
+      user: { id: "db-uid-4", email: "tannercarlson@vvsvault.com" },
+    });
     mockUserFindUnique.mockResolvedValue({
       id: "db-uid-4",
       email: "tannercarlson@vvsvault.com",

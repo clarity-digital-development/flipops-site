@@ -66,6 +66,10 @@ FTP, EDR). Prior vintages are **free by email request**:
   — auto-detects, newest-first, cross-vintage dedup via saleYear caps. ~30-60 min/vintage.
 - Unlocks: comps depth, AVM training (M3.3), time-on-market features, propensity label depth.
 
+## OPS-8 — DECISION: Landmark reCAPTCHA v2 (blocks PB/Lee/Levy official records)
+
+Every Landmark search endpoint requires a reCAPTCHA v2 token (verified live 2026-06-10). The adapter is complete and persists the moment a token source exists. Options: (a) provision a solver service (2captcha-class, ~$1-3/1k solves) behind the solveRecaptcha hook — grey-zone, user call; (b) pursue the Landmark bulk/export path per county; (c) leave PB/Lee/Levy official records dark. Registry row ships enabled=false.
+
 ## OPS-6 — govhub/TaxSys scrapers are residential-egress-only (2026-06-10)
 
 The Broward + Hillsborough tax-delinquent CSV scrapers (TaxSys govhub portals) CANNOT run on the Railway worker yet:

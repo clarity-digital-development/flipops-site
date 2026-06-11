@@ -19,6 +19,20 @@ import type { RunContext, RunResult, ScraperAdapter } from "./types";
 // that have no upcoming auctions at all, keeping the run within the
 // MAX_RA_REQUESTS budget.
 //
+// Budget math (post date-pinning fix 2026-06-10): MAX_RA_REQUESTS counts
+// ITERATIONS — one (county, track, date) vendor call each. Since cookies
+// are now minted per (county, date) (the CF session pins the auction date
+// at splash time; see the vendor file + .gstack/qa-reports/realauction-
+// date-pinning-probe.md), every iteration is exactly 4 HTTP requests:
+// 1 splash mint + 3 area XHRs. Worst-case HTTP requests per run =
+// 4 × MAX_RA_REQUESTS (800 at the default 200) — up from ~3×+1/county
+// pre-fix. Politeness is enforced PER HOST by politeFetch's per-host
+// queue (~1.5s jittered gap), so the extra splash adds wall-clock, not
+// burst pressure, on any county's site. Note the pre-fix zero-skip rarely
+// fired when the run-day calendar had rows (every date returned the splash
+// date's rows); post-fix, empty future dates correctly return 0 and the
+// skip prunes the lookahead as designed.
+//
 // Stagger: the queue's `limiter` enforces an overall rate cap. Within the
 // adapter we run sequentially per (county, track, date) — no internal
 // parallelism — because each scrape spins up its own stealth-chromium

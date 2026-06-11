@@ -55,6 +55,28 @@ const SEEDS: RegistrySeed[] = [
   },
 
   // -------------------------------------------------------------------------
+  // LANDMARK family Official Records — Palm Beach + Lee + Levy (one adapter,
+  // many counties). Daily, incremental by date. legalRisk yellow.
+  // NOTE: PB + Levy gate search behind reCAPTCHA v2 (verified 2026-06-10) —
+  // enabled=false until a token source (LANDMARK_RECAPTCHA_TOKEN env / solver)
+  // is wired, so the scheduler doesn't spin on a captcha wall.
+  // -------------------------------------------------------------------------
+  {
+    sourceKey: "landmark-official-records",
+    domain: "landmarkweb",
+    countyFips: null, // multi-county; adapter enumerates PB/Lee/Levy internally
+    state: "FL",
+    scraperFn: "runLandmarkOfficialRecords",
+    cronExpr: "0 7 * * *", // 7 AM ET daily (after duval-clerk 6 AM slot)
+    strategy: "incremental-date",
+    legalRisk: "yellow",
+    rateLimitMs: 2500,
+    proxyMode: "none", // PB+Levy direct; Lee flips to proxy per-county in code
+    enabled: false,
+    notes: "Pioneer/Granicus Landmark Web ORI. SetDisclaimer session gate + form-POST search → Mortgage/Lien. reCAPTCHA v2 on search (PB+Levy verified) — needs LANDMARK_RECAPTCHA_TOKEN/solver before enable. Lee = proxy egress.",
+  },
+
+  // -------------------------------------------------------------------------
   // Duval clerk recordings — daily, incremental by date (already in shape).
   // -------------------------------------------------------------------------
   {
@@ -106,6 +128,26 @@ const SEEDS: RegistrySeed[] = [
     rateLimitMs: 2500,
     proxyMode: "none",
     notes: "29 counties; tax-deed sale rows → Foreclosure stageCode=TAX_DEED source=realtaxdeed. Cookie+XHR+macro path shared with realauction.",
+  },
+
+  // -------------------------------------------------------------------------
+  // Acclaim/AcclaimWeb official-records family (M2.1a) — Duval + Broward
+  // mortgages/liens/LP/judgments via disclaimer-cookie + GridResults JSON.
+  // Weekly to start; trailing-30d window on first run, then incremental with
+  // 3-day overlap. Direct egress both counties (verified 2026-06-10).
+  // -------------------------------------------------------------------------
+  {
+    sourceKey: "acclaim-official-records",
+    domain: "officialrecords.broward.org",
+    countyFips: null, // multi-county; adapter enumerates ACCLAIM_COUNTIES
+    state: "FL",
+    scraperFn: "scrapeAcclaimCounty",
+    cronExpr: "0 12 * * 2", // 8 AM ET Tuesdays — weekly to start (M2.1a)
+    strategy: "incremental-date",
+    legalRisk: "yellow",
+    rateLimitMs: 2000,
+    proxyMode: "none",
+    notes: "Acclaim ORI family: doc-type+date-range search → Mortgage/Lien upserts (source=scraper:acclaim-ori) + satisfaction release-matching. lastHighWaterMark = ISO date scraped through.",
   },
 
   // -------------------------------------------------------------------------

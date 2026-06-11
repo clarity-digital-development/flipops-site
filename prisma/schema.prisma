@@ -14,7 +14,10 @@ datasource db {
 model User {
   id              String    @id @default(cuid())
   email           String    @unique
-  clerkId         String?   @unique // Clerk auth ID
+  clerkId         String?   @unique // Clerk auth ID (legacy — drops at M3.6)
+  // NextAuth credentials provider (M2.5). bcrypt hash; NULL = user has not
+  // been issued credentials yet (manual/programmatic creation policy).
+  passwordHash    String?
   name            String?
   companyName     String?
 

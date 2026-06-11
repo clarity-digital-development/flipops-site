@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { UserButton } from "@clerk/nextjs";
+import { signOut } from "next-auth/react";
 import { QuickAddLead } from "@/app/components/quick-add-lead";
 import {
   Home,
@@ -29,8 +29,18 @@ import {
   GitBranch,
   HardHat,
   Database,
+  LogOut,
+  User as UserIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
@@ -102,6 +112,79 @@ const baseSidebar: SidebarEntry[] = [
   // No visibleTo restriction — Data Health is visible to all personas.
   { name: "Data Health", href: "/app/data-sources", icon: Database },
 ];
+
+// ============================================================================
+// USER MENU (M2.5 — replaces Clerk's <UserButton />)
+// ============================================================================
+
+// Minimal session menu: avatar initial + dropdown with the signed-in email and
+// a sign-out action. Reads the Auth.js session from /api/auth/session directly
+// (no <SessionProvider> needed); anonymous pre-launch visitors just see a
+// generic avatar with a Sign in link.
+function UserMenu() {
+  const [email, setEmail] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/auth/session")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((session) => {
+        if (!cancelled) setEmail(session?.user?.email ?? null);
+      })
+      .catch(() => {
+        /* anonymous — keep null */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const initial = email ? email[0].toUpperCase() : null;
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          aria-label="Account menu"
+          className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-primary to-accent text-xs font-semibold text-white outline-none ring-offset-background transition-shadow hover:ring-2 hover:ring-ring hover:ring-offset-2 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+        >
+          {initial ?? <UserIcon className="h-4 w-4" />}
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" side="top" className="w-64">
+        {email ? (
+          <>
+            <DropdownMenuLabel className="font-normal">
+              <p className="text-xs text-muted-foreground">Signed in as</p>
+              <p className="truncate text-sm font-medium">{email}</p>
+            </DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              onClick={() => signOut({ callbackUrl: "/" })}
+              className="cursor-pointer"
+            >
+              <LogOut className="mr-2 h-4 w-4" />
+              Sign out
+            </DropdownMenuItem>
+          </>
+        ) : (
+          <>
+            <DropdownMenuLabel className="font-normal">
+              <p className="text-sm text-muted-foreground">Not signed in</p>
+            </DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem asChild className="cursor-pointer">
+              <Link href="/sign-in">
+                <UserIcon className="mr-2 h-4 w-4" />
+                Sign in
+              </Link>
+            </DropdownMenuItem>
+          </>
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
 
 // ============================================================================
 // NAV GROUP COMPONENT
@@ -371,14 +454,7 @@ export default function AppLayout({
               Settings
             </Link>
             <div className="flex items-center gap-3 px-3 py-1.5">
-              <UserButton
-                appearance={{
-                  elements: {
-                    avatarBox: "h-8 w-8"
-                  }
-                }}
-                afterSignOutUrl="/"
-              />
+              <UserMenu />
             </div>
           </div>
         </div>

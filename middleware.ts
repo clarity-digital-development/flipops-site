@@ -1,4 +1,36 @@
-import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
+// ---------------------------------------------------------------------------
+// Auth.js (NextAuth v5) middleware — M2.5 Clerk→NextAuth migration.
+//
+// Instantiates NextAuth from the EDGE-SAFE auth.config.ts (no Prisma/bcrypt
+// imports here — split-config pattern). The route lists and the evaluation
+// ORDER (admin gate BEFORE the public-route bypass) are preserved verbatim
+// from the Clerk-era middleware.
+// ---------------------------------------------------------------------------
+
+import NextAuth from "next-auth";
+import { NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
+import authConfig from "@/auth.config";
+
+const { auth } = NextAuth(authConfig);
+
+/**
+ * Minimal replacement for Clerk's createRouteMatcher. Supports the only
+ * pattern syntax this file ever used: literal paths + `(.*)` wildcards.
+ * Literal segments are regex-escaped; `(.*)` matches any (possibly empty)
+ * remainder, identical to Clerk/path-to-regexp semantics for these patterns.
+ */
+function createRouteMatcher(patterns: string[]): (req: NextRequest) => boolean {
+  const regexes = patterns.map((pattern) => {
+    const source = pattern
+      .split("(.*)")
+      .map((part) => part.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+      .join("(.*)");
+    return new RegExp(`^${source}$`);
+  });
+  return (req: NextRequest) =>
+    regexes.some((re) => re.test(req.nextUrl.pathname));
+}
 
 const isPublicRoute = createRouteMatcher([
   "/",
@@ -18,6 +50,7 @@ const isPublicRoute = createRouteMatcher([
   "/sign-in(.*)",
   "/privacy",
   "/terms",
+  "/api/auth(.*)",               // Auth.js handlers (signin/signout/session/csrf)
   "/api/reserve",                // Reservation form submission (legacy)
   "/api/reserve-spot",           // Reserve form → Google Sheets + Resend
   "/api/newsletter",             // Newsletter signup
@@ -52,18 +85,18 @@ const isPublicRoute = createRouteMatcher([
                                  // the route resolves identity itself via requireUser() when present.
                                  // NOTE: /api/leads/events/link is intentionally NOT public.
   "/not-authorized",
-  "/app(.*)",                     // TODO: Remove this when ready for beta launch (re-enable Clerk auth)
+  "/app(.*)",                     // TODO: Remove this when ready for beta launch (re-enable auth)
   "/api/dashboard/(.*)",         // Dashboard API endpoints
   // REMOVED: /api/test and /api/debug/(.*) - these should require auth
 ]);
 
 // ---------------------------------------------------------------------------
-// Admin-only matchers — these ALWAYS require Clerk auth + downstream
+// Admin-only matchers — these ALWAYS require an Auth.js session + downstream
 // requireAdmin() role check, regardless of the `/app(.*)` pre-launch public
 // bypass above. Without this, /app/admin/* and /api/admin/* pages would
 // inherit the pre-launch public bypass and be reachable without sign-in.
 //
-// This is a route-level FIRST gate (Clerk session required); the per-route
+// This is a route-level FIRST gate (session required); the per-route
 // `requireAdmin()` helper enforces the actual email/role check.
 // ---------------------------------------------------------------------------
 const isAdminRoute = createRouteMatcher([
@@ -71,15 +104,28 @@ const isAdminRoute = createRouteMatcher([
   "/api/admin(.*)",
 ]);
 
-export default clerkMiddleware(async (auth, req) => {
+/** Mirror Clerk's auth.protect(): 401 JSON for API/trpc, redirect for pages. */
+function deny(req: NextRequest): NextResponse {
+  const { pathname, search } = req.nextUrl;
+  if (pathname.startsWith("/api") || pathname.startsWith("/trpc")) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  const signInUrl = new URL("/sign-in", req.nextUrl.origin);
+  signInUrl.searchParams.set("callbackUrl", pathname + search);
+  return NextResponse.redirect(signInUrl);
+}
+
+export default auth((req) => {
+  const isSignedIn = Boolean(req.auth);
+
   // Admin routes get a strict gate ahead of the public-route check — the
   // `/app(.*)` pre-launch bypass MUST NOT apply to admin surfaces.
   if (isAdminRoute(req)) {
-    await auth.protect();
+    if (!isSignedIn) return deny(req);
     return;
   }
   if (!isPublicRoute(req)) {
-    await auth.protect();
+    if (!isSignedIn) return deny(req);
   }
 });
 

@@ -87,6 +87,15 @@ export interface Property {
   taxSignalCapturedAt?: string | null;
   /** AuctionSummary.lastCapturedAt when the row carries an auction signal. */
   auctionSignalCapturedAt?: string | null;
+
+  // === M2.4 — Layer-1 propensity (SCORING-ARCHITECTURE) ===
+  /** Calibrated P(qualified sale within 12mo) from
+   * TaxDelinquencySummary.propensity12mo. Live UNION endpoint only;
+   * NULL/absent = never scored by a model (honest absence — no tooltip line). */
+  propensity12mo?: number | null;
+  /** ModelVersion label for the stored propensity, e.g. "v1" (invariant #1:
+   * every stored score carries its model version). */
+  propensityModel?: string | null;
 }
 
 export const seedProperties: Property[] = [

@@ -71,7 +71,15 @@ on a slice of train, all reported numbers are from the untouched holdout.
 
 ### 4. Record the ModelVersion row
 
-Insert metrics.json verbatim (psql, or a future register-model script):
+```bash
+DATABASE_URL=... npx tsx scripts/ml/register-model-version.ts \
+  --metrics scripts/ml/out/model-v1/metrics.json \
+  --promote --notes "first training run, Miami-Dade+Broward frame"
+# --promote ONLY after the step-3 gates pass. It also demotes every other
+# version of the same modelKey and refuses to promote over a better incumbent.
+```
+
+Or insert metrics.json verbatim by hand (psql):
 
 ```sql
 SET search_path TO flipops, public;
@@ -128,11 +136,21 @@ all-0.0 means calibration or hazard composition broke — do not ship.
 
 | File | Role |
 |---|---|
+| `build-zip-market-stats.ts` | ZipMarketStats mart refresh (single FL-wide UPSERT) |
+| `build-parcel-features.ts` | ParcelFeature mart populate (per-county, ~150K/chunk) |
 | `export-training-data.ts` | frame export (raw SQL only — runs pre-patch) |
 | `train_propensity.py` | LightGBM discrete-time hazard + isotonic + eval |
+| `register-model-version.ts` | ModelVersion insert + gated promote/demote |
 | `apply-predictions.ts` | chunked UPSERT of propensities (preflight-guarded) |
 | `requirements.txt` | Python deps (`--self-test` needs none) |
 | `../../prisma/schema.patch.ml.prisma` | ParcelFeature / ZipMarketStats / ModelVersion + TDS columns |
+
+First real run (2026-06-10, ModelVersion `cmq8xlc5u0000mfi8wj3sb93h` = propensity-v1 v1,
+promoted): 12086+12011 frame 184,413 rows / 1,135 positives (0.62%/q); holdout AUC
+0.8281 vs assessed-ratio baseline 0.5155; calibration monotone (obs 0 → 0.0195 across
+deciles); 45,983 propensities applied. Known v1 artifact: isotonic top step saturates
+12 parcels at exactly 1.0 (one high-turnover Miami Beach condo building) — revisit with
+per-county shrinkage in the full M2.4 build.
 
 Compile check (no generated-model deps, runs pre-patch):
 

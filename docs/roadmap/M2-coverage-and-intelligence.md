@@ -63,7 +63,7 @@ surfaces "Tax deed sale ~Aug 12" on affected rows.
 ---
 
 ### M2.3 — ML foundations: feature mart + training loop
-**Status:** PARTIAL (2026-06-10 — design + skeleton DONE: schema patch APPLIED (ParcelFeature/ZipMarketStats/ModelVersion + propensity12mo pushed), export/train/apply scripts compile + live-tested. Remaining: build-parcel-features.ts mart populate + first real training run. Duval unusable for v1 training (all earliestYear=2025); use Miami-Dade+Broward.) · **Effort:** ~1 week · **Deps:** M1.3 (geocode for spatial features)
+**Status:** DONE (2026-06-11 — ZipMarketStats 978 ZIPs/760K qualified sales; ParcelFeature 1,687,903 rows (MDC+Broward); full export→train→apply loop executed end-to-end; .venv-ml with lightgbm 4.6), export/train/apply scripts compile + live-tested. Remaining: build-parcel-features.ts mart populate + first real training run. Duval unusable for v1 training (all earliestYear=2025); use Miami-Dade+Broward.) · **Effort:** ~1 week · **Deps:** M1.3 (geocode for spatial features)
 **What/How:**
 1. `ParcelFeature` silver mart for active metros (start: Duval + Miami-Dade): one row per
    parcel with model-ready features (value ratios, sqft/lot, age, owner-occupancy, absentee,
@@ -80,7 +80,7 @@ surfaces "Tax deed sale ~Aug 12" on affected rows.
 ---
 
 ### M2.4 — Propensity model v1 = SCORING-ARCHITECTURE Layer 1 (learned per-county weights)
-**Status:** TODO · **Effort:** ~1 week · **Deps:** M2.3
+**Status:** DONE — PROMOTED (2026-06-11 — holdout AUC 0.8281 vs assessed-ratio baseline 0.5155; calibration strictly monotone by decile, worst gap 1.5x; 45,983 parcels scored propensity12mo (100% of trained metros), 66,511 other-county rows honestly NULL; ModelVersion cmq8xlc5u; tooltip live: P(sale 12mo) in lead sheet. Training frame 184,413 rows/1,135 positives. v1 artifact: isotonic saturates 12 parcels at 1.0 — noted) · **Effort:** ~1 week · **Deps:** M2.3
 **Why:** Trainable TODAY from retrospective cohorts (105K delinquent parcels × ParcelSale
 outcome joins via `TaxDelinquencySummary.earliestYear`) — no behavioral labels needed.
 Output: calibrated P(sale within 12mo). **No competitor has anything but static "motivation: HIGH".**
@@ -93,7 +93,7 @@ surface in the score-breakdown tooltip: "23% chance of sale in 12 mo (model v1)"
 ---
 
 ### M2.5 — NextAuth migration steps 2-4
-**Status:** TODO · **Effort:** ~1 week · **Deps:** M1.6 (requireUser sweep)
+**Status:** DONE (2026-06-11 — next-auth 5.0.0-beta.31, credentials provider vs bcrypt passwordHash, require-user/require-admin internals swapped (signatures unchanged, JIT preserved), middleware dual-gate order verbatim + /api/auth(.*) public, sign-in form + request-access stub + UserMenu, tests/auth 9/9. Residual for M3.6: ClerkProvider still wraps root layout; Clerk env keys stay until then) · **Effort:** ~1 week · **Deps:** M1.6 (requireUser sweep)
 **What/How (from AUDIT-A5 plan):**
 - Step 2: implement NextAuth (Auth.js) credentials provider + manual user creation flow
   (per user decision: no self-serve signup yet).

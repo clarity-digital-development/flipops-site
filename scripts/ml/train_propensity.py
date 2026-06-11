@@ -132,9 +132,16 @@ def train(args: argparse.Namespace) -> None:
     import lightgbm as lgb
     from sklearn.isotonic import IsotonicRegression
 
-    df = pd.read_csv(args.train)
+    df = pd.read_csv(args.train, dtype={"apn": str})
     if LABEL_COL not in df.columns:
         sys.exit(f"--train CSV missing label column {LABEL_COL!r}")
+
+    # Postgres booleans export as "true"/"false" strings → numeric (NaN = NULL).
+    # LightGBM rejects object dtypes; only non-categorical, non-ID columns.
+    skip = set(CATEGORICAL_COLS) | {"apn", "quarterStart", LABEL_COL}
+    for c in df.columns:
+        if c not in skip and df[c].dtype == object:
+            df[c] = df[c].map({"true": 1.0, "false": 0.0, "t": 1.0, "f": 0.0}).astype(float)
 
     feature_cols = [c for c in df.columns if c not in {LABEL_COL, "quarterStart"} ]
     # countyFips/apn stay out of the matrix except countyFips-as-categorical;

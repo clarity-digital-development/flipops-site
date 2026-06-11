@@ -2,8 +2,9 @@
  * Authentication helpers for API routes
  *
  * Legacy shim — delegates to the canonical requireUser() guard
- * (lib/auth/require-user.ts) so JIT user provisioning and the eventual
- * Clerk→NextAuth swap live in ONE place. Prefer importing requireUser()
+ * (lib/auth/require-user.ts) so JIT user provisioning lives in ONE place.
+ * M2.5: requireUser() now resolves identity via Auth.js (NextAuth v5)
+ * sessions — this shim needed no changes. Prefer importing requireUser()
  * directly in new routes.
  */
 

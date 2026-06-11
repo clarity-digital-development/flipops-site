@@ -82,6 +82,10 @@ export interface DetailLead {
   signalSource?: string | null;
   taxSignalCapturedAt?: string | null;
   auctionSignalCapturedAt?: string | null;
+  // M2.4 — Layer-1 model propensity + ModelVersion label ("v1"). NULL/absent
+  // = never scored (honest absence: the tooltip simply omits the line).
+  propensity12mo?: number | null;
+  propensityModel?: string | null;
   createdAt?: string;
 }
 
@@ -167,6 +171,12 @@ function parsePhoneOrEmail(raw?: string): string[] {
 function formatCurrency(n?: number | null): string {
   if (n == null) return "—";
   return `$${n.toLocaleString()}`;
+}
+
+/** 0.234 → "23%"; one decimal below 10% so 0.009 reads "0.9%", not "1%". */
+function formatPropensity(p: number): string {
+  const pct = p * 100;
+  return `${pct < 9.5 ? pct.toFixed(1) : String(Math.round(pct))}%`;
 }
 
 // ---------------------------------------------------------------------------
@@ -403,6 +413,18 @@ export function LeadDetailSheet({
                           </div>
                         ))}
                       </div>
+                      {/* M2.4 — Layer-1 learned propensity with model
+                          provenance (SCORING-ARCHITECTURE invariants #1/#3).
+                          Honest absence: no line when never scored. */}
+                      {lead.propensity12mo != null && (
+                        <div className="mt-2 border-t border-border pt-2 font-mono text-[11px] text-foreground/80">
+                          P(sale 12mo):{" "}
+                          <span className="font-semibold tabular-nums text-foreground">
+                            {formatPropensity(lead.propensity12mo)}
+                          </span>
+                          {lead.propensityModel ? ` — model ${lead.propensityModel}` : null}
+                        </div>
+                      )}
                       {scoreBreakdown.motivation && (
                         <div className="mt-2 border-t border-border pt-2 text-[10px] uppercase tracking-wide text-muted-foreground">
                           Motivation: {scoreBreakdown.motivation}

@@ -1,5 +1,7 @@
 import type { ScraperAdapter } from "./types";
+import { runAcclaimOfficialRecords } from "./acclaim-official-records";
 import { runBrowardTaxDelinquent } from "./broward-tax-delinquent";
+import { runLandmarkOfficialRecords } from "./landmark-official-records";
 import { runDuvalClerk } from "./duval-clerk-recordings";
 import { runDuvalTaxDelinquent } from "./duval-tax-delinquent";
 import { runHillsboroughTaxDelinquent } from "./hillsborough-tax-delinquent";
@@ -22,9 +24,11 @@ import { ingestFlDorStatewide } from "./fl-dor-statewide-nal-sdf";
 
 export const DISPATCH: Record<string, ScraperAdapter> = {
   "fl-dor-statewide-nal-sdf":    ingestFlDorStatewide,   // Phase 2 = no-op stub; Phase 4 = HEAD-check + ingest
+  "landmark-official-records":   runLandmarkOfficialRecords, // LANDMARK family: PB+Lee+Levy ORI (incremental-date)
   "duval-clerk-recordings":      runDuvalClerk,           // incremental-date (cursor = last scraped ISO day)
   "realauction-fl-foreclosures": runRealAuction,          // sequential enumerate 16 counties × tracks
   "realtaxdeed-fl-tax-deeds":    runRealTaxDeedFl,        // calendar-first enumerate 29 realtaxdeed counties (M2.2)
+  "acclaim-official-records":    runAcclaimOfficialRecords, // ACCLAIM family: Duval+Broward ORI mortgages/liens (M2.1a)
   "duval-tax-delinquent":        runDuvalTaxDelinquent,
   "hillsborough-tax-delinquent": runHillsboroughTaxDelinquent, // Phase 4 swaps HTML walk for CSV export
   "orange-tax-delinquent":       runOrangeTaxDelinquent,  // seasonal: April-July only (registry-enforced)

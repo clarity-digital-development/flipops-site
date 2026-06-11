@@ -101,3 +101,8 @@ dev.log
 build-output.log
 tmp-samples/
 tmp-*.html
+
+# M2.3/M2.4 ML loop — local venv + training artifacts (model.txt, frames, predictions).
+# Provenance lives in the ModelVersion table; artifacts are per-machine.
+.venv-ml/
+scripts/ml/out/

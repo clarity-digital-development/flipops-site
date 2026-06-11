@@ -106,6 +106,12 @@ interface LeadRow {
   signalSource: string | null;
   taxSignalCapturedAt: string | null;
   auctionSignalCapturedAt: string | null;
+  // M2.4 Layer-1 output: calibrated P(qualified sale within 12mo) from
+  // TaxDelinquencySummary.propensity12mo, with its ModelVersion label ("v1")
+  // for the breakdown tooltip's provenance line (SCORING-ARCHITECTURE
+  // invariant #1). NULL = never scored by a model (honest absence).
+  propensity12mo: number | null;
+  propensityModel: string | null;
 }
 
 const MAX_LIMIT = 500;
@@ -289,7 +295,11 @@ export async function GET(request: NextRequest) {
         -- capture dates live on the virtual-branch source tables only.
         p."dataSource"                    AS signal_source,
         NULL::text                        AS tax_signal_captured_at,
-        NULL::text                        AS auction_signal_captured_at
+        NULL::text                        AS auction_signal_captured_at,
+        -- M2.4: model propensity lives on TaxDelinquencySummary (virtual
+        -- branches only) — NULL-padded here for UNION shape stability.
+        NULL::float                       AS propensity12mo,
+        NULL::text                        AS propensity_model
       FROM flipops."Property" p
       WHERE p."userId" = ${userId}
         AND ${distressMineSql}
@@ -364,7 +374,13 @@ export async function GET(request: NextRequest) {
         -- Lien rows; computedAt is the freshness receipt for this signal.
         'county-tax-roll'                                AS signal_source,
         s."computedAt"::text                             AS tax_signal_captured_at,
-        NULL::text                                       AS auction_signal_captured_at
+        NULL::text                                       AS auction_signal_captured_at,
+        -- M2.4 Layer-1 propensity + ModelVersion label ("v1") for the
+        -- tooltip provenance line. NULL when never scored (cold-start).
+        s."propensity12mo"::float                        AS propensity12mo,
+        (SELECT 'v' || mv."version"
+           FROM flipops."ModelVersion" mv
+          WHERE mv."id" = s."propensityModelVersionId")  AS propensity_model
       FROM flipops."TaxDelinquencySummary" s
       LEFT JOIN flipops."Parcel" par
         ON par."countyFips" = s."countyFips" AND par."apn" = s."apn"
@@ -465,7 +481,20 @@ export async function GET(request: NextRequest) {
            FROM flipops."TaxDelinquencySummary" tds
           WHERE tds."countyFips" = s."countyFips"
             AND tds."apn" = s."apn")                      AS tax_signal_captured_at,
-        s."lastCapturedAt"::text                          AS auction_signal_captured_at
+        s."lastCapturedAt"::text                          AS auction_signal_captured_at,
+        -- M2.4: when the auction parcel ALSO carries a scored tax-delinquency
+        -- row, surface its propensity (same scalar-subquery pattern as the
+        -- secondary tax signal above — AuctionSummary is a few hundred rows).
+        (SELECT tds."propensity12mo"::float
+           FROM flipops."TaxDelinquencySummary" tds
+          WHERE tds."countyFips" = s."countyFips"
+            AND tds."apn" = s."apn")                      AS propensity12mo,
+        (SELECT 'v' || mv."version"
+           FROM flipops."TaxDelinquencySummary" tds
+           JOIN flipops."ModelVersion" mv
+             ON mv."id" = tds."propensityModelVersionId"
+          WHERE tds."countyFips" = s."countyFips"
+            AND tds."apn" = s."apn")                      AS propensity_model
       FROM flipops."AuctionSummary" s
       INNER JOIN flipops."Parcel" par
         ON par."countyFips" = s."countyFips" AND par."apn" = s."apn"
@@ -586,6 +615,9 @@ export async function GET(request: NextRequest) {
       signalSource: (r.signal_source as string | null) ?? null,
       taxSignalCapturedAt: (r.tax_signal_captured_at as string | null) ?? null,
       auctionSignalCapturedAt: (r.auction_signal_captured_at as string | null) ?? null,
+      // M2.4 Layer-1 propensity (+ model label) — virtual branches only.
+      propensity12mo: (r.propensity12mo as number | null) ?? null,
+      propensityModel: (r.propensity_model as string | null) ?? null,
     }));
 
     // Counts — for the demo stats bar. Cheap single-row queries.

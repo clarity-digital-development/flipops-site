@@ -19,7 +19,8 @@ import { REALAUCTION_COUNTIES, type RealAuctionTrack } from "./realauction";
 // New flow per (county, date):
 //   1. GET splash URL via politeFetch → parse Set-Cookie into a Cookie
 //      header (CFID/CFTOKEN + AWSALB + CF_CLIENT_<COUNTY>_*).
-//      Cached per county for 25 minutes (cookies expire ~30 min).
+//      Minted PER (county, track, DATE) — see the date-pinning landmine at
+//      the cookie cache below. Never reuse a jar across auction dates.
 //   2. For each AREA in {W (waiting), R (running), C (closed/sold)} issue
 //      one authenticated XHR GET to:
 //        /index.cfm?zaction=AUCTION&Zmethod=UPDATE&FNC=LOAD
@@ -87,13 +88,28 @@ function xhrUrlFor(
 }
 
 // ---------------------------------------------------------------------------
-// Per-county cookie cache.
+// Per-(county, track, DATE) cookie cache.
 //
-// RealAuction cookies expire ~30 minutes after they're set. We cache for
-// 25 minutes to leave a safety buffer. Cookies are county-namespaced
-// (CF_CLIENT_<COUNTY>_*) so we MUST cache per-subdomain, not globally.
-// Keyed by `${subdomain}:${rootHost}` so foreclosure / tax-deed / tax-lien
-// hosts each get their own bucket.
+// DATE-PINNING LANDMINE (probed live 2026-06-10, bidirectionally CONFIRMED
+// on hillsborough.realforeclose.com — evidence at
+// .gstack/qa-reports/realauction-date-pinning-probe.md): the ColdFusion
+// session pins the auction date at SPLASH/cookie-mint time and IGNORES the
+// XHR's AuctionDate param. A jar minted on the 06/12 splash returns 06/12
+// rows for an 06/17 XHR, and vice versa. Same behavior the tax-deed lane
+// verified on *.realtaxdeed.com (see realtaxdeed.ts landmine (a)).
+//
+// The cache key therefore MUST include the auction date. The previous
+// per-county key (pre-2026-06-10) reused one jar across the dispatcher's
+// ~14-weekday iteration, so every date after the first silently returned
+// the SPLASH date's rows and persistAsForeclosure stamped them with the
+// wrong auctionDate (last-write-wins across iterations).
+//
+// RealAuction cookies expire ~30 minutes after they're set; we cache for
+// 25 to leave a buffer. Cookies are county-namespaced (CF_CLIENT_<COUNTY>_*)
+// and the foreclosure / tax-deed / tax-lien roots are separate hosts, so the
+// key is `${subdomain}:${rootHost}:${auctionDate}`. With the date in the key
+// the cache only ever serves repeat scrapes of the SAME (county, track,
+// date) — cross-date reuse is structurally impossible.
 // ---------------------------------------------------------------------------
 const COOKIE_TTL_MS = 25 * 60 * 1000;
 const cookieCache = new Map<string, { cookieHeader: string; capturedAt: number }>();
@@ -321,8 +337,11 @@ export async function scrapeRealAuctionsPlaywright(opts: {
   const auctionDate = opts.auctionDate ?? defaultDate;
   const splashUrl = splashUrlFor(opts.track, county.subdomain, auctionDate);
 
-  // (1) Cookie capture — cached per (subdomain, track-root) for 25 min.
-  const cacheKey = `${county.subdomain}:${rootFor(opts.track)}`;
+  // (1) Cookie capture — minted per (subdomain, track-root, auctionDate).
+  // The CF session pins the auction date at splash time and ignores the
+  // XHR param (see cookie-cache comment above), so the date MUST be part
+  // of the cache key. Never reuse a jar across dates.
+  const cacheKey = `${county.subdomain}:${rootFor(opts.track)}:${auctionDate}`;
   const cookieHeader = await getCookieHeaderFor(splashUrl, cacheKey, useProxy);
 
   // (2) Issue per-AREA XHR calls. The 3 W/R/C buckets partition the
