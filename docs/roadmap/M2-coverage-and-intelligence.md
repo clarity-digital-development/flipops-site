@@ -75,11 +75,11 @@ surfaces "Tax deed sale ~Aug 12" on affected rows.
    (version, trainedAt, metrics, featureList). NO model server — batch inference into columns,
    the same architecture the materialized scores already prove.
 **Done when:** mart populated for 2 metros; a dummy model round-trips export→train→apply.
-**Source:** AUDIT-A3 sequencing step 2.
+**Source:** AUDIT-A3 sequencing step 2. **Contract:** SCORING-ARCHITECTURE.md (two-tier learned scoring — user directive 2026-06-10: no permanent hand-tuned weights).
 
 ---
 
-### M2.4 — Propensity model v1: tax-delinquency → sale hazard
+### M2.4 — Propensity model v1 = SCORING-ARCHITECTURE Layer 1 (learned per-county weights)
 **Status:** TODO · **Effort:** ~1 week · **Deps:** M2.3
 **Why:** Trainable TODAY from retrospective cohorts (105K delinquent parcels × ParcelSale
 outcome joins via `TaxDelinquencySummary.earliestYear`) — no behavioral labels needed.
