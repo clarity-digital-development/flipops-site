@@ -32,6 +32,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
+import { PropertySignalsTimeline } from "@/components/signals/property-signals-timeline";
 import {
   Table,
   TableBody,
@@ -1047,6 +1048,10 @@ export default function PropertyDetailPage({
           <>
             <HeroSection property={data.property} />
             <LifecycleStrip active={computeActiveStages(data)} />
+            {/* M3.4 — Property Signals Timeline: the persuasive distress-story
+                screen (sale → mortgage → tax delinquent → lis pendens →
+                auction). Reads parcel-linked county records via /signals. */}
+            <PropertySignalsTimeline propertyId={data.property.id} />
             <ContactHistoryCard propertyId={data.property.id} notes={data.contactNotes} />
             <DealAnalysesCard propertyId={data.property.id} analyses={data.dealAnalyses} />
             <OffersCard propertyId={data.property.id} offers={data.offers} />

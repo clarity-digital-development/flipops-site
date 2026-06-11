@@ -29,6 +29,7 @@ import {
   GitBranch,
   HardHat,
   Database,
+  Gavel,
   LogOut,
   User as UserIcon,
 } from "lucide-react";
@@ -71,6 +72,7 @@ const baseSidebar: SidebarEntry[] = [
     icon: Users,
     children: [
       { name: "All Leads", href: "/app/leads", icon: Users },
+      { name: "Auctions", href: "/app/auctions", icon: Gavel },
       { name: "Underwriting", href: "/app/underwriting", icon: Calculator },
     ],
   },

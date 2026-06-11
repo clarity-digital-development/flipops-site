@@ -106,3 +106,5 @@ tmp-*.html
 # Provenance lives in the ModelVersion table; artifacts are per-machine.
 .venv-ml/
 scripts/ml/out/
+# M3.3 AVM loop artifacts (frame, model.txt, metrics.json, predictions).
+scripts/ml/avm/out/

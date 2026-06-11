@@ -59,6 +59,7 @@ const isPublicRoute = createRouteMatcher([
   "/api/webhooks/(.*)",          // All webhook endpoints
   "/api/users",                  // Users endpoint
   "/api/properties/(.*)",        // Property scoring endpoints
+  "/api/auctions/(.*)",          // M3.4 auction calendar (public county records)
   "/api/notifications(.*)",      // Notifications endpoint
   "/api/deals/approve",          // G1 endpoint
   "/api/deals/approve/status",   // G1 monitoring endpoint

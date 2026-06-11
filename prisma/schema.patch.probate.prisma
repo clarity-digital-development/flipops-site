@@ -1,0 +1,110 @@
+// ===========================================================================
+// SCHEMA PATCH — Probate (M3.1 / Lane D1b)
+//
+// DO NOT paste into prisma/schema.prisma. The orchestrator reviews this patch
+// and merges + `prisma db push`es it between waves. Code shipped THIS wave must
+// compile WITHOUT these models — read probate data via $queryRawUnsafe with the
+// typed row shapes below (mirrors scripts/ml/export-training-data.ts).
+//
+// Models follow the materialized-aggregate conventions of TaxDelinquencySummary
+// / AuctionSummary already in schema.prisma (lines 1798 / 1846):
+//   • ProbateCase  = the bronze→silver fact table (one row per court case).
+//   • ProbateSummary = the materialized per-(countyFips, apn) lead aggregate
+//     the /api/properties UNION reads, with score/grade/motivation MATERIALIZED
+//     so the UNION can ORDER BY score in SQL (the verifier "linchpin").
+//
+// Namespace: flipops (raw queries must SET search_path TO flipops, public OR
+// qualify flipops."ProbateCase").
+// ===========================================================================
+
+// ---------------------------------------------------------------------------
+// ProbateCase — one row per probate/estate/guardianship court case scraped
+// from a county Clerk-of-Court case-search portal. COURT records (case search),
+// a DIFFERENT portal than the M2.1 official-records (recording) adapters —
+// see .gstack/qa-reports/PROBATE-BUILD-SPEC.md §1 for the per-county portal map.
+//
+// The decedent→owner join is intentionally NOT a hard FK. A probate case names
+// a person, not a parcel; the link is a FUZZY, scored match against
+// Parcel.ownerName (normalized). We store the resolved APN array + a confidence
+// so the matcher can be re-run/improved without losing the source case. See
+// spec §3 for the normalization + confidence tiers.
+// ---------------------------------------------------------------------------
+model ProbateCase {
+  id                     String   @id @default(cuid())
+  countyFips             String                  // "12095" (Orange), "12086" (Miami-Dade), ...
+  caseNumber             String                  // clerk case # e.g. "2026-CP-001234" / "482026CP001234..."
+
+  // Index fields (the listable, public docket index — NOT the confidential inventory)
+  decedentName           String                  // estate party / decedent (raw, as printed)
+  decedentNameNormalized String?                 // uppercased, suffix/punct-stripped (matcher key)
+  personalRepresentative String?                 // PR / petitioner / executor when present in index
+  caseTypeRaw            String?                  // portal case-type label e.g. "Formal Administration"
+  caseTypeCode           String?                 // normalized: "FORMAL_ADMIN"|"SUMMARY_ADMIN"|"GUARDIANSHIP"|"DISPOSITION_NO_ADMIN"|"TRUST"|"CAVEAT"|"OTHER"
+  filedAt                DateTime?               // case filing date
+  status                 String?                 // "OPEN" | "CLOSED" | portal status string
+  prAppointedAt          DateTime?               // letters-of-administration / PR appointment date (peak-motivation signal)
+
+  // Fuzzy parcel link (NOT an FK — see header). Array of matched Parcel.apn
+  // within countyFips; matchConfidence is the BEST match's score 0..1.
+  matchedParcelApns      String[] @default([])
+  matchConfidence        Float?                  // 0..1, best-match confidence; NULL = unmatched/not yet run
+  matchTier              String?                 // "EXACT" | "STRONG" | "WEAK" | "NONE"
+
+  // Provenance
+  source                 String                  // "probate:orange-myeclerk" | "probate:broward-web2" | "probate:miamidade-ocs" | ...
+  rawCaptureId           String?                 // bronze ref → RawCapture.id (captureRaw output); raw docket JSON/HTML
+  capturedAt             DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  @@unique([countyFips, caseNumber])
+  @@index([countyFips])
+  @@index([filedAt])
+  @@index([caseTypeCode])
+  @@index([decedentNameNormalized])             // decedent-name → Parcel.ownerName fuzzy-join driver
+  @@index([source])
+}
+
+// ---------------------------------------------------------------------------
+// ProbateSummary — materialized per-(countyFips, apn) lead aggregate.
+//
+// Mirrors AuctionSummary/TaxDelinquencySummary. One row per matched parcel,
+// collapsing all ProbateCase rows whose matchedParcelApns include this apn.
+// score/grade/motivation are MATERIALIZED (the verifier linchpin) so the
+// /api/properties UNION can ORDER BY score + filter scoreMin in SQL without an
+// over-fetch-and-rescore loop. Refreshed by a single SQL upsert in
+// scripts/rescore-probate.ts (next wave), mirroring scripts/rescore-auction.ts.
+//
+// Cross-branch dedup (next wave, per the M2.3 AuctionSummary precedent): the
+// probate-virtual branch should yield to a future-scheduled foreclosure/auction
+// on the same (countyFips, apn) — probate is a motivation signal, not a clock.
+// ---------------------------------------------------------------------------
+model ProbateSummary {
+  id                 String   @id @default(cuid())
+  countyFips         String
+  apn                String
+
+  caseCount          Int      @default(1)        // distinct ProbateCase rows matched to this apn
+  primaryCaseNumber  String?                      // most-recent / highest-confidence case
+  decedentName       String?
+  personalRepresentative String?
+  caseTypeCode       String?
+  filedAt            DateTime?                    // earliest matched filing
+  prAppointedAt      DateTime?                    // PR appointment (peak window)
+  status             String?
+  matchConfidence    Float?                       // best-match confidence carried up for UI/filtering
+
+  // Materialized scoring (linchpin — same contract as AuctionSummary)
+  score              Int?
+  grade              String?                      // A/B/C/D/F
+  motivation         String?
+
+  firstCapturedAt    DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@unique([countyFips, apn])
+  @@index([countyFips])
+  @@index([score(sort: Desc)])
+  @@index([countyFips, score(sort: Desc)])
+  @@index([prAppointedAt])
+  @@index([matchConfidence(sort: Desc)])
+}

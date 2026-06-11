@@ -1,0 +1,60 @@
+// -----------------------------------------------------------------------------
+// M3.3 AVM v1 PATCH — ParcelValuation (estimated market value, per parcel)
+//
+// Contract: docs/roadmap/SCORING-ARCHITECTURE.md (versioned, eval-gated models).
+// Roadmap item: docs/roadmap/M3-signals-and-demo.md §M3.3.
+//
+// Apply by pasting the model below into prisma/schema.prisma (anywhere after
+// Parcel/ParcelFeature for readability), then:
+//
+//   npx prisma db push        # NEVER `migrate dev` — Railway drift wipes data
+//   npx prisma generate
+//
+// Design decisions (mirror the M2.3 ML marts):
+//   1. NO Prisma relations. ParcelValuation joins by value on (countyFips, apn)
+//      — the same convention ParcelFeature / TaxDelinquencySummary /
+//      AuctionSummary already use. Keeps the apply UPSERT a single-table write.
+//   2. modelVersionId is the FK-by-value provenance to ModelVersion.id
+//      (SCORING-ARCHITECTURE invariant #1: every stored estimate carries the
+//      model version that produced it — no silent re-valuations). ModelVersion
+//      ALREADY EXISTS (schema.patch.ml.prisma, modelKey 'avm-v1' for this lane);
+//      do NOT redeclare it here.
+//   3. low/high estimate bracket the point estimate. v1 derives them from the
+//      training residual band (see scripts/ml/avm/train_avm.py → metrics.json
+//      residualBandPct) applied symmetrically in price space:
+//        lowEstimate  = estimatedValue * (1 - band)
+//        highEstimate = estimatedValue * (1 + band)
+//      A future version can emit true LightGBM quantile bounds and widen the
+//      column semantics with a modelVersion bump (never reuse the columns).
+//   4. Written ONLY by scripts/ml/avm/apply-avm.ts in chunked UPSERTs
+//      (ON CONFLICT (countyFips, apn) DO UPDATE) per the Railway-proxy rule
+//      (OPERATIONS.md: proxy kills silent long statements → chunk ~150K).
+//      apply-avm.ts is information_schema-guarded so it no-ops until this
+//      patch is pushed.
+// -----------------------------------------------------------------------------
+model ParcelValuation {
+  id              String   @id @default(cuid())
+
+  // Natural key — joins by value to Parcel / ParcelFeature. Same convention as
+  // the other materialized marts. Unique so apply-avm.ts can UPSERT.
+  countyFips      String                 // "12086"
+  apn             String                 // PARCEL_ID from the roll
+
+  // -- Estimate (the AVM output) ------------------------------------------
+  // estimatedValue is the point estimate in dollars (model predicts log-price;
+  // apply-avm.ts exponentiates). low/high bracket it — see header decision #3.
+  estimatedValue  Float
+  lowEstimate     Float?
+  highEstimate    Float?
+
+  // -- Provenance ----------------------------------------------------------
+  // ModelVersion.id that produced this estimate (FK-by-value, no relation).
+  // Invariant #1: every stored estimate carries its model version.
+  modelVersionId  String
+
+  computedAt      DateTime @default(now())
+
+  @@unique([countyFips, apn])
+  // List/lookup scans are county-scoped (one metro at a time).
+  @@index([countyFips])
+}

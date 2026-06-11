@@ -1,0 +1,134 @@
+// -----------------------------------------------------------------------------
+// M3.2 (B3) CODE-ENFORCEMENT PATCH — CodeViolation + CodeViolationSummary
+//
+// Lane D1c. Open-data-first code-enforcement violations for the scorer's
+// CONDITION_FAMILY (scaffolded in lib/scoring/distress-scorer.ts since M2.2).
+//
+// Contract: docs/roadmap/M3-signals-and-demo.md §M3.2 — "violations flow for
+// the 3 open-data cities; CONDITION_FAMILY live in scorer".
+// Full source/field/join characterization: .gstack/qa-reports/CODE-ENFORCEMENT-SPEC.md
+//
+// Apply by pasting the two models below into prisma/schema.prisma (anywhere
+// after Parcel/Lien for readability), then:
+//
+//   npx prisma db push        # NEVER `migrate dev` — Railway drift wipes data
+//   npx prisma generate
+//
+// Design decisions (mirror TaxDelinquencySummary / AuctionSummary conventions):
+//   1. NO Prisma relations. CodeViolation + CodeViolationSummary join to Parcel
+//      BY VALUE on (countyFips, apn) — the same convention every other
+//      materialized distress mart uses. parcelApn is NULLABLE because some
+//      open-data feeds (Orlando) carry an address but a city-internal parcel id
+//      that does not join to the DOR roll (3.8% direct-join rate, vs Miami-Dade
+//      99.6% via FOLIO) — those rows persist address-only and are resolved by a
+//      later address→situsAddress pass (see spec §Join Strategy).
+//   2. CodeViolation is the raw fact table (one row per (county, sourceCaseId)).
+//      CodeViolationSummary is the per-parcel aggregate the SCORER reads — exactly
+//      like TaxDelinquencySummary feeds the tax-delinquent path. The scorer never
+//      scans CodeViolation; it reads the summary's openCount / hasLien / latest
+//      and maps them onto CODE_VIOLATION_OPEN / CODE_VIOLATION_MULTI / CODE_LIEN.
+//   3. Idempotent upsert on @@unique([countyFips, sourceCaseId, source]) so
+//      same-feed re-ingests update in place; status flips Open→Closed are an
+//      UPDATE, never a new row (the feed's case number is stable).
+//   4. The summary is refreshed by scripts/rescore-code-violations.ts (a future
+//      sibling of rescore-tax-delinquent.ts — single SQL UPSERT, chunked per
+//      county per the Railway-proxy landmine). Not built this wave; the
+//      ingester's --dry-run reports parsed + join counts without it.
+// -----------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// CodeViolation — raw code-enforcement violation/case fact ("bronze→silver").
+// One row per (countyFips, sourceCaseId, source). Open data feeds only this wave
+// (Socrata: Orlando; ArcGIS FeatureServer: Miami-Dade). Accela Citizen Access
+// (Phase 2, yellow) writes the same shape with source="scraper:accela-<jur>".
+// ---------------------------------------------------------------------------
+model CodeViolation {
+  id            String    @id @default(cuid())
+
+  // Natural join key (by value, no relation). parcelApn NULL when the feed only
+  // gives an unresolvable id / address (resolved later by address fuzzy-match).
+  countyFips    String                       // "12086" Miami-Dade, "12095" Orange/Orlando
+  parcelApn     String?                      // DOR PARCEL_ID / folio when it joins
+
+  // Provenance: stable id from the source feed (Miami-Dade CASE_NUM, Orlando
+  // apno). Combined with `source` to dedup across re-ingests.
+  sourceCaseId  String
+  source        String                       // "opendata:miamidade-ccv" | "opendata:orlando-ce" | "scraper:accela-<jur>"
+
+  // Address (always present from the feed; the only locator when parcelApn is null).
+  address       String?
+  city          String?
+  zip           String?
+
+  // Violation classification (free-text from the feed; normalized category derived).
+  violationType String?                      // e.g. "Construction Without Permit", "High Weeds/Litter"
+  category      String?                      // normalized bucket: structure|nuisance|zoning|vehicle|other
+
+  // Lifecycle. status is normalized to "open" | "closed" | "unknown"; the raw
+  // feed status string is kept in rawStatus for audit/debug.
+  status        String                       // normalized "open" | "closed" | "unknown"
+  rawStatus     String?                      // feed's literal status ("Open", "1", "Closed", "CLOSED - LIEN")
+  openedAt      DateTime?
+  closedAt      DateTime?
+
+  // CODE_LIEN signal driver. True when the feed flags a recorded code-enforcement
+  // lien on the case (Miami-Dade LN_RFRL / LN_RECDATE; Accela lien activity).
+  isLien        Boolean   @default(false)
+  lienRecordedAt DateTime?
+  lienBook      String?
+  lienPage      String?
+
+  // Optional centroid for map / address-join fallback.
+  latitude      Float?
+  longitude     Float?
+
+  capturedAt    DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@unique([countyFips, sourceCaseId, source])
+  // Per-parcel aggregation (summary refresh) + scorer hydration at promote time.
+  @@index([countyFips, parcelApn])
+  // "open violations in county X" sweeps.
+  @@index([countyFips, status])
+  @@index([source])
+  @@index([capturedAt])
+}
+
+// ---------------------------------------------------------------------------
+// CodeViolationSummary — per-parcel aggregate the SCORER reads, mirroring
+// TaxDelinquencySummary. One row per (countyFips, apn) with the three fields
+// the CONDITION_FAMILY signals need:
+//   openCount      → CODE_VIOLATION_OPEN (>=1) and CODE_VIOLATION_MULTI (>=3)
+//   hasLien        → CODE_LIEN
+//   latestOpenedAt → recency / age decay
+// Refreshed by scripts/rescore-code-violations.ts (single SQL UPSERT, chunked
+// per county). score/grade are materialized for the UNION list-ranking path
+// the same way the other *Summary marts pre-materialize them.
+// ---------------------------------------------------------------------------
+model CodeViolationSummary {
+  countyFips     String
+  apn            String
+
+  openCount      Int       @default(0)   // COUNT of open CodeViolation for this parcel
+  totalCount     Int       @default(0)   // COUNT of all (open+closed) for context
+  hasLien        Boolean   @default(false)
+  earliestOpenedAt DateTime?
+  latestOpenedAt DateTime?
+
+  // Distinct normalized violation categories present (e.g. {structure,nuisance}).
+  categories     String[]  @default([])
+
+  // Materialized for SQL-side ORDER BY in the /api/properties UNION (same as the
+  // other *Summary marts). The authoritative formula stays in distress-scorer.ts;
+  // this is the batch-aggregation mirror for list ranking only.
+  score          Int?                    // 0-100
+  grade          String?                 // "A" | "B" | "C" | "D" | "F"
+  motivation     String?                 // short human-readable summary
+
+  computedAt     DateTime  @default(now())
+
+  @@id([countyFips, apn])
+  @@index([countyFips])
+  @@index([openCount])
+  @@index([score(sort: Desc)])
+}

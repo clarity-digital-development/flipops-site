@@ -2193,3 +2193,204 @@ model ModelVersion {
   @@unique([modelKey, version])
   @@index([modelKey, promoted])
 }
+
+// ===== merged from schema.patch.probate.prisma (M3 Wave D1) =====
+model ProbateCase {
+  id                     String   @id @default(cuid())
+  countyFips             String                  // "12095" (Orange), "12086" (Miami-Dade), ...
+  caseNumber             String                  // clerk case # e.g. "2026-CP-001234" / "482026CP001234..."
+
+  // Index fields (the listable, public docket index — NOT the confidential inventory)
+  decedentName           String                  // estate party / decedent (raw, as printed)
+  decedentNameNormalized String?                 // uppercased, suffix/punct-stripped (matcher key)
+  personalRepresentative String?                 // PR / petitioner / executor when present in index
+  caseTypeRaw            String?                  // portal case-type label e.g. "Formal Administration"
+  caseTypeCode           String?                 // normalized: "FORMAL_ADMIN"|"SUMMARY_ADMIN"|"GUARDIANSHIP"|"DISPOSITION_NO_ADMIN"|"TRUST"|"CAVEAT"|"OTHER"
+  filedAt                DateTime?               // case filing date
+  status                 String?                 // "OPEN" | "CLOSED" | portal status string
+  prAppointedAt          DateTime?               // letters-of-administration / PR appointment date (peak-motivation signal)
+
+  // Fuzzy parcel link (NOT an FK — see header). Array of matched Parcel.apn
+  // within countyFips; matchConfidence is the BEST match's score 0..1.
+  matchedParcelApns      String[] @default([])
+  matchConfidence        Float?                  // 0..1, best-match confidence; NULL = unmatched/not yet run
+  matchTier              String?                 // "EXACT" | "STRONG" | "WEAK" | "NONE"
+
+  // Provenance
+  source                 String                  // "probate:orange-myeclerk" | "probate:broward-web2" | "probate:miamidade-ocs" | ...
+  rawCaptureId           String?                 // bronze ref → RawCapture.id (captureRaw output); raw docket JSON/HTML
+  capturedAt             DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  @@unique([countyFips, caseNumber])
+  @@index([countyFips])
+  @@index([filedAt])
+  @@index([caseTypeCode])
+  @@index([decedentNameNormalized])             // decedent-name → Parcel.ownerName fuzzy-join driver
+  @@index([source])
+}
+
+// ---------------------------------------------------------------------------
+// ProbateSummary — materialized per-(countyFips, apn) lead aggregate.
+//
+// Mirrors AuctionSummary/TaxDelinquencySummary. One row per matched parcel,
+// collapsing all ProbateCase rows whose matchedParcelApns include this apn.
+// score/grade/motivation are MATERIALIZED (the verifier linchpin) so the
+// /api/properties UNION can ORDER BY score + filter scoreMin in SQL without an
+// over-fetch-and-rescore loop. Refreshed by a single SQL upsert in
+// scripts/rescore-probate.ts (next wave), mirroring scripts/rescore-auction.ts.
+//
+// Cross-branch dedup (next wave, per the M2.3 AuctionSummary precedent): the
+// probate-virtual branch should yield to a future-scheduled foreclosure/auction
+// on the same (countyFips, apn) — probate is a motivation signal, not a clock.
+// ---------------------------------------------------------------------------
+model ProbateSummary {
+  id                 String   @id @default(cuid())
+  countyFips         String
+  apn                String
+
+  caseCount          Int      @default(1)        // distinct ProbateCase rows matched to this apn
+  primaryCaseNumber  String?                      // most-recent / highest-confidence case
+  decedentName       String?
+  personalRepresentative String?
+  caseTypeCode       String?
+  filedAt            DateTime?                    // earliest matched filing
+  prAppointedAt      DateTime?                    // PR appointment (peak window)
+  status             String?
+  matchConfidence    Float?                       // best-match confidence carried up for UI/filtering
+
+  // Materialized scoring (linchpin — same contract as AuctionSummary)
+  score              Int?
+  grade              String?                      // A/B/C/D/F
+  motivation         String?
+
+  firstCapturedAt    DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@unique([countyFips, apn])
+  @@index([countyFips])
+  @@index([score(sort: Desc)])
+  @@index([countyFips, score(sort: Desc)])
+  @@index([prAppointedAt])
+  @@index([matchConfidence(sort: Desc)])
+}
+
+// ===== merged from schema.patch.code.prisma (M3 Wave D1) =====
+model CodeViolation {
+  id            String    @id @default(cuid())
+
+  // Natural join key (by value, no relation). parcelApn NULL when the feed only
+  // gives an unresolvable id / address (resolved later by address fuzzy-match).
+  countyFips    String                       // "12086" Miami-Dade, "12095" Orange/Orlando
+  parcelApn     String?                      // DOR PARCEL_ID / folio when it joins
+
+  // Provenance: stable id from the source feed (Miami-Dade CASE_NUM, Orlando
+  // apno). Combined with `source` to dedup across re-ingests.
+  sourceCaseId  String
+  source        String                       // "opendata:miamidade-ccv" | "opendata:orlando-ce" | "scraper:accela-<jur>"
+
+  // Address (always present from the feed; the only locator when parcelApn is null).
+  address       String?
+  city          String?
+  zip           String?
+
+  // Violation classification (free-text from the feed; normalized category derived).
+  violationType String?                      // e.g. "Construction Without Permit", "High Weeds/Litter"
+  category      String?                      // normalized bucket: structure|nuisance|zoning|vehicle|other
+
+  // Lifecycle. status is normalized to "open" | "closed" | "unknown"; the raw
+  // feed status string is kept in rawStatus for audit/debug.
+  status        String                       // normalized "open" | "closed" | "unknown"
+  rawStatus     String?                      // feed's literal status ("Open", "1", "Closed", "CLOSED - LIEN")
+  openedAt      DateTime?
+  closedAt      DateTime?
+
+  // CODE_LIEN signal driver. True when the feed flags a recorded code-enforcement
+  // lien on the case (Miami-Dade LN_RFRL / LN_RECDATE; Accela lien activity).
+  isLien        Boolean   @default(false)
+  lienRecordedAt DateTime?
+  lienBook      String?
+  lienPage      String?
+
+  // Optional centroid for map / address-join fallback.
+  latitude      Float?
+  longitude     Float?
+
+  capturedAt    DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@unique([countyFips, sourceCaseId, source])
+  // Per-parcel aggregation (summary refresh) + scorer hydration at promote time.
+  @@index([countyFips, parcelApn])
+  // "open violations in county X" sweeps.
+  @@index([countyFips, status])
+  @@index([source])
+  @@index([capturedAt])
+}
+
+// ---------------------------------------------------------------------------
+// CodeViolationSummary — per-parcel aggregate the SCORER reads, mirroring
+// TaxDelinquencySummary. One row per (countyFips, apn) with the three fields
+// the CONDITION_FAMILY signals need:
+//   openCount      → CODE_VIOLATION_OPEN (>=1) and CODE_VIOLATION_MULTI (>=3)
+//   hasLien        → CODE_LIEN
+//   latestOpenedAt → recency / age decay
+// Refreshed by scripts/rescore-code-violations.ts (single SQL UPSERT, chunked
+// per county). score/grade are materialized for the UNION list-ranking path
+// the same way the other *Summary marts pre-materialize them.
+// ---------------------------------------------------------------------------
+model CodeViolationSummary {
+  countyFips     String
+  apn            String
+
+  openCount      Int       @default(0)   // COUNT of open CodeViolation for this parcel
+  totalCount     Int       @default(0)   // COUNT of all (open+closed) for context
+  hasLien        Boolean   @default(false)
+  earliestOpenedAt DateTime?
+  latestOpenedAt DateTime?
+
+  // Distinct normalized violation categories present (e.g. {structure,nuisance}).
+  categories     String[]  @default([])
+
+  // Materialized for SQL-side ORDER BY in the /api/properties UNION (same as the
+  // other *Summary marts). The authoritative formula stays in distress-scorer.ts;
+  // this is the batch-aggregation mirror for list ranking only.
+  score          Int?                    // 0-100
+  grade          String?                 // "A" | "B" | "C" | "D" | "F"
+  motivation     String?                 // short human-readable summary
+
+  computedAt     DateTime  @default(now())
+
+  @@id([countyFips, apn])
+  @@index([countyFips])
+  @@index([openCount])
+  @@index([score(sort: Desc)])
+}
+
+// ===== merged from schema.patch.avm.prisma (M3 Wave D1) =====
+model ParcelValuation {
+  id              String   @id @default(cuid())
+
+  // Natural key — joins by value to Parcel / ParcelFeature. Same convention as
+  // the other materialized marts. Unique so apply-avm.ts can UPSERT.
+  countyFips      String                 // "12086"
+  apn             String                 // PARCEL_ID from the roll
+
+  // -- Estimate (the AVM output) ------------------------------------------
+  // estimatedValue is the point estimate in dollars (model predicts log-price;
+  // apply-avm.ts exponentiates). low/high bracket it — see header decision #3.
+  estimatedValue  Float
+  lowEstimate     Float?
+  highEstimate    Float?
+
+  // -- Provenance ----------------------------------------------------------
+  // ModelVersion.id that produced this estimate (FK-by-value, no relation).
+  // Invariant #1: every stored estimate carries its model version.
+  modelVersionId  String
+
+  computedAt      DateTime @default(now())
+
+  @@unique([countyFips, apn])
+  // List/lookup scans are county-scoped (one metro at a time).
+  @@index([countyFips])
+}
