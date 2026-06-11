@@ -99,3 +99,5 @@ tmp/
 backups/
 dev.log
 build-output.log
+tmp-samples/
+tmp-*.html
