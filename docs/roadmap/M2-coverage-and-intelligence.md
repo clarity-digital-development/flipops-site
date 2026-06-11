@@ -3,6 +3,18 @@
 > Days 31-60. Civitek is on the plan-of-record clock and nothing else moves the coverage
 > number comparably; the propensity model trains on data that already exists — no waiting on users.
 
+## Small-county strategy (settled 2026-06-10 — do not re-derive)
+
+The parcel layer (owner/values/geocode/absentee/score) is ALREADY statewide, all 67 counties —
+small counties are never blank, they lack only county-specific DISTRESS FEEDS. Those arrive via
+**platform adapters, not per-county scrapers**: Civitek serves ~60+ FL clerks (M2.1 — built for
+metros first, small counties are config entries afterward), realtaxdeed.com ~44+ counties'
+tax-deed sales (M2.2, same code as prod foreclosure scraper), Grant Street LienHub/TaxSys ~30
+tax collectors (Broward CSV pattern reuses), Accela for mid-size-city code enforcement (M3.2).
+Metro-first ordering follows deal volume (~45%+ of FL flips in the big-6), but county #15-#60
+on each platform costs a config row + verification pass. Deliberately metro-only for now:
+sheriff/arrest + probate dockets (true per-county portals — extend after platform patterns prove).
+
 ---
 
 ### M2.1 — F2.1 Civitek mortgage/lien scraper (THE coverage multiplier)
