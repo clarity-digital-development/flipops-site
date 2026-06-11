@@ -153,6 +153,76 @@ const SEEDS: RegistrySeed[] = [
   },
 
   // -------------------------------------------------------------------------
+  // OnCore/Eagle official-records family (M2.1c) — Orange (12095) ORI.
+  // SHIPS DISABLED: Orange's OnCore doc search migrated to Tyler's Self-Service
+  // SPA (selfservice.or.occompt.com/ssweb); session mint verified but the SPA
+  // search handshake is not yet replicable over plain HTTP (probe 2026-06-11:
+  // 302 "options have changed" / POST server-error GUID). The whole downstream
+  // pipeline (parse/classify/APN-join/persist) is complete + tested. Flip
+  // enabled=true once the SPA transport (or stealth-chromium fallback) lands.
+  // -------------------------------------------------------------------------
+  {
+    sourceKey: "oncore-official-records",
+    domain: "selfservice.or.occompt.com",
+    countyFips: null, // multi-county-ready; ONCORE_COUNTIES = Orange only today
+    state: "FL",
+    scraperFn: "scrapeOnCoreCounty",
+    cronExpr: "0 13 * * 3", // 9 AM ET Wednesdays — weekly (offset from acclaim Tue)
+    strategy: "incremental-date",
+    legalRisk: "yellow",
+    rateLimitMs: 2500,
+    proxyMode: "none", // Orange DIRECT (verified)
+    enabled: false, // BLOCKED: SPA search transport not yet implemented
+    notes: "OnCore/Eagle ORI (Orange). doc-type+date-range → Mortgage/Lien upserts (source=scraper:oncore-ori). DISABLED until Tyler Self-Service SPA search handshake (selfservice.or.occompt.com/ssweb) is replicable over HTTP or via stealth-chromium fallback — session mint works, search route 302/server-errors. Downstream pipeline complete + tested.",
+  },
+
+  // -------------------------------------------------------------------------
+  // Miami-Dade official records (M2.1d Family-D bespoke) — 12086 ORI.
+  // Vite React SPA + JSON API at /officialrecords/. reCAPTCHA v3 gate on
+  // standardsearch: adapter self-mints a token via stealth-chromium
+  // grecaptcha.execute (or MIAMIDADE_RECAPTCHA_TOKEN one-shot). The browser
+  // path needs egress that can load the SPA — Railway egress is the place to
+  // confirm. Ships enabled; degrades to outcome=captcha-required (0 rows,
+  // logged) when the token is rejected rather than silently passing.
+  // -------------------------------------------------------------------------
+  {
+    sourceKey: "miamidade-official-records",
+    domain: "onlineservices.miamidadeclerk.gov",
+    countyFips: "12086",
+    state: "FL",
+    scraperFn: "scrapeMiamiDadeCounty",
+    cronExpr: "0 14 * * 4", // 10 AM ET Thursdays — weekly (offset from acclaim/oncore)
+    strategy: "incremental-date",
+    legalRisk: "yellow",
+    rateLimitMs: 2500,
+    proxyMode: "none", // NetScaler blocks the residential pool; direct egress only
+    notes: "Miami-Dade bespoke: Vite React SPA + JSON API (NOT ASP.NET WebForms — spec was stale). doc-type+date-range → Mortgage/Lien upserts (source=scraper:miamidade-ori) + satisfaction matching. reCAPTCHA v3 gate self-minted via stealth-chromium grecaptcha; MIAMIDADE_RECAPTCHA_TOKEN one-shot override. Verify the browser path on Railway egress.",
+  },
+
+  // -------------------------------------------------------------------------
+  // Hillsborough official records (M2.1d Family-D) — 12057 ORI.
+  // FILE-INGESTER, not a date-search scraper: ingests the FREE public bulk
+  // index files (D=docs / P=parties / M=marginals) from
+  // publicrec.hillsclerk.com/OfficialRecords/DailyIndexes/. 0-scrape win — no
+  // HOVER search, no subscription (the subscription is for the IMAGE site
+  // only), no captcha. DIRECT egress (verified 200 2026-06-11). Daily cadence
+  // since the clerk produces a fresh D/P/M set per business day.
+  // -------------------------------------------------------------------------
+  {
+    sourceKey: "hillsborough-official-records",
+    domain: "publicrec.hillsclerk.com",
+    countyFips: "12057",
+    state: "FL",
+    scraperFn: "ingestHillsboroughRecords",
+    cronExpr: "0 13 * * *", // 9 AM ET daily — fresh index files post each business day
+    strategy: "incremental-date", // incremental over available file DATES (dateKey HWM)
+    legalRisk: "yellow",
+    rateLimitMs: 1500,
+    proxyMode: "none", // plain public IIS file server, DIRECT
+    notes: "Hillsborough FREE bulk index-file ingester (0-scrape). D/P/M daily index set from publicrec.hillsclerk.com/OfficialRecords/DailyIndexes/ → Mortgage/Lien upserts (source=bulk:hillsborough-or) + satisfaction matching. HWM = YYYYMMDD of latest vintage ingested; ≥2 months of files online. First run = trailing 10 vintages; incremental cap 30.",
+  },
+
+  // -------------------------------------------------------------------------
   // Top-6 metros tax-delinquent — full snapshot-diff monthly.
   // -------------------------------------------------------------------------
   {

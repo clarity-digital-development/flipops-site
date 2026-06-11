@@ -134,6 +134,62 @@ export const ACCLAIM_COUNTIES: AcclaimCountyConfig[] = [
     apnCandidates: (raw) => [normAlnum(raw)],
     notes: "Hosted Acclaim (Cloudflare + NetScaler). Telerik 2012 render: {data,total}.",
   },
+  // -------------------------------------------------------------------------
+  // M2.1 COUNTY EXPANSION (Lane C4) — small-county + mid-size tail on the
+  // already-built Acclaim family. Each row below was live-fingerprinted
+  // 2026-06-11 by its 302 → /search/Disclaimer?st=… disclaimer-flow signature
+  // (the exact Acclaim handshake) and ASP.NET_SessionId + Kendo doc-type
+  // combobox. APN candidates use normAlnum (strip non-alnum + uppercase) —
+  // verified safe against the live DOR Parcel.apn formats for each county
+  // (which carry spaces/dashes/letter-suffixes that the strip collapses).
+  // -------------------------------------------------------------------------
+  {
+    countyFips: "12009",
+    county: "Brevard",
+    baseUrl: "https://vaclmweb1.brevardclerk.us/AcclaimWeb",
+    // Plain ASP.NET (X-Powered-By: ASP.NET), NO CDN/Cloudflare. Direct egress
+    // answered 200 + minted ASP.NET_SessionId on the splash GET (2026-06-11).
+    useProxy: false,
+    transport: "http",
+    sendCaptchaField: false,
+    // Brevard PIN e.g. "24 3522-26-*-29" (spaces/dashes/literal *) → strip to alnum.
+    apnCandidates: (raw) => [normAlnum(raw)],
+    notes: "Self-host Acclaim (/AcclaimWeb path). No CDN; cheap http cookie+XHR.",
+  },
+  {
+    countyFips: "12113",
+    county: "Santa Rosa",
+    baseUrl: "https://acclaim.srccol.com/AcclaimWeb",
+    // Plain ASP.NET, NO CDN. Direct GET 200 + ASP.NET_SessionId (2026-06-11).
+    useProxy: false,
+    transport: "http",
+    sendCaptchaField: false,
+    // SR PIN e.g. "43-1N-28-3170-00A00-0010 M" (trailing " M" condo suffix) →
+    // normAlnum collapses to "431N28317000A000010M".
+    apnCandidates: (raw) => [normAlnum(raw)],
+    notes: "Self-host Acclaim (/AcclaimWeb path). No CDN; http cookie+XHR.",
+  },
+  {
+    countyFips: "12103",
+    county: "Pinellas",
+    // Self-host build serves the Search routes at ROOT (not /AcclaimWeb): the
+    // 302 lands on /search/Disclaimer?st=/Search/SearchTypeDocType, while
+    // /AcclaimWeb/Search/* 302s to ViewNotFound. Base = bare origin (Duval-like).
+    baseUrl: "https://officialrecords.mypinellasclerk.gov",
+    // Fronted by Cloudflare. The splash GET passes (302), but the disclaimer
+    // POST is JA3-blocked → HTTP 403 on the undici cookie+XHR path (verified
+    // live 2026-06-11). Same wall as Broward: Cloudflare lets a plain GET
+    // through but drops the Node-TLS POST. Fix is identical — browser
+    // transport over residential proxy (the browser's TLS + same-origin
+    // cookies satisfy Cloudflare; the __cf_bm is minted on page.goto and
+    // replayed on the in-page fetch POSTs).
+    useProxy: true,
+    transport: "browser",
+    sendCaptchaField: false, // no reCAPTCHA field on Pinellas's search form
+    // Pinellas PIN e.g. "16 32 09 43259 000 3100" (space-delimited) → strip.
+    apnCandidates: (raw) => [normAlnum(raw)],
+    notes: "Self-host Acclaim at ROOT path; Cloudflare JA3-blocks undici POST → browser+proxy (like Broward).",
+  },
 ];
 
 // ---------------------------------------------------------------------------

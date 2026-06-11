@@ -4,8 +4,11 @@ import { runBrowardTaxDelinquent } from "./broward-tax-delinquent";
 import { runLandmarkOfficialRecords } from "./landmark-official-records";
 import { runDuvalClerk } from "./duval-clerk-recordings";
 import { runDuvalTaxDelinquent } from "./duval-tax-delinquent";
+import { runHillsboroughOfficialRecords } from "./hillsborough-official-records";
 import { runHillsboroughTaxDelinquent } from "./hillsborough-tax-delinquent";
+import { runMiamiDadeOfficialRecords } from "./miamidade-official-records";
 import { runMiamiDadeTaxDelinquent } from "./miami-dade-tax-delinquent";
+import { runOnCoreOfficialRecords } from "./oncore-official-records";
 import { runOrangeTaxDelinquent } from "./orange-tax-delinquent";
 import { runPalmBeachTaxDelinquent } from "./palm-beach-tax-delinquent";
 import { runRealAuction } from "./realauction-fl-foreclosures";
@@ -29,6 +32,9 @@ export const DISPATCH: Record<string, ScraperAdapter> = {
   "realauction-fl-foreclosures": runRealAuction,          // sequential enumerate 16 counties × tracks
   "realtaxdeed-fl-tax-deeds":    runRealTaxDeedFl,        // calendar-first enumerate 29 realtaxdeed counties (M2.2)
   "acclaim-official-records":    runAcclaimOfficialRecords, // ACCLAIM family: Duval+Broward ORI mortgages/liens (M2.1a)
+  "oncore-official-records":     runOnCoreOfficialRecords,  // OnCore/Eagle family: Orange ORI (M2.1c — enabled=false until SPA search transport lands)
+  "miamidade-official-records":  runMiamiDadeOfficialRecords, // Miami-Dade bespoke SPA+JSON-API ORI (M2.1d, reCAPTCHA v3 gate)
+  "hillsborough-official-records": runHillsboroughOfficialRecords, // Hillsborough FREE bulk index-file ingester (M2.1d, 0-scrape)
   "duval-tax-delinquent":        runDuvalTaxDelinquent,
   "hillsborough-tax-delinquent": runHillsboroughTaxDelinquent, // Phase 4 swaps HTML walk for CSV export
   "orange-tax-delinquent":       runOrangeTaxDelinquent,  // seasonal: April-July only (registry-enforced)

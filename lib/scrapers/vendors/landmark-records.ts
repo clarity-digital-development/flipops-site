@@ -74,6 +74,14 @@ export const LANDMARK_COUNTIES: LandmarkCounty[] = [
   { countyFips: "12099", host: "erec.mypalmbeachclerk.com", basePath: "",            county: "Palm Beach", useProxy: false },
   { countyFips: "12071", host: "or.leeclerk.org",           basePath: "/LandmarkWeb", county: "Lee",        useProxy: true  },
   { countyFips: "12075", host: "online.levyclerk.com",      basePath: "/LandmarkWeb", county: "Levy",       useProxy: false },
+  // M2.1 COUNTY EXPANSION (Lane C4) — small/mid county tail on the Landmark
+  // family. Each row live-verified 2026-06-11: landing GET mints
+  // ASP.NET_SessionId, POST /Search/SetDisclaimer → 200, search/index loads
+  // (NOT "Session Has Expired"). Both gate search behind reCAPTCHA
+  // (ShowCaptcha=True), identical to PB/Levy/Lee — so they persist rows the
+  // moment a recaptchaToken/solver arrives (OPS-8), config is complete now.
+  { countyFips: "12053", host: "or.hernandoclerk.com",      basePath: "/LandmarkWeb", county: "Hernando",   useProxy: false },
+  { countyFips: "12017", host: "search.citrusclerk.org",    basePath: "/LandmarkWeb", county: "Citrus",      useProxy: false },
 ];
 
 export function findLandmarkCounty(countyFips: string): LandmarkCounty | undefined {
