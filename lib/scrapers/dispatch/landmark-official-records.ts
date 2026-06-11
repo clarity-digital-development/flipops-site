@@ -4,6 +4,7 @@ import {
   searchLandmarkByRecordDate,
   type LandmarkScrapeResult,
 } from "@/lib/scrapers/vendors/landmark-records";
+import { getCaptchaSolver } from "@/lib/scrapers/base/captcha-solver";
 import type { RunContext, RunResult, ScraperAdapter } from "./types";
 
 // ---------------------------------------------------------------------------
@@ -69,6 +70,9 @@ export const runLandmarkOfficialRecords: ScraperAdapter = async (
   }
 
   const recaptchaToken = process.env.LANDMARK_RECAPTCHA_TOKEN || undefined;
+  // Streaming solver (2captcha-class) when TWOCAPTCHA_API_KEY is configured;
+  // undefined otherwise → vendor reports captcha-required and persists 0.
+  const solveRecaptcha = getCaptchaSolver();
 
   let persisted = 0;
   let anyUsable = false;
@@ -85,7 +89,7 @@ export const runLandmarkOfficialRecords: ScraperAdapter = async (
         county,
         target,
         target,
-        { recaptchaToken },
+        { recaptchaToken, solveRecaptcha },
       );
       persisted += res.persistedMortgages + res.persistedLiens;
       if (res.outcome === "ok" || res.outcome === "empty") anyUsable = true;

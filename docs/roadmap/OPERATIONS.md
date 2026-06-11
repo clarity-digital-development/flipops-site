@@ -66,9 +66,16 @@ FTP, EDR). Prior vintages are **free by email request**:
   — auto-detects, newest-first, cross-vintage dedup via saleYear caps. ~30-60 min/vintage.
 - Unlocks: comps depth, AVM training (M3.3), time-on-market features, propensity label depth.
 
-## OPS-8 — DECISION: Landmark reCAPTCHA v2 (blocks PB/Lee/Levy official records)
+## OPS-8 — RESOLVED: 2captcha solver wired for Landmark (2026-06-11)
 
-Every Landmark search endpoint requires a reCAPTCHA v2 token (verified live 2026-06-10). The adapter is complete and persists the moment a token source exists. Options: (a) provision a solver service (2captcha-class, ~$1-3/1k solves) behind the solveRecaptcha hook — grey-zone, user call; (b) pursue the Landmark bulk/export path per county; (c) leave PB/Lee/Levy official records dark. Registry row ships enabled=false.
+DECISION (user 2026-06-11): provision a 2captcha-class solver. Built `lib/scrapers/base/captcha-solver.ts` (reCAPTCHA v2, provider-agnostic via `TWOCAPTCHA_API_KEY`, optional `CAPTCHA_SOLVER_BASE_URL` for anti-captcha/capmonster, ~$1-3/1k solves). Wired into the Landmark adapter + `run-landmark-local.ts --solve`. Registry row self-activates when the key is present.
+
+USER ACTION to turn it on:
+- [ ] Create a 2captcha.com account, fund it (~$10 covers thousands of solves), copy the API key.
+- [ ] Add `TWOCAPTCHA_API_KEY=<key>` to `.env.local` (local) AND Railway `worker-bullmq`.
+- [ ] Smoke local: `SCRAPER_DIRECT_EGRESS=1 TWOCAPTCHA_API_KEY=<key> DATABASE_URL=<public> npx tsx scripts/run-landmark-local.ts --county 12099 --days 3 --solve` → expect `outcome=ok` with persisted mortgage/lien rows for Palm Beach.
+- [ ] Re-run `npx tsx prisma/seed-scrape-registry.ts` (with the key in env) to flip the registry row `enabled=true`.
+- Levy (12075) = the small-county-reuse proof, identical code path. Lee (12071) needs proxy egress (datacenter direct times out).
 
 ## OPS-6 — govhub/TaxSys scrapers are residential-egress-only (2026-06-10)
 

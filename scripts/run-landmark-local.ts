@@ -8,6 +8,7 @@ import {
   searchLandmarkByParcelId,
   type LandmarkScrapeResult,
 } from "@/lib/scrapers/vendors/landmark-records";
+import { getCaptchaSolver, captchaSolverBalance } from "@/lib/scrapers/base/captcha-solver";
 
 // ---------------------------------------------------------------------------
 // Local verification runner for the M2.1b LANDMARK family adapter.
@@ -61,6 +62,9 @@ async function main() {
   const days = parseInt(argValues("--days")[0] ?? "7", 10);
   const parcel = argValues("--parcel")[0];
   const token = argValues("--token")[0];
+  // --solve uses the configured 2captcha-class solver (TWOCAPTCHA_API_KEY) to
+  // mint tokens automatically. Mutually exclusive with --token (one-shot).
+  const solveRecaptcha = process.argv.includes("--solve") ? getCaptchaSolver() : undefined;
   const useProxy = process.argv.includes("--proxy") ? true : undefined;
   const fipsList = countyArgs.length > 0 ? countyArgs : LANDMARK_COUNTIES.map((c) => c.countyFips);
 
@@ -68,6 +72,13 @@ async function main() {
   endDate.setUTCDate(endDate.getUTCDate() - 1);
   const beginDate = new Date(endDate);
   beginDate.setUTCDate(beginDate.getUTCDate() - (days - 1));
+
+  if (solveRecaptcha) {
+    const bal = await captchaSolverBalance();
+    console.log(`captcha solver: ENABLED (TWOCAPTCHA_API_KEY)${bal !== null ? ` · balance $${bal.toFixed(2)}` : ""}`);
+  } else if (process.argv.includes("--solve")) {
+    console.warn("--solve passed but TWOCAPTCHA_API_KEY is not set — searches will report captcha-required.");
+  }
 
   const summary: LandmarkScrapeResult[] = [];
 
@@ -88,14 +99,15 @@ async function main() {
     console.log(`  session minted; cookies=[${sess.cookieHeader.split("; ").map((c) => c.split("=")[0]).join(",")}]`);
 
     const gated = await landmarkShowCaptcha(sess);
-    console.log(`  ShowCaptcha=${gated}${gated && !token ? "  (no --token → search will report captcha-required)" : ""}`);
+    const noTokenSource = !token && !solveRecaptcha;
+    console.log(`  ShowCaptcha=${gated}${gated && noTokenSource ? "  (no --token / --solve → search will report captcha-required)" : ""}`);
 
-    const rd = await searchLandmarkByRecordDate(sess, county, beginDate, endDate, { recaptchaToken: token });
+    const rd = await searchLandmarkByRecordDate(sess, county, beginDate, endDate, { recaptchaToken: token, solveRecaptcha });
     console.log(`  RecordDateSearch [${rd.searchKind}] outcome=${rd.outcome} http=${rd.httpStatus} found=${rd.found} mtg=${rd.persistedMortgages} lien=${rd.persistedLiens}`);
     summary.push(rd);
 
     if (parcel) {
-      const ps = await searchLandmarkByParcelId(sess, county, parcel, { recaptchaToken: token });
+      const ps = await searchLandmarkByParcelId(sess, county, parcel, { recaptchaToken: token, solveRecaptcha });
       console.log(`  ParcelIdSearch(${parcel}) outcome=${ps.outcome} found=${ps.found} apnRows=${ps.parcelIdRows} mtg=${ps.persistedMortgages} lien=${ps.persistedLiens}`);
       summary.push(ps);
     }

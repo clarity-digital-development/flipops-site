@@ -72,8 +72,10 @@ const SEEDS: RegistrySeed[] = [
     legalRisk: "yellow",
     rateLimitMs: 2500,
     proxyMode: "none", // PB+Levy direct; Lee flips to proxy per-county in code
-    enabled: false,
-    notes: "Pioneer/Granicus Landmark Web ORI. SetDisclaimer session gate + form-POST search → Mortgage/Lien. reCAPTCHA v2 on search (PB+Levy verified) — needs LANDMARK_RECAPTCHA_TOKEN/solver before enable. Lee = proxy egress.",
+    // Self-activating: enabled only when a captcha solver is configured, so it
+    // never burns solver credits (or 0-rows) without an explicit key present.
+    enabled: !!(process.env.TWOCAPTCHA_API_KEY || process.env.CAPTCHA_SOLVER_API_KEY),
+    notes: "Pioneer/Granicus Landmark Web ORI. SetDisclaimer session gate + form-POST search → Mortgage/Lien. reCAPTCHA v2 on search (PB+Levy verified) — solver hook wired (lib/scrapers/base/captcha-solver.ts); auto-enables when TWOCAPTCHA_API_KEY is set on the worker + this seed reruns. Lee = proxy egress.",
   },
 
   // -------------------------------------------------------------------------
