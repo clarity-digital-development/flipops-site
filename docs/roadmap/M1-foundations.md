@@ -73,7 +73,7 @@ distances; no random numbers anywhere in the comps path.
 ---
 
 ### M1.3 — FGIO geocode join: lat/lng on 11M parcels
-**Status:** PARTIAL (2026-06-10 — 61/67 counties · 6,952,401 parcels geocoded (63.2%) · big-6 metros blocked by persistent FGIO Hub HTTP 500s on >450K-parcel exports; county-GIS-portal sourcing in progress, ~3.9M parcels) · **Effort:** ~1 day (mostly runtime) · **Deps:** none
+**Status:** DONE (2026-06-10 — **10,428,494/10,998,035 geocoded (94.8%)**, exceeding the >90% target. 61 counties via FGIO Hub shapefile exports; big-6 metros via county GIS portals (Miami-Dade 99.8%, Hillsborough 99.9%, Lee 99.5%, Orange 99.8% — keyset pagination fix for Lee 32x faster than offset). Residual: ~570K Broward/PB stacked condo units (land-parcel layers carry no per-unit geometry) — M2 backfill option: borrow building centroid.) · **Effort:** ~1 day (mostly runtime) · **Deps:** none
 **Outcome:** Streaming shapefile+GeoJSON ingester built (`lib/data-sources/bulk/fl-fgio-bulk.ts`)
 with Hub download automation + batched UPDATE-only SQL, CLI at `scripts/ingest-fl-geocodes.ts`
 (`--download <fips|all>`, `--dry-run`). Key findings: Hub Download API v1 only serves SHAPEFILE

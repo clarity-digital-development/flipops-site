@@ -110,7 +110,7 @@ function computeSql(fips: string, onlyUnset = false): string {
 async function runCounty(
   fips: string,
   name: string,
-  opts: { dryRun: boolean; timeoutMs: number },
+  opts: { dryRun: boolean; timeoutMs: number; chunkSize: number },
 ): Promise<CountyResult> {
   const start = Date.now();
 
