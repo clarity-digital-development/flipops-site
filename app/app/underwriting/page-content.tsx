@@ -61,7 +61,6 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { useUser } from "@clerk/nextjs";
 import { type RepairItem } from "./seed-data";
 import { MAOWaterfallPanel } from "@/components/deals/mao-waterfall";
 import { EmptyState as CompsEmptyState } from "@/components/ui/empty-state";
@@ -1324,7 +1323,6 @@ function buildDemoRepairItems(): RepairItem[] {
 // ============================================================================
 
 export default function UnderwritingPage() {
-  const { isLoaded, user } = useUser();
   const searchParams = useSearchParams();
   const router = useRouter();
   const urlPropertyId = searchParams?.get("propertyId") ?? null;
@@ -1383,12 +1381,12 @@ export default function UnderwritingPage() {
   const [newRepairDescription, setNewRepairDescription] = useState("");
   const [newRepairCost, setNewRepairCost] = useState(0);
 
-  // Fetch properties — trigger once Clerk has initialized (user may be null on public routes)
+  // Fetch properties once on mount. Auth is enforced server-side by the API
+  // routes (requireUser); the client doesn't gate on session state.
   useEffect(() => {
-    if (isLoaded) {
-      fetchProperties();
-    }
-  }, [isLoaded]);
+    fetchProperties();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const fetchProperties = async () => {
     try {

@@ -9,8 +9,8 @@
 // Split-config pattern per Auth.js v5 App Router conventions:
 //   https://authjs.dev/guides/edge-compatibility
 //
-// M2.5 Clerk→NextAuth migration. Clerk packages/webhook/clerkId removal is
-// deferred to M3.6.
+// M2.5 Clerk→NextAuth migration; M3.6 removed the Clerk packages, webhook,
+// and the clerkId column. Auth is now 100% Auth.js (Credentials provider).
 // ---------------------------------------------------------------------------
 
 import type { NextAuthConfig } from "next-auth";

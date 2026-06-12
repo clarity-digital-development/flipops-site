@@ -82,7 +82,7 @@ import {
 } from "@/components/ui/sheet";
 import { useToast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
-import { useUser } from "@clerk/nextjs";
+import { useSession } from "next-auth/react";
 import { EmptyState as SharedEmptyState } from "@/components/ui/empty-state";
 import type { Task, TaskActivity, TaskComment, TaskSubtask } from "./seed-data";
 
@@ -1079,7 +1079,7 @@ function formatDateTime(dateStr: string): string {
 // ============================================================================
 
 export default function TasksPageContent() {
-  const { isLoaded, user } = useUser();
+  const { data: session, status } = useSession();
   const { toast } = useToast();
 
   // State
@@ -1230,8 +1230,8 @@ export default function TasksPageContent() {
     const newComment: TaskComment = {
       id: `COMMENT-${Date.now()}`,
       taskId,
-      userId: user?.id || "USER-001",
-      userName: user?.fullName || "You",
+      userId: session?.user?.id || "USER-001",
+      userName: session?.user?.name || "You",
       content,
       createdAt: new Date().toISOString(),
     };
@@ -1239,7 +1239,7 @@ export default function TasksPageContent() {
     toast({
       title: "Comment added",
     });
-  }, [user, toast]);
+  }, [session, toast]);
 
   const handleCreateTask = async () => {
     if (!newTask.title || !newTask.dueDate) {
@@ -1335,7 +1335,7 @@ export default function TasksPageContent() {
   const selectedTaskActivities = activities.filter(a => a.taskId === selectedTask?.id);
   const selectedTaskComments = comments.filter(c => c.taskId === selectedTask?.id);
 
-  if (!isLoaded) {
+  if (status === "loading") {
     return (
       <div className="flex h-full items-center justify-center">
         <div className="text-muted-foreground">Loading...</div>

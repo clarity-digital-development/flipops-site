@@ -3,13 +3,12 @@
 //
 // Replaces the 14+ copy-pasted `const userId = "mock-user-id"` debugging stubs
 // that were left scattered across app/api/* during pre-launch CSS work. Returns
-// either { error: NextResponse } (caller returns it) or { userId, clerkId, email }
+// either { error: NextResponse } (caller returns it) or { userId, email }
 // where `userId` is the internal Prisma User.id.
 //
-// M2.5: internals swapped from Clerk to Auth.js (NextAuth v5). The PUBLIC
-// SIGNATURE is unchanged — `clerkId` remains in the success shape for
-// backward compatibility (populated from the legacy User.clerkId column when
-// present, "" otherwise; the column drops at M3.6).
+// M2.5: internals swapped from Clerk to Auth.js (NextAuth v5).
+// M3.6: Clerk fully removed — `clerkId` dropped from the success shape and the
+// User.clerkId column dropped from the schema. Identity is email + passwordHash.
 //
 // Identity flow:
 //   1. Auth.js auth() returns the session ({ user: { id, email } }) or null.
@@ -19,7 +18,7 @@
 //   3. JIT provisioning: if the session is valid but no User row exists
 //      (e.g. row deleted while a JWT was still live), CREATE it from the
 //      session profile (email + name). Idempotent via upsert on the unique
-//      email column. clerkId is NO LONGER minted.
+//      email column.
 //   4. Return the internal id — every other table in this app FKs to User.id.
 //
 // Usage:
@@ -45,13 +44,13 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 
 export type RequireUserResult =
-  | { userId: string; clerkId: string; email: string | null }
+  | { userId: string; email: string | null }
   | { error: NextResponse };
 
 /**
  * Guard for authenticated-user-scoped routes.
  *
- * Returns `{ userId, clerkId, email }` on success, `{ error: NextResponse }` on
+ * Returns `{ userId, email }` on success, `{ error: NextResponse }` on
  * failure. Callers MUST narrow with `"error" in guard` and return the
  * NextResponse if present.
  *
@@ -71,11 +70,11 @@ export async function requireUser(): Promise<RequireUserResult> {
 
   const user = await prisma.user.findUnique({
     where: { email },
-    select: { id: true, email: true, clerkId: true },
+    select: { id: true, email: true },
   });
 
   if (user) {
-    return { userId: user.id, clerkId: user.clerkId ?? "", email: user.email };
+    return { userId: user.id, email: user.email };
   }
 
   // JIT provisioning: valid session, no User row yet (e.g. deleted after the
@@ -89,7 +88,6 @@ export async function requireUser(): Promise<RequireUserResult> {
 
   return {
     userId: provisioned.id,
-    clerkId: provisioned.clerkId ?? "",
     email: provisioned.email,
   };
 }
@@ -99,15 +97,13 @@ export async function requireUser(): Promise<RequireUserResult> {
  *
  * - Idempotent: upsert on the unique `email` column, so concurrent first
  *   requests collapse to one row.
- * - clerkId is NOT minted (M2.5 policy) — the column stays untouched and is
- *   removed entirely at M3.6.
  *
  * Returns null only on a defensive empty-email edge (User.email is required).
  */
 async function provisionUser(
   email: string,
   name: string | null
-): Promise<{ id: string; email: string | null; clerkId: string | null } | null> {
+): Promise<{ id: string; email: string | null } | null> {
   if (!email) return null;
 
   return prisma.user.upsert({
@@ -118,6 +114,6 @@ async function provisionUser(
       name,
       targetMarkets: "[]", // required column; user fills in via onboarding
     },
-    select: { id: true, email: true, clerkId: true },
+    select: { id: true, email: true },
   });
 }

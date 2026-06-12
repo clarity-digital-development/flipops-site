@@ -11,7 +11,6 @@ const nextConfig = {
   // required whenever any plugin (e.g. Sentry) injects a webpack config —
   // otherwise the build hard-errors with "webpack config and no turbopack config".
   turbopack: {},
-  transpilePackages: ['@clerk/nextjs', '@clerk/clerk-react'],
   // Mark pino as external to avoid bundling test files
   serverExternalPackages: ['pino', 'pino-pretty', 'thread-stream'],
   async headers() {

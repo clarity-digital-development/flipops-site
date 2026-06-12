@@ -1,12 +1,6 @@
 @echo off
 echo Setting Railway environment variables...
 
-railway variables set NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_dm9jYWwtY2F0ZmlzaC0yMi5jbGVyay5hY2NvdW50cy5kZXYk --service flipops-api --environment production
-railway variables set CLERK_SECRET_KEY=sk_test_tDBLuqFTTXDPIdYk9sE6FjwJqMHarqAD2ZHmEn9w3i --service flipops-api --environment production
-railway variables set NEXT_PUBLIC_CLERK_SIGN_IN_URL=/sign-in --service flipops-api --environment production
-railway variables set NEXT_PUBLIC_CLERK_SIGN_UP_URL=/sign-up --service flipops-api --environment production
-railway variables set NEXT_PUBLIC_CLERK_AFTER_SIGN_IN_URL=/app --service flipops-api --environment production
-railway variables set NEXT_PUBLIC_CLERK_AFTER_SIGN_UP_URL=/app --service flipops-api --environment production
 railway variables set FLIPOPS_API_KEY=fo_live_10177805c8d743e1a6e1860515dc2b3f --service flipops-api --environment production
 railway variables set FO_API_KEY=fo_live_10177805c8d743e1a6e1860515dc2b3f --service flipops-api --environment production
 railway variables set FO_WEBHOOK_SECRET=7d82e2b8945c43959699bc3a3c1467bdd66954d25d6f41eb --service flipops-api --environment production

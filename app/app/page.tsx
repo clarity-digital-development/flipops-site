@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useMemo } from "react";
 import Link from "next/link";
-import { useUser } from "@clerk/nextjs";
+import { useSession } from "next-auth/react";
 import {
   TrendingUp,
   TrendingDown,
@@ -686,7 +686,7 @@ function FlipperStats({ stats }: { stats: NonNullable<InvestorStats['flipper']> 
 // ============================================================================
 
 export default function DashboardPage() {
-  const { user: clerkUser } = useUser();
+  const { data: session } = useSession();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [stats, setStats] = useState<DashboardStats | null>(null);
@@ -984,12 +984,12 @@ export default function DashboardPage() {
     else if (hour < 17) timeGreeting = "Good afternoon";
     else timeGreeting = "Good evening";
 
-    const firstName = clerkUser?.firstName;
+    const firstName = session?.user?.name?.split(" ")[0];
     if (firstName) {
       return `${timeGreeting}, ${firstName}`;
     }
     return timeGreeting;
-  }, [clerkUser?.firstName]);
+  }, [session?.user?.name]);
 
   // Loading state
   if (loading) {

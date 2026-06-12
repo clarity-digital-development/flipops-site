@@ -163,7 +163,6 @@ async function main() {
     console.log('No user found for tanner@claritydigital.dev, creating...');
     user = await prisma.user.create({
       data: {
-        clerkId: 'clerk_test_' + Date.now(),
         email: 'tanner@claritydigital.dev',
         name: 'Tanner (Test Account)',
         targetMarkets: JSON.stringify(['Jacksonville, FL']),

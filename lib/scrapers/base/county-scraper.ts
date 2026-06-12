@@ -313,7 +313,6 @@ export abstract class CountyScraper {
       user = await prisma.user.create({
         data: {
           email: SYSTEM_EMAIL,
-          clerkId: `system_scrapers_${Date.now()}`,
           targetMarkets: '[]', // required JSON-array column
         },
       });
