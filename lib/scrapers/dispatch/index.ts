@@ -1,6 +1,7 @@
 import type { ScraperAdapter } from "./types";
 import { runAcclaimOfficialRecords } from "./acclaim-official-records";
 import { runBrowardTaxDelinquent } from "./broward-tax-delinquent";
+import { runCodeEnforcement } from "./code-enforcement";
 import { runLandmarkOfficialRecords } from "./landmark-official-records";
 import { runDuvalClerk } from "./duval-clerk-recordings";
 import { runDuvalTaxDelinquent } from "./duval-tax-delinquent";
@@ -11,6 +12,7 @@ import { runMiamiDadeTaxDelinquent } from "./miami-dade-tax-delinquent";
 import { runOnCoreOfficialRecords } from "./oncore-official-records";
 import { runOrangeTaxDelinquent } from "./orange-tax-delinquent";
 import { runPalmBeachTaxDelinquent } from "./palm-beach-tax-delinquent";
+import { runProbateOfficialRecords } from "./probate-official-records";
 import { runRealAuction } from "./realauction-fl-foreclosures";
 import { runRealTaxDeedFl } from "./realtaxdeed-fl-tax-deeds";
 import { ingestFlDorStatewide } from "./fl-dor-statewide-nal-sdf";
@@ -41,6 +43,8 @@ export const DISPATCH: Record<string, ScraperAdapter> = {
   "broward-tax-delinquent":      runBrowardTaxDelinquent,
   "miami-dade-tax-delinquent":   runMiamiDadeTaxDelinquent, // Phase 4 adds HEAD-check on PDF Last-Modified
   "palm-beach-tax-delinquent":   runPalmBeachTaxDelinquent, // incremental-date via FPN date-range params
+  "code-enforcement":            runCodeEnforcement,        // M3.2 GREEN open-data: Miami-Dade ArcGIS + Orlando Socrata → CodeViolation(+Summary)
+  "probate-official-records":    runProbateOfficialRecords, // M3.1 yellow: P-MVC family (Orange/Pinellas/Broward) incremental-date, reCAPTCHA-gated persist
 };
 
 export function resolveAdapter(sourceKey: string): ScraperAdapter | null {

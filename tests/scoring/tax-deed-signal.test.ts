@@ -102,19 +102,18 @@ describe('distress-scorer v2.2 — TAX_DEED_APPLICATION (M2.2)', () => {
     expect(s).toBe(63);
   });
 
-  it('CONDITION_FAMILY placeholders are 0-weighted: flags set, score unchanged', () => {
+  it('CONDITION_FAMILY remaining placeholders are 0-weighted: flags set, score unchanged', () => {
+    // M3.2 wired CODE_VIOLATION; SINKHOLE / STORM_DAMAGE / CONDEMNED stay 0.
     const s = calculateDistressScoreFromProperty(
       blankInput({
-        hasCodeViolation: true,
         hasSinkhole: true,
         hasStormDamage: true,
         isCondemned: true,
       })
     );
     expect(s.score).toBe(0);
-    // Placeholders may surface as present signals but must carry weight 0.
     for (const sig of s.signals) {
-      expect(['CODE_VIOLATION', 'SINKHOLE', 'STORM_DAMAGE', 'CONDEMNED']).toContain(sig.signal);
+      expect(['SINKHOLE', 'STORM_DAMAGE', 'CONDEMNED']).toContain(sig.signal);
       expect(sig.weight).toBe(0);
     }
   });

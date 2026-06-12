@@ -307,6 +307,58 @@ const SEEDS: RegistrySeed[] = [
     proxyMode: "none",
     notes: "FPN aggregator JSON API supports date-window queries. Narrow slice: tax-deed apps only.",
   },
+
+  // -------------------------------------------------------------------------
+  // Code-enforcement violations (M3.2) — 100% GREEN open data. Multi-source
+  // adapter sweeps Miami-Dade (12086, ArcGIS) + Orlando (12095, Socrata) per
+  // run; CODE_ENFORCEMENT_SOURCES drives the slug list so adding a city needs
+  // no registry change. Each source fetches openOnly with useProxy:false
+  // (direct egress), resolves APNs (Tier-1 folio + Tier-2 address), persists
+  // CodeViolation rows, then rebuilds CodeViolationSummary per county so the
+  // scorer's CONDITION_FAMILY signals see fresh openCount/hasLien. Daily — the
+  // open-data feeds are full re-fetches that catch case closures/new liens.
+  // Ships enabled=true: green, no proxy, no captcha.
+  // -------------------------------------------------------------------------
+  {
+    sourceKey: "code-enforcement",
+    domain: "opendata",
+    countyFips: null, // multi-county; adapter enumerates CODE_ENFORCEMENT_SOURCES (Miami-Dade + Orlando)
+    state: "FL",
+    scraperFn: "runCodeEnforcement",
+    cronExpr: "0 8 * * *", // 4 AM ET daily — open-data full re-fetch
+    strategy: "full",
+    legalRisk: "green",
+    rateLimitMs: 1000,
+    proxyMode: "none",
+    enabled: true,
+    notes: "M3.2 code-enforcement: Miami-Dade ArcGIS + Orlando Socrata open data (CODE_ENFORCEMENT_SOURCES). openOnly fetch → resolveApns (Tier-1 folio + Tier-2 address) → CodeViolation upsert → refreshCodeViolationSummary per county. 100% GREEN, direct egress, no captcha. Feeds scorer CONDITION_FAMILY (CODE_VIOLATION/_MULTI/CODE_LIEN).",
+  },
+
+  // -------------------------------------------------------------------------
+  // Probate official records (M3.1) — P-MVC family (Orange + Pinellas +
+  // Broward), incremental by date, one target day per run swept across all
+  // three counties. legalRisk yellow. Sister adapter to landmark-official-
+  // records: all three portals gate the SEARCH SUBMIT behind reCAPTCHA v2, so
+  // this self-activates exactly like the landmark row — enabled only when a
+  // captcha solver key is present, otherwise the run persists 0 and reports
+  // outcome=captcha-required per county (never throws, never burns dates).
+  // -------------------------------------------------------------------------
+  {
+    sourceKey: "probate-official-records",
+    domain: "myorangeclerk.com",
+    countyFips: null, // multi-county; adapter enumerates PROBATE_MVC_COUNTIES (Orange/Pinellas/Broward)
+    state: "FL",
+    scraperFn: "runProbateOfficialRecords",
+    cronExpr: "0 9 * * *", // 5 AM ET daily (after code-enforcement 4 AM slot)
+    strategy: "incremental-date",
+    legalRisk: "yellow",
+    rateLimitMs: 2500,
+    proxyMode: "none", // P-MVC portals direct; reCAPTCHA-gated search
+    // Self-activating: enabled only when a captcha solver is configured, so it
+    // never spins on the captcha wall (or burns solver credits) without a key.
+    enabled: !!(process.env.TWOCAPTCHA_API_KEY || process.env.CAPTCHA_SOLVER_API_KEY),
+    notes: "M3.1 probate: P-MVC family (Orange/Pinellas/Broward MyClerk portals). incremental-date, one target day/run across all 3 counties; first run = today-7d. SetDisclaimer session + RVT → estate-admin case list. reCAPTCHA v2 on SEARCH SUBMIT — solver hook wired (lib/scrapers/base/captcha-solver.ts via getCaptchaSolver); PROBATE_RECAPTCHA_TOKEN one-shot override. Auto-enables when TWOCAPTCHA_API_KEY/CAPTCHA_SOLVER_API_KEY is set on the worker + this seed reruns. Feeds ProbateCase → rescore-probate matcher → ProbateSummary (LIFE_EVENT_FAMILY).",
+  },
 ];
 
 async function main() {

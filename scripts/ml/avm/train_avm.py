@@ -304,6 +304,95 @@ def train(args: argparse.Namespace) -> None:
     print(f"[avm-train] artifacts -> {args.out_dir}")
 
 
+# --------------------------------------------------------------------------
+# --predict: score the per-parcel feature frame → predictions.csv
+# --------------------------------------------------------------------------
+
+def predict(args: argparse.Namespace) -> None:
+    """Load a saved booster + the per-parcel feature frame (from
+    export-predict-features.ts), apply the EXACT same preprocessing the training
+    path used (train/serve skew is the #1 AVM failure mode), back-transform from
+    log to price space, and write predictions.csv: countyFips,apn,estimatedValue.
+
+    The booster's own feature_name() is the source of truth for column order, so
+    a featureList drift between the model and the predict frame fails loud here
+    (KeyError on the missing column) instead of silently mis-aligning columns.
+    """
+    import numpy as np
+    import pandas as pd
+    import lightgbm as lgb
+
+    booster = lgb.Booster(model_file=args.model)
+    feature_cols = list(booster.feature_name())
+
+    df = pd.read_csv(
+        args.features, dtype={"apn": str, "situsZip": str, "countyFips": str}
+    )
+    for key in ("countyFips", "apn"):
+        if key not in df.columns:
+            sys.exit(f"--features CSV missing key column {key!r}")
+    missing = [c for c in feature_cols if c not in df.columns]
+    if missing:
+        sys.exit(
+            f"--features CSV missing model feature column(s) {missing} — "
+            f"train/serve skew. Re-export with the matching featureList."
+        )
+
+    # Mirror train(): Postgres booleans export as "true"/"false" → numeric;
+    # everything that is neither categorical nor a key becomes float (NaN=NULL).
+    skip = set(CATEGORICAL_COLS) | set(ID_COLS) | {TARGET_COL}
+    for c in df.columns:
+        if c not in skip and df[c].dtype == object:
+            df[c] = df[c].map(
+                {"true": 1.0, "false": 0.0, "t": 1.0, "f": 0.0}
+            ).astype(float)
+
+    if "saleMonth" in df.columns:
+        df["saleMonth"] = df["saleMonth"].astype("Int64").astype(str)
+    for c in CATEGORICAL_COLS:
+        if c in df.columns:
+            df[c] = df[c].astype("category")
+
+    n = len(df)
+    if n == 0:
+        sys.exit("[avm-predict] empty --features frame")
+
+    # Score in chunks to bound memory on the ~1.5M-row metro frames.
+    chunk = max(1, int(args.predict_chunk))
+    preds = np.empty(n, dtype=float)
+    for start in range(0, n, chunk):
+        end = min(start + chunk, n)
+        pred_log = booster.predict(df.loc[df.index[start:end], feature_cols])
+        preds[start:end] = np.exp(pred_log)
+        if (start // chunk) % 20 == 0:
+            print(f"[avm-predict] scored {end}/{n}")
+
+    out_path = args.out
+    os.makedirs(os.path.dirname(os.path.abspath(out_path)), exist_ok=True)
+    cfips = df["countyFips"].astype(str).to_numpy()
+    apns = df["apn"].astype(str).to_numpy()
+    written = 0
+    with open(out_path, "w", newline="") as f:
+        w = csv.writer(f)
+        w.writerow(["countyFips", "apn", "estimatedValue"])
+        for i in range(n):
+            est = preds[i]
+            # Honest absence: skip non-finite / non-positive estimates rather
+            # than write a garbage valuation. apply-avm.ts simply won't UPSERT
+            # a row for these parcels → underwriting shows "no model estimate".
+            if est is None or _isnan(float(est)) or not math.isfinite(float(est)) or est <= 0:
+                continue
+            w.writerow([cfips[i], apns[i], f"{est:.0f}"])
+            written += 1
+
+    finite = [float(p) for p in preds if math.isfinite(float(p)) and p > 0]
+    med = median(finite) if finite else float("nan")
+    print(
+        f"[avm-predict] wrote {written}/{n} predictions -> {out_path}  "
+        f"(median estimate ${med:,.0f})"
+    )
+
+
 def _finite(x: float):
     """JSON can't hold NaN/inf — emit null instead."""
     return None if (x is None or _isnan(x) or math.isinf(x)) else float(x)
@@ -377,13 +466,34 @@ def main() -> None:
         action="store_true",
         help="run stdlib-only sanity checks and exit (no deps needed)",
     )
+    # --- prediction (serving) mode ---
+    ap.add_argument(
+        "--predict",
+        action="store_true",
+        help="score --features with --model → --out predictions.csv (no training)",
+    )
+    ap.add_argument("--model", help="path to a saved model.txt (predict mode)")
+    ap.add_argument(
+        "--features", help="per-parcel feature CSV from export-predict-features.ts"
+    )
+    ap.add_argument(
+        "--out", default="scripts/ml/avm/out/model-v1/predictions.csv"
+    )
+    ap.add_argument(
+        "--predict-chunk", type=int, default=200_000, help="rows scored per chunk"
+    )
     args = ap.parse_args()
 
     if args.self_test:
         self_test()
         return
+    if args.predict:
+        if not args.model or not args.features:
+            ap.error("--predict requires --model and --features")
+        predict(args)
+        return
     if not args.train:
-        ap.error("--train is required (or use --self-test)")
+        ap.error("--train is required (or use --predict / --self-test)")
     train(args)
 
 

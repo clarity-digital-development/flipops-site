@@ -70,7 +70,7 @@ export async function POST(request: NextRequest) {
     // + AuctionSummary (M2.3). A parcel can have both tax-delinquent AND
     // scheduled-auction signals — surface both on promote.
     // -----------------------------------------------------------------------
-    const [parcel, summary, auctionSummary] = await Promise.all([
+    const [parcel, summary, auctionSummary, codeSummary, probateSummary] = await Promise.all([
       prisma.parcel.findUnique({
         where: { countyFips_apn: { countyFips, apn } },
       }),
@@ -80,9 +80,19 @@ export async function POST(request: NextRequest) {
       prisma.auctionSummary.findUnique({
         where: { countyFips_apn: { countyFips, apn } },
       }),
+      // M3.2 — code-enforcement distress (CONDITION_FAMILY). One row per parcel
+      // with >=1 open violation, built by scripts/rescore-code-violations.ts.
+      prisma.codeViolationSummary.findUnique({
+        where: { countyFips_apn: { countyFips, apn } },
+      }),
+      // M3.1 — probate distress (LIFE_EVENT_FAMILY). One row per parcel whose
+      // owner fuzzy-matched an open estate case, built by scripts/rescore-probate.ts.
+      prisma.probateSummary.findUnique({
+        where: { countyFips_apn: { countyFips, apn } },
+      }),
     ]);
 
-    if (!parcel && !summary && !auctionSummary) {
+    if (!parcel && !summary && !auctionSummary && !codeSummary && !probateSummary) {
       // Nothing to promote from — this APN isn't a known virtual lead.
       return NextResponse.json(
         { error: `No virtual lead found for countyFips=${countyFips} apn=${apn}` },
@@ -110,6 +120,18 @@ export async function POST(request: NextRequest) {
     const isForeclosure = !!auctionSummary; // any auction activity = foreclosure family
     const isPreForeclosure = hasScheduledAuction; // scheduled future auction
 
+    // M3.2 — code-enforcement (CONDITION_FAMILY). hydrated from CodeViolationSummary.
+    const hasCodeViolation = !!codeSummary && codeSummary.openCount > 0;
+    const codeViolationOpenCount = codeSummary?.openCount ?? 0;
+    const codeViolationHasLien = !!codeSummary?.hasLien;
+
+    // M3.1 — probate (LIFE_EVENT_FAMILY). hydrated from ProbateSummary.
+    const probateOpen = !!probateSummary;
+    const probatePrAppointed = !!probateSummary?.prAppointedAt;
+    const probatePrAppointedRecent =
+      !!probateSummary?.prAppointedAt &&
+      Date.now() - probateSummary.prAppointedAt.getTime() <= 90 * 24 * 60 * 60 * 1000;
+
     // Fresh score from the canonical scorer v2.1 — includes the new
     // FUTURE_AUCTION signal so promoted auction-virtual rows carry their
     // imminent-auction boost into the Property table.
@@ -133,6 +155,14 @@ export async function POST(request: NextRequest) {
       hasScheduledAuction,
       nextAuctionDate: auctionSummary?.nextAuctionDate ?? null,
       hasLisPendens: false,
+      // M3.2 — code-enforcement CONDITION_FAMILY
+      hasCodeViolation,
+      codeViolationOpenCount,
+      codeViolationHasLien,
+      // M3.1 — probate LIFE_EVENT_FAMILY
+      probateOpen,
+      probatePrAppointed,
+      probatePrAppointedRecent,
     });
 
     const address = parcel?.situsAddress ?? '(address pending)';

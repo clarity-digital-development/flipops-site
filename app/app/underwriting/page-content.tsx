@@ -42,7 +42,9 @@ import {
   Grid3X3,
   Flame,
   Minus,
-  Equal
+  Equal,
+  Cpu,
+  Clock
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -64,6 +66,29 @@ import { type RepairItem } from "./seed-data";
 import { MAOWaterfallPanel } from "@/components/deals/mao-waterfall";
 import { EmptyState as CompsEmptyState } from "@/components/ui/empty-state";
 import { trackLeadEvent } from "@/lib/behavior/client";
+import type { LiquidityGrade } from "@/lib/valuation/zip-liquidity";
+
+// AVM prior + ZIP liquidity surfaced by /api/valuation (ParcelValuation +
+// ZipMarketStats). null when the parcel has no scored model row (honest absence).
+interface AvmValuation {
+  estimatedValue: number;
+  lowEstimate: number | null;
+  highEstimate: number | null;
+  modelKey: string;
+  modelVersion: number;
+  modelVersionId: string;
+  computedAt: string;
+}
+
+interface ZipLiquidityInfo {
+  zip: string;
+  grade: LiquidityGrade;
+  holdingDays: number;
+  saleVelocity12mo: number;
+  sampleSize: number;
+  label: string;
+  lowConfidence: boolean;
+}
 
 // ============================================================================
 // TYPES
@@ -410,6 +435,103 @@ function RepairCategoryIcon({ category }: { category: string }) {
   return (
     <div className={cn("p-2 rounded-lg", config.color)}>
       {config.icon}
+    </div>
+  );
+}
+
+// ============================================================================
+// AVM PRIOR CARD - Independent model ARV anchor (ParcelValuation / AVM v1)
+// ============================================================================
+
+function AvmPriorCard({
+  valuation,
+  workingArv,
+  divergencePct,
+  diverges,
+}: {
+  valuation: AvmValuation;
+  workingArv: number;
+  divergencePct: number | null;
+  diverges: boolean;
+}) {
+  const fmt = (amount: number) =>
+    new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(amount);
+
+  const provenance = `${(valuation.modelKey || "avm").toUpperCase().replace("AVM-", "AVM ")}`;
+  const bandPct =
+    valuation.lowEstimate && valuation.estimatedValue > 0
+      ? Math.round((1 - valuation.lowEstimate / valuation.estimatedValue) * 100)
+      : null;
+
+  return (
+    <div className="rounded-xl border border-indigo-200/70 dark:border-indigo-800/60 bg-gradient-to-br from-indigo-50/80 to-violet-50/60 dark:from-indigo-950/40 dark:to-violet-950/30 p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex items-center gap-2.5">
+          <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-indigo-500 to-violet-500 flex items-center justify-center flex-shrink-0">
+            <Cpu className="h-4 w-4 text-white" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-semibold text-gray-900 dark:text-white">
+                Model ARV Prior
+              </span>
+              <Badge
+                variant="outline"
+                className="text-[9px] h-4 px-1.5 border-indigo-300 dark:border-indigo-700 text-indigo-600 dark:text-indigo-300 bg-white/60 dark:bg-indigo-950/40"
+              >
+                {provenance}
+              </Badge>
+            </div>
+            <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">
+              Independent estimate from our sale-comp AVM
+            </p>
+          </div>
+        </div>
+        <div className="text-right">
+          <p className="text-xl font-bold text-indigo-700 dark:text-indigo-300 tabular-nums">
+            {fmt(valuation.estimatedValue)}
+          </p>
+          {valuation.lowEstimate != null && valuation.highEstimate != null && (
+            <p className="text-[11px] text-gray-500 dark:text-gray-400 tabular-nums">
+              {fmt(valuation.lowEstimate)} – {fmt(valuation.highEstimate)}
+              {bandPct != null && <span className="ml-1 text-gray-400">±{bandPct}%</span>}
+            </p>
+          )}
+        </div>
+      </div>
+
+      {/* Divergence flag: working comps-ARV vs the model prior. */}
+      {divergencePct !== null && (
+        <div
+          className={cn(
+            "mt-3 flex items-center gap-2 px-3 py-2 rounded-lg text-xs",
+            diverges
+              ? "bg-amber-100/70 dark:bg-amber-900/30 text-amber-800 dark:text-amber-300 border border-amber-300/60 dark:border-amber-700/60"
+              : "bg-emerald-100/60 dark:bg-emerald-900/25 text-emerald-700 dark:text-emerald-300 border border-emerald-300/50 dark:border-emerald-700/50"
+          )}
+        >
+          {diverges ? (
+            <AlertTriangle className="h-3.5 w-3.5 flex-shrink-0" />
+          ) : (
+            <Check className="h-3.5 w-3.5 flex-shrink-0" />
+          )}
+          <span>
+            {diverges ? "Your ARV diverges " : "Your ARV is within "}
+            <span className="font-semibold tabular-nums">
+              {divergencePct >= 0 ? "+" : ""}
+              {(divergencePct * 100).toFixed(0)}%
+            </span>{" "}
+            {diverges ? "from the model" : "of the model"}
+            {workingArv > 0 && ` (${fmt(workingArv)} vs ${fmt(valuation.estimatedValue)})`}.
+            {diverges && " Re-check comps or distress adjustments."}
+          </span>
+        </div>
+      )}
     </div>
   );
 }
@@ -1230,6 +1352,11 @@ export default function UnderwritingPage() {
   const [apiComps, setApiComps] = useState<Comp[]>([]);
   const [loadingComps, setLoadingComps] = useState(false);
 
+  // AVM v1 model prior + ZIP liquidity (from /api/valuation). null when the
+  // selected parcel has no scored ParcelValuation row — we then show no prior.
+  const [avmValuation, setAvmValuation] = useState<AvmValuation | null>(null);
+  const [zipLiquidity, setZipLiquidity] = useState<ZipLiquidityInfo | null>(null);
+
   // Offer creation
   const [offerDialogOpen, setOfferDialogOpen] = useState(false);
   const [creatingOffer, setCreatingOffer] = useState(false);
@@ -1307,11 +1434,33 @@ export default function UnderwritingPage() {
     // handleActivateDemo. Skip the API call AND skip the repair-item
     // reset so the user can interact with the seeded scope immediately.
     if (selectedPropertyId === DEMO_PROPERTY_ID) {
+      // Demo property: seed a plausible AVM prior + liquidity so the prior
+      // surface renders without hitting the API. Clearly the same synthetic
+      // source as the rest of the demo deal.
+      setAvmValuation({
+        estimatedValue: 372000,
+        lowEstimate: Math.round(372000 * (1 - 0.0972)),
+        highEstimate: Math.round(372000 * (1 + 0.0972)),
+        modelKey: "avm-v1",
+        modelVersion: 1,
+        modelVersionId: "demo",
+        computedAt: new Date().toISOString(),
+      });
+      setZipLiquidity({
+        zip: "32202",
+        grade: "C",
+        holdingDays: 90,
+        saleVelocity12mo: 0.0101,
+        sampleSize: 120,
+        label: "Average",
+        lowConfidence: false,
+      });
       setArvAdjustment(0);
       setRepairsAdjustment(0);
       return;
     }
     fetchComps();
+    fetchValuation();
     // Repair items start empty — Flippers add real line items via the
     // Add Item dialog. No synthetic age/distress-based fabrication.
     setRepairItems([]);
@@ -1346,6 +1495,8 @@ export default function UnderwritingPage() {
     setApiComps([]);
     setSelectedComps([]);
     setRepairItems([]);
+    setAvmValuation(null);
+    setZipLiquidity(null);
     setArvAdjustment(0);
     setRepairsAdjustment(0);
     toast.success("Demo cleared");
@@ -1388,6 +1539,39 @@ export default function UnderwritingPage() {
       setSelectedComps([]);
     } finally {
       setLoadingComps(false);
+    }
+  };
+
+  // Fetch the AVM v1 model prior + ZIP liquidity for the selected parcel.
+  // Honest absence: a parcel with no ParcelValuation row clears the prior so
+  // the UI shows nothing rather than a stale estimate from a prior selection.
+  const fetchValuation = async () => {
+    if (!selectedPropertyId) return;
+    const property = properties.find((p) => p.id === selectedPropertyId);
+    if (!property) return;
+
+    // Reset so a previous parcel's prior never bleeds into this one.
+    setAvmValuation(null);
+    setZipLiquidity(null);
+
+    try {
+      const params = new URLSearchParams();
+      if (property.state) params.set('state', property.state);
+      if (property.countyFips) params.set('countyFips', property.countyFips);
+      else if (property.county) params.set('county', property.county);
+      if (property.zip) params.set('zip', property.zip);
+      if (property.apn) params.set('apn', property.apn);
+      // Need at least a county+apn (for the prior) or a zip (for liquidity).
+      if (![...params.keys()].some((k) => k === 'apn' || k === 'zip')) return;
+
+      const response = await fetch(`/api/valuation?${params.toString()}`);
+      if (response.ok) {
+        const data = await response.json();
+        setAvmValuation((data.valuation as AvmValuation | null) ?? null);
+        setZipLiquidity((data.liquidity as ZipLiquidityInfo | null) ?? null);
+      }
+    } catch (error) {
+      console.error('Error fetching valuation:', error);
     }
   };
 
@@ -1460,12 +1644,29 @@ export default function UnderwritingPage() {
   // ARV source
   const arvSource = (selectedComps.length === 0 || (selectedProperty?.squareFeet || 0) === 0) ? "avm" : "comps";
 
+  // AVM model prior: the independent ParcelValuation estimate (when present).
+  // The comps-based ARV is the primary number; this is the cross-check anchor.
+  const modelPrior = avmValuation?.estimatedValue ?? null;
+  // Divergence of the working (comps-based) ARV from the model prior. >20% is
+  // the "investigate" threshold — either the comps are stale/biased or the
+  // model misses this parcel. Flagged in the UI, never auto-corrected.
+  const arvVsModelPct =
+    modelPrior && modelPrior > 0 && adjustedARV > 0
+      ? (adjustedARV - modelPrior) / modelPrior
+      : null;
+  const arvDivergesFromModel = arvVsModelPct !== null && Math.abs(arvVsModelPct) > 0.2;
+
+  // ZIP-aware holding-period default (days) for the whole-deal MAO/Exit math.
+  // Replaces the static 90-day prior: liquid ZIPs sell faster (shorter hold),
+  // illiquid ZIPs drag (longer hold). Falls back to 90 when liquidity unknown.
+  const holdingDays = zipLiquidity?.holdingDays ?? 90;
+
   // Calculate MAO
   const defaultAssumptions = {
     realtorPct: 0.06,
     closingPct: 0.03,
     holdingPerDay: 50,
-    rehabDays: 90,
+    rehabDays: holdingDays,
     profitTargetPct: 0.15,
   };
 
@@ -1479,7 +1680,7 @@ export default function UnderwritingPage() {
 
     const calculatedMAO = adjustedARV - adjustedRepairs - realtorFees - closingCosts - holdingCosts - desiredProfit;
     return Math.max(0, calculatedMAO);
-  }, [adjustedARV, adjustedRepairs]);
+  }, [adjustedARV, adjustedRepairs, holdingDays]);
 
   const mao = calculateMAO();
   const suggestedOffer = Math.max(0, mao * 0.95);
@@ -2085,6 +2286,18 @@ export default function UnderwritingPage() {
                         </div>
                       </div>
 
+                      {/* AVM v1 model prior — independent ARV anchor + >20%
+                          divergence flag. Honest absence: rendered only when the
+                          parcel has a scored ParcelValuation row. */}
+                      {avmValuation && (
+                        <AvmPriorCard
+                          valuation={avmValuation}
+                          workingArv={adjustedARV}
+                          divergencePct={arvVsModelPct}
+                          diverges={arvDivergesFromModel}
+                        />
+                      )}
+
                       {/* ARV Adjustment slider */}
                       <div className="p-3 bg-gray-50 dark:bg-muted/50 rounded-lg">
                         <div className="flex items-center justify-between mb-2">
@@ -2304,9 +2517,24 @@ export default function UnderwritingPage() {
                 <TabsContent value="mao" className="flex-1 min-h-0 m-0 p-0">
                   <ScrollArea className="h-full">
                     <div className="p-4 pb-8">
+                      {/* ZIP-aware holding default: rehabDays seeded from the
+                          parcel's ZIP liquidity grade (replaces the static 90d).
+                          The user can still override in the assumptions panel. */}
+                      {zipLiquidity && (
+                        <div className="mb-3 flex items-center gap-2 px-3 py-2 rounded-lg bg-teal-50 dark:bg-teal-900/20 border border-teal-200/60 dark:border-teal-800/60">
+                          <Clock className="h-4 w-4 text-teal-600 dark:text-teal-400 flex-shrink-0" />
+                          <p className="text-xs text-teal-700 dark:text-teal-300">
+                            Holding period default <span className="font-semibold">{holdingDays} days</span> from ZIP {zipLiquidity.zip} liquidity{" "}
+                            <span className="font-semibold">Grade {zipLiquidity.grade}</span> ({zipLiquidity.label})
+                            {zipLiquidity.lowConfidence && " · thin sale data"}
+                          </p>
+                        </div>
+                      )}
                       <MAOWaterfallPanel
+                        key={`mao-${selectedPropertyId}-${holdingDays}`}
                         arv={adjustedARV}
                         repairs={adjustedRepairs}
+                        assumptions={{ rehabDays: holdingDays }}
                       />
                     </div>
                   </ScrollArea>

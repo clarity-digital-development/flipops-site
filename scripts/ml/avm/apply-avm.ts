@@ -108,20 +108,31 @@ function parsePredictions(path: string, bandPct: number): PredRow[] {
 }
 
 async function upsertChunk(rows: PredRow[], modelVersionId: string): Promise<void> {
-  // Build a multi-row VALUES UPSERT. 6 columns/row → PG 32767 bind-var cap
-  // allows ~5400 rows/statement; we chunk far below that anyway. Bind params
-  // are 1-indexed: ($1..$6),($7..$12),…
+  // Build a multi-row VALUES UPSERT. 6 bind vars/row → PG 32767 bind-var cap
+  // allows ~5400 rows/statement; callers chunk far below that.
+  //
+  // ParcelValuation.id is `@id @default(cuid())` — that default is applied by
+  // PRISMA, not the database, so a raw INSERT must supply id itself or hit a
+  // NOT NULL violation (23502). We mint a DETERMINISTIC id from the natural key
+  // (countyFips|apn) via md5 — same pattern as scripts/rescore-auction.ts — so
+  // re-runs map a parcel to the same id and the ON CONFLICT path stays a clean
+  // UPSERT-as-update instead of accumulating orphan rows.
   const cols = ["countyFips", "apn", "estimatedValue", "lowEstimate", "highEstimate", "modelVersionId"];
   const values: unknown[] = [];
   const tuples: string[] = [];
   rows.forEach((r, i) => {
     const b = i * 6;
-    tuples.push(`($${b + 1}, $${b + 2}, $${b + 3}, $${b + 4}, $${b + 5}, $${b + 6})`);
+    // id derived from the same bind params used for countyFips ($b+1) and apn
+    // ($b+2); computedAt = now().
+    tuples.push(
+      `('pv_' || md5($${b + 1} || '|' || $${b + 2}), ` +
+        `$${b + 1}, $${b + 2}, $${b + 3}, $${b + 4}, $${b + 5}, $${b + 6}, now())`,
+    );
     values.push(r.countyFips, r.apn, r.estimatedValue, r.lowEstimate, r.highEstimate, modelVersionId);
   });
   const sql =
-    `INSERT INTO flipops."ParcelValuation" (${cols.map((c) => `"${c}"`).join(", ")}, "computedAt") ` +
-    `VALUES ${tuples.map((t) => t.slice(0, -1) + `, now())`).join(", ")} ` +
+    `INSERT INTO flipops."ParcelValuation" ("id", ${cols.map((c) => `"${c}"`).join(", ")}, "computedAt") ` +
+    `VALUES ${tuples.join(", ")} ` +
     `ON CONFLICT ("countyFips", "apn") DO UPDATE SET ` +
     `"estimatedValue" = EXCLUDED."estimatedValue", ` +
     `"lowEstimate" = EXCLUDED."lowEstimate", ` +

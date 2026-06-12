@@ -42,7 +42,7 @@
  * scored behavioral event (M1.1 step 7) so training data is reproducible
  * across scorer revisions. Bump whenever weights/families/signals change.
  */
-export const SCORER_VERSION = "2.2";
+export const SCORER_VERSION = "2.3";
 
 /**
  * Property data shape the scorer reads (formerly REAPI search-response shape).
@@ -122,6 +122,11 @@ export interface REAPIPropertyData {
   cashBuyer: boolean;
   corporateOwned: boolean;
   death: boolean;
+  // M3.1 — probate (LIFE_EVENT_FAMILY). Hydrated from ProbateSummary by the
+  // promote path + UNION builder. Optional so existing callers are unaffected.
+  probateOpen?: boolean;            // a matched open estate-administration case
+  probatePrAppointed?: boolean;     // personal representative appointed
+  probatePrAppointedRecent?: boolean; // PR appointed within 90 days (peak window)
   foreclosure: boolean;
   forSale: boolean;
   freeClear: boolean;
@@ -249,14 +254,26 @@ export const SIGNAL_FAMILIES = {
   TAX_FAMILY: ['TAX_DELINQUENT', 'LIEN_JUDGMENT', 'TAX_DEED_APPLICATION'],
   VACANCY_FAMILY: ['VACANT'],
   ABSENTEE_FAMILY: ['OUT_OF_STATE_OWNER', 'ABSENTEE_OWNER'],
-  LIFE_EVENT_FAMILY: ['INHERITED', 'DEATH_TRANSFER'],
+  LIFE_EVENT_FAMILY: ['INHERITED', 'DEATH_TRANSFER', 'PROBATE_OPEN', 'PROBATE_PR_APPOINTED'],
   EQUITY_FAMILY: ['HIGH_EQUITY', 'FREE_CLEAR', 'NEGATIVE_EQUITY'],
   OWNERSHIP_FAMILY: ['LONG_TERM_OWNER', 'PORTFOLIO_OWNER', 'CORPORATE_OWNED'],
   BANK_FAMILY: ['REO'],
-  // M2.2 scaffolding — property-condition distress (M3 sources: code
-  // enforcement / Accela, sinkhole disclosures, storm-damage assessments,
-  // condemnation orders). All 0-weighted placeholders until M3 wires data.
-  CONDITION_FAMILY: ['CODE_VIOLATION', 'SINKHOLE', 'STORM_DAMAGE', 'CONDEMNED'],
+  // CONDITION_FAMILY — property-condition distress. M3.2 wired the
+  // code-enforcement signals (CODE_VIOLATION_OPEN / _MULTI, CODE_LIEN) from
+  // CodeViolationSummary; SINKHOLE / STORM_DAMAGE / CONDEMNED remain 0-weighted
+  // placeholders until their sources land. These all describe the SAME
+  // dimension (the structure's condition), so they MAX within the family —
+  // and within the code-violation set the OPEN/MULTI/LIEN boosts are folded
+  // into a single CODE_VIOLATION contribution (they're additive facets of one
+  // case load, not competing signals — see calculateDistressScore).
+  CONDITION_FAMILY: [
+    'CODE_VIOLATION',
+    'CODE_VIOLATION_MULTI',
+    'CODE_LIEN',
+    'SINKHOLE',
+    'STORM_DAMAGE',
+    'CONDEMNED',
+  ],
   LISTING_FAMILY: ['PRICE_REDUCED'],
   FINANCING_FAMILY: ['PRIVATE_LENDER', 'ADJUSTABLE_RATE'],
   TRANSFER_FAMILY: ['QUIT_CLAIM'],
@@ -485,6 +502,24 @@ export function calculateDistressScore(property: REAPIPropertyData): DistressSco
   // ============================================
   record('INHERITED', 15, !!property.inherited, 'Property was inherited');
   record('DEATH_TRANSFER', 15, !!property.death, 'Property transferred due to death');
+  // M3.1 — probate (LIFE_EVENT_FAMILY, MAX within family). Sourced from
+  // ProbateSummary (an open estate-administration case whose decedent fuzzy-
+  // matched this parcel's owner). PR-appointed is the peak-motivation window
+  // (estate is actively being settled → heirs ready to sell). Family-MAX picks
+  // the strongest: PR-recent 32 > PR 28 > open 22 > inherited/death 15. Weights
+  // mirror scripts/rescore-probate.ts scoreProbateRow() (PROBATE-BUILD-SPEC §4).
+  const life = property as REAPIPropertyData & {
+    probateOpen?: boolean;
+    probatePrAppointed?: boolean;
+    probatePrAppointedRecent?: boolean;
+  };
+  record('PROBATE_OPEN', 22, !!life.probateOpen, 'Open probate/estate case matched to owner');
+  record(
+    'PROBATE_PR_APPOINTED',
+    life.probatePrAppointedRecent ? 32 : 28,
+    !!life.probatePrAppointed,
+    'Probate personal representative appointed — peak seller motivation',
+  );
 
   // ============================================
   // EQUITY FAMILY (MAX within family)
@@ -521,20 +556,54 @@ export function calculateDistressScore(property: REAPIPropertyData): DistressSco
   record('REO', 10, !!property.reo, 'Bank-owned property (REO)');
 
   // ============================================
-  // CONDITION FAMILY (M2.2 scaffolding — 0-weighted placeholders)
+  // CONDITION FAMILY (M3.2 — code-enforcement wired; rest 0-weighted)
   // ============================================
-  // TODO(M3): wire real weights once property-distress sources land —
-  // code enforcement (Accela, M3.2), sinkhole disclosures, storm-damage
-  // assessments, condemnation orders. Inputs are read so M3 only has to
-  // populate the flags + assign weights; with weight/points 0 these can
-  // never affect the score today (composeFamilyMax skips points <= 0).
+  // Code-enforcement signals are sourced from CodeViolationSummary
+  // (openCount / hasLien) and hydrated onto the scorer input by the promote
+  // path + UNION builder. The three facets compose ADDITIVELY into one
+  // CODE_VIOLATION contribution because they describe one escalating case
+  // load on the SAME structure (an open case, that is chronic, that has been
+  // liened) — not three independent distress events:
+  //   CODE_VIOLATION_OPEN  = 12  (>=1 open violation)
+  //   CODE_VIOLATION_MULTI = +6  (>=3 open — chronic non-compliance)
+  //   CODE_LIEN            = +8  (recorded code-enforcement lien)
+  // capped at 26. SINKHOLE / STORM_DAMAGE / CONDEMNED stay 0-weighted
+  // placeholders (composeFamilyMax skips points <= 0) until their sources land.
   const cond = property as REAPIPropertyData & {
     hasCodeViolation?: boolean;
+    codeViolationOpenCount?: number;
+    codeViolationHasLien?: boolean;
     hasSinkhole?: boolean;
     hasStormDamage?: boolean;
     isCondemned?: boolean;
   };
-  record('CODE_VIOLATION', 0, !!cond.hasCodeViolation, 'Open code-enforcement violation', 0);
+  const cvOpenCount = cond.codeViolationOpenCount ?? 0;
+  const cvHasOpen = !!cond.hasCodeViolation || cvOpenCount > 0;
+  const cvMulti = cvOpenCount >= 3;
+  const cvLien = !!cond.codeViolationHasLien;
+  let cvPts = 0;
+  if (cvHasOpen) {
+    cvPts = 12;
+    if (cvMulti) cvPts += 6;
+    if (cvLien) cvPts += 8;
+    cvPts = Math.min(cvPts, 26);
+  }
+  // CODE_VIOLATION_MULTI / CODE_LIEN are recorded for the breakdown UI (so the
+  // tooltip shows WHY the contribution is elevated) but contribute 0 points of
+  // their own — their boost is already folded into CODE_VIOLATION above. They
+  // sit in CONDITION_FAMILY so composeFamilyMax never double-counts them.
+  record(
+    'CODE_VIOLATION',
+    12,
+    cvHasOpen,
+    cvHasOpen
+      ? `${cvOpenCount || 1} open code violation${(cvOpenCount || 1) === 1 ? '' : 's'}` +
+          `${cvMulti ? ' · chronic' : ''}${cvLien ? ' · code lien' : ''}`
+      : 'Open code-enforcement violation',
+    cvPts,
+  );
+  record('CODE_VIOLATION_MULTI', 6, cvHasOpen && cvMulti, '3+ open code violations (chronic)', 0);
+  record('CODE_LIEN', 8, cvHasOpen && cvLien, 'Recorded code-enforcement lien', 0);
   record('SINKHOLE', 0, !!cond.hasSinkhole, 'Sinkhole activity reported/disclosed', 0);
   record('STORM_DAMAGE', 0, !!cond.hasStormDamage, 'Storm/hurricane damage assessed', 0);
   record('CONDEMNED', 0, !!cond.isCondemned, 'Structure condemned/unsafe order', 0);
@@ -655,8 +724,22 @@ export interface PropertyScoreInput {
   // null when the application exists but the sale is not yet scheduled.
   hasTaxDeedApplication?: boolean;
   taxDeedSaleDate?: Date | null;
-  // v2.2 (M2.2) — CONDITION_FAMILY placeholders (0-weighted until M3).
+  // v2.2 (M3.2) — CONDITION_FAMILY: code-enforcement (wired). Hydrated from
+  // CodeViolationSummary at promote time + by the UNION builder.
+  //   hasCodeViolation        → CODE_VIOLATION_OPEN (>=1 open) — 12 pts
+  //   codeViolationOpenCount  → CODE_VIOLATION_MULTI (>=3) — +6 pts
+  //   codeViolationHasLien    → CODE_LIEN — +8 pts
   hasCodeViolation?: boolean;
+  codeViolationOpenCount?: number;
+  codeViolationHasLien?: boolean;
+  // M3.1 — probate (LIFE_EVENT_FAMILY), hydrated from ProbateSummary.
+  //   probateOpen              → PROBATE_OPEN (matched open estate case) — 22 pts
+  //   probatePrAppointed       → PROBATE_PR_APPOINTED — 28 pts
+  //   probatePrAppointedRecent → peak window (PR appointed <=90d) — 32 pts
+  probateOpen?: boolean;
+  probatePrAppointed?: boolean;
+  probatePrAppointedRecent?: boolean;
+  // Remaining CONDITION_FAMILY placeholders (0-weighted until sources land).
   hasSinkhole?: boolean;
   hasStormDamage?: boolean;
   isCondemned?: boolean;
@@ -670,9 +753,14 @@ export function calculateDistressScoreFromProperty(p: PropertyScoreInput): Distr
     hasTaxDeedApplication?: boolean;
     taxDeedSaleDate?: Date | null;
     hasCodeViolation?: boolean;
+    codeViolationOpenCount?: number;
+    codeViolationHasLien?: boolean;
     hasSinkhole?: boolean;
     hasStormDamage?: boolean;
     isCondemned?: boolean;
+    probateOpen?: boolean;
+    probatePrAppointed?: boolean;
+    probatePrAppointedRecent?: boolean;
   } = {
     foreclosure: p.foreclosure,
     preForeclosure: p.preForeclosure,
@@ -691,11 +779,18 @@ export function calculateDistressScoreFromProperty(p: PropertyScoreInput): Distr
     // v2.2 — tax-deed application (TAX_FAMILY)
     hasTaxDeedApplication: p.hasTaxDeedApplication ?? false,
     taxDeedSaleDate: p.taxDeedSaleDate ?? null,
-    // v2.2 — condition-family placeholders (0-weighted until M3)
+    // v2.2 (M3.2) — condition-family: code-enforcement (wired)
     hasCodeViolation: p.hasCodeViolation ?? false,
+    codeViolationOpenCount: p.codeViolationOpenCount ?? 0,
+    codeViolationHasLien: p.codeViolationHasLien ?? false,
+    // remaining condition-family placeholders (0-weighted until sources land)
     hasSinkhole: p.hasSinkhole ?? false,
     hasStormDamage: p.hasStormDamage ?? false,
     isCondemned: p.isCondemned ?? false,
+    // v2.3 (M3.1) — probate (LIFE_EVENT_FAMILY)
+    probateOpen: p.probateOpen ?? false,
+    probatePrAppointed: p.probatePrAppointed ?? false,
+    probatePrAppointedRecent: p.probatePrAppointedRecent ?? false,
   };
   return calculateDistressScore(adapted as REAPIPropertyData);
 }

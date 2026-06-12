@@ -2,18 +2,23 @@ import { prisma } from "@/lib/prisma";
 import type { NormalizedViolation } from "./types";
 
 // ---------------------------------------------------------------------------
-// M3.2 (B3) — APN resolution + guarded persistence for code-enforcement rows.
+// M3.2 — APN resolution + TYPED persistence for code-enforcement rows.
 //
-// SCHEMA-NOT-PUSHED-YET CONTRACT (mirrors scripts/ml/export-training-data.ts):
-// the CodeViolation / CodeViolationSummary models live in
-// prisma/schema.patch.code.prisma and are NOT in the generated Prisma client
-// this wave. So:
-//   - APN resolution is raw SQL against the EXISTING Parcel table (typed rows).
-//   - Persistence is raw $executeRawUnsafe, GUARDED by an information_schema
-//     probe (tableExists) so a real run no-ops cleanly until the orchestrator
-//     pushes the patch. The ingester's --dry-run never calls persist at all.
-// This file therefore compiles and runs today; the moment the patch is pushed,
-// `tableExists` flips true and the same INSERT path writes for real.
+// SCHEMA IS PUSHED (Wave D2a): CodeViolation / CodeViolationSummary are now
+// generated Prisma-client models, so persistence is typed
+// `prisma.codeViolation.upsert` on the unique (countyFips, sourceCaseId,
+// source). The information_schema-guarded raw-SQL path is gone.
+//
+// Join strategy (CODE-ENFORCEMENT-SPEC §Join Strategy):
+//   - Tier 1 (direct-folio): verify each feed folio exists in Parcel for the
+//     county. Miami-Dade FOLIO @ 99.6% — the production path.
+//   - Tier 2 (unique-address): best-effort situsAddress normalized-prefix
+//     resolver for feeds whose folio diverges from the DOR PARCEL_ID
+//     (Orlando @ ~3.8% folio). Confidence-tagged; only accepts a match when the
+//     normalized address prefix maps to EXACTLY ONE parcel in the county
+//     (ambiguous → left null). Rows that resolve neither tier persist with
+//     parcelApn=null (kept, never dropped — the address is still a locator and
+//     a later fuzzy pass / Accela enrich can backfill the APN).
 // ---------------------------------------------------------------------------
 
 export type ApnJoinTier = "direct-folio" | "unique-address" | "none";
@@ -30,29 +35,34 @@ export interface JoinStats {
   none: number;
 }
 
-/** Has the schema patch been pushed? Gates real persistence. */
-export async function tableExists(table: string): Promise<boolean> {
-  const rows = await prisma.$queryRawUnsafe<Array<{ exists: boolean }>>(
-    `SELECT EXISTS (
-       SELECT 1 FROM information_schema.tables
-       WHERE table_schema = 'flipops' AND table_name = $1
-     ) AS exists`,
-    table,
-  );
-  return rows[0]?.exists === true;
+/**
+ * Normalize a street address to a comparable prefix: uppercase, collapse
+ * whitespace, strip unit/suite designators and trailing punctuation. Used by
+ * the Tier-2 resolver to match feed addresses against Parcel.situsAddress.
+ * Best-effort — returns null when there's no usable street component.
+ */
+function normalizeAddressPrefix(addr: string | null | undefined): string | null {
+  if (!addr) return null;
+  let s = addr.toUpperCase().trim();
+  // Drop everything after a comma (city/state/zip tail) and unit markers.
+  s = s.split(",")[0];
+  s = s.replace(/\b(APT|UNIT|STE|SUITE|#|BLDG|FL|FLOOR|LOT)\b.*$/i, "");
+  s = s.replace(/[^A-Z0-9 ]/g, " ").replace(/\s+/g, " ").trim();
+  return s.length >= 5 ? s : null;
 }
 
 /**
- * Tier-1 direct-folio resolution against flipops."Parcel". Verifies each feed
- * folio actually exists for the county (the Miami-Dade 99.6% path). Mutates
- * rows in place and returns join stats. Address-tier (Tier 2) is left as a
- * stub here — it requires the situsAddress fuzzy index (spec §Join Strategy);
- * Orlando rows stay parcelApn=null until that resolver lands.
+ * Resolve APNs in two tiers. Mutates nothing; returns resolved rows + stats.
+ *
+ * Tier 1 runs for every county (folio verification against Parcel). Tier 2
+ * runs only for rows that Tier 1 left unresolved AND that carry an address —
+ * it bulk-loads candidate situsAddress prefixes per county and accepts a match
+ * only when the prefix is unique within the county.
  */
 export async function resolveApns(
   rows: NormalizedViolation[],
 ): Promise<{ resolved: ResolvedViolation[]; stats: JoinStats }> {
-  // Group folios by county for a chunked verification query.
+  // ---- Tier 1: direct-folio verification ----
   const byCounty = new Map<string, Set<string>>();
   for (const r of rows) {
     if (!r.rawParcelId) continue;
@@ -86,11 +96,73 @@ export async function resolveApns(
       parcelApn = r.rawParcelId;
       apnTier = "direct-folio";
       stats.directFolio++;
-    } else {
-      stats.none++;
     }
     resolved.push({ ...r, parcelApn, apnTier });
   }
+
+  // ---- Tier 2: unique-address resolution for the Tier-1 misses ----
+  // Collect the normalized address prefixes that still need a parcel, grouped
+  // by county. Skip counties with no unresolved address rows.
+  const needByCounty = new Map<string, Map<string, ResolvedViolation[]>>();
+  for (const r of resolved) {
+    if (r.apnTier !== "none") continue;
+    const prefix = normalizeAddressPrefix(r.address);
+    if (!prefix) continue;
+    if (!needByCounty.has(r.countyFips)) needByCounty.set(r.countyFips, new Map());
+    const m = needByCounty.get(r.countyFips)!;
+    if (!m.has(prefix)) m.set(prefix, []);
+    m.get(prefix)!.push(r);
+  }
+
+  for (const [county, prefixMap] of needByCounty) {
+    const prefixes = [...prefixMap.keys()];
+    // Bulk-query Parcel for these prefixes. We match on a normalized situs
+    // prefix: UPPER(situsAddress) starting with the candidate prefix. Group by
+    // prefix to enforce uniqueness (count of distinct apns).
+    for (let i = 0; i < prefixes.length; i += 300) {
+      const chunk = prefixes.slice(i, i + 300);
+      if (chunk.length === 0) continue;
+      // For each candidate prefix find parcels whose normalized situsAddress
+      // equals the prefix (exact normalized match — conservative). Returns at
+      // most one row per (prefix) only when exactly one apn matches.
+      const hits = await prisma.$queryRawUnsafe<
+        Array<{ prefix: string; apn: string; n: bigint }>
+      >(
+        `WITH cand(prefix) AS (
+           SELECT UNNEST($2::text[])
+         ),
+         norm AS (
+           SELECT
+             p.apn,
+             REGEXP_REPLACE(
+               REGEXP_REPLACE(UPPER(SPLIT_PART(p."situsAddress", ',', 1)), '[^A-Z0-9 ]', ' ', 'g'),
+               '\\s+', ' ', 'g'
+             ) AS sit
+           FROM flipops."Parcel" p
+           WHERE p."countyFips" = $1 AND p."situsAddress" IS NOT NULL
+         )
+         SELECT c.prefix, MIN(n.apn) AS apn, COUNT(DISTINCT n.apn)::bigint AS n
+         FROM cand c
+         JOIN norm n ON TRIM(n.sit) = c.prefix
+         GROUP BY c.prefix
+         HAVING COUNT(DISTINCT n.apn) = 1`,
+        county,
+        chunk,
+      );
+      for (const h of hits) {
+        const targets = prefixMap.get(h.prefix);
+        if (!targets) continue;
+        for (const t of targets) {
+          t.parcelApn = h.apn;
+          t.apnTier = "unique-address";
+          stats.uniqueAddress++;
+        }
+      }
+    }
+  }
+
+  // Final unresolved count.
+  stats.none = resolved.filter((r) => r.apnTier === "none").length;
   return { resolved, stats };
 }
 
@@ -101,103 +173,78 @@ export interface PersistStats {
 }
 
 /**
- * Upsert resolved rows into CodeViolation via raw SQL ON CONFLICT, guarded by
- * tableExists. Chunked INSERTs (per OPERATIONS.md: never a single statewide
- * mega-statement on the Railway proxy). Returns counts; a missing table is a
- * clean no-op (skippedNoTable=true), not an error.
+ * Upsert resolved rows into CodeViolation via typed prisma.codeViolation.upsert
+ * on the unique (countyFips, sourceCaseId, source). Sequential per-row upserts
+ * chunked into batches with a short micro-pause between chunks (OPERATIONS.md:
+ * never one statewide mega-statement on the Railway proxy). Returns counts;
+ * `skippedNoTable` stays false now that the schema is pushed.
  */
 export async function persistViolations(rows: ResolvedViolation[]): Promise<PersistStats> {
   const stats: PersistStats = { attempted: rows.length, written: 0, skippedNoTable: false };
   if (rows.length === 0) return stats;
-  if (!(await tableExists("CodeViolation"))) {
-    stats.skippedNoTable = true;
-    return stats;
-  }
 
-  const CHUNK = 200; // well under the 32767 bind-var cap (we use json, but stay polite)
+  const CHUNK = 500;
   for (let i = 0; i < rows.length; i += CHUNK) {
     const chunk = rows.slice(i, i + CHUNK);
-    // Build a multi-VALUES INSERT with positional params.
-    const cols = [
-      "countyFips",
-      "parcelApn",
-      "sourceCaseId",
-      "source",
-      "address",
-      "city",
-      "zip",
-      "violationType",
-      "category",
-      "status",
-      "rawStatus",
-      "openedAt",
-      "closedAt",
-      "isLien",
-      "lienRecordedAt",
-      "lienBook",
-      "lienPage",
-      "latitude",
-      "longitude",
-    ];
-    const params: unknown[] = [];
-    const valueRows: string[] = [];
-    for (const r of chunk) {
-      const base = params.length;
-      params.push(
-        r.countyFips,
-        r.parcelApn,
-        r.sourceCaseId,
-        r.source,
-        r.address,
-        r.city,
-        r.zip,
-        r.violationType,
-        r.category,
-        r.status,
-        r.rawStatus,
-        r.openedAt,
-        r.closedAt,
-        r.isLien,
-        r.lienRecordedAt,
-        r.lienBook,
-        r.lienPage,
-        r.latitude,
-        r.longitude,
-      );
-      const ph = cols.map((_, j) => `$${base + j + 1}`);
-      // cuid() default is generated by Prisma only; for raw SQL we let the DB
-      // generate id via gen_random_uuid()-style — but the model uses @default(cuid())
-      // which is app-side. So we must supply an id. Use md5-based deterministic id.
-      valueRows.push(`(${ph.join(",")})`);
+    // Upserts within a chunk run concurrently (bounded by the chunk size); each
+    // is an independent statement so a single bad row can't abort the batch.
+    const results = await Promise.allSettled(
+      chunk.map((r) =>
+        prisma.codeViolation.upsert({
+          where: {
+            countyFips_sourceCaseId_source: {
+              countyFips: r.countyFips,
+              sourceCaseId: r.sourceCaseId,
+              source: r.source,
+            },
+          },
+          create: {
+            countyFips: r.countyFips,
+            parcelApn: r.parcelApn,
+            sourceCaseId: r.sourceCaseId,
+            source: r.source,
+            address: r.address,
+            city: r.city,
+            zip: r.zip,
+            violationType: r.violationType,
+            category: r.category,
+            status: r.status,
+            rawStatus: r.rawStatus,
+            openedAt: r.openedAt,
+            closedAt: r.closedAt,
+            isLien: r.isLien,
+            lienRecordedAt: r.lienRecordedAt,
+            lienBook: r.lienBook,
+            lienPage: r.lienPage,
+            latitude: r.latitude,
+            longitude: r.longitude,
+          },
+          update: {
+            parcelApn: r.parcelApn,
+            address: r.address,
+            city: r.city,
+            zip: r.zip,
+            violationType: r.violationType,
+            category: r.category,
+            status: r.status,
+            rawStatus: r.rawStatus,
+            openedAt: r.openedAt,
+            closedAt: r.closedAt,
+            isLien: r.isLien,
+            lienRecordedAt: r.lienRecordedAt,
+            lienBook: r.lienBook,
+            lienPage: r.lienPage,
+            latitude: r.latitude,
+            longitude: r.longitude,
+          },
+        }),
+      ),
+    );
+    for (const res of results) {
+      if (res.status === "fulfilled") stats.written++;
     }
-    const sql = `
-      INSERT INTO flipops."CodeViolation" (
-        "id", ${cols.map((c) => `"${c}"`).join(", ")}, "capturedAt", "updatedAt"
-      )
-      SELECT
-        'cv_' || encode(digest(v."countyFips" || ':' || v."sourceCaseId" || ':' || v."source", 'sha256'), 'hex'),
-        ${cols.map((c) => `v."${c}"`).join(", ")},
-        NOW(), NOW()
-      FROM ( VALUES ${valueRows.join(", ")} ) AS v(${cols.map((c) => `"${c}"`).join(", ")})
-      ON CONFLICT ("countyFips", "sourceCaseId", "source") DO UPDATE SET
-        "parcelApn"     = EXCLUDED."parcelApn",
-        "address"       = EXCLUDED."address",
-        "violationType" = EXCLUDED."violationType",
-        "category"      = EXCLUDED."category",
-        "status"        = EXCLUDED."status",
-        "rawStatus"     = EXCLUDED."rawStatus",
-        "openedAt"      = EXCLUDED."openedAt",
-        "closedAt"      = EXCLUDED."closedAt",
-        "isLien"        = EXCLUDED."isLien",
-        "lienRecordedAt"= EXCLUDED."lienRecordedAt",
-        "lienBook"      = EXCLUDED."lienBook",
-        "lienPage"      = EXCLUDED."lienPage",
-        "latitude"      = EXCLUDED."latitude",
-        "longitude"     = EXCLUDED."longitude",
-        "updatedAt"     = NOW()
-    `;
-    const affected = await prisma.$executeRawUnsafe(sql, ...params);
-    stats.written += typeof affected === "number" ? affected : chunk.length;
+    // Micro-pause between chunks so the Railway PG proxy can checkpoint WAL.
+    if (i + CHUNK < rows.length) await new Promise((r) => setTimeout(r, 50));
   }
   return stats;
 }

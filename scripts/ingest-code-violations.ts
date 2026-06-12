@@ -9,15 +9,13 @@
 //   miamidade  — ArcGIS FeatureServer (Open view), FOLIO join 99.6% (GREEN)
 //   orlando    — Socrata SoQL,  parcel_id join ~3.8% (GREEN; address-resolve TODO)
 //
-// FLOW:  source.fetch() → resolveApns() (Tier-1 direct folio) → report join-rate
-//        → persistViolations() (guarded raw-SQL upsert; no-op until the
-//        prisma/schema.patch.code.prisma patch is pushed). --dry-run NEVER
+// FLOW:  source.fetch() → resolveApns() (Tier-1 direct folio + Tier-2
+//        unique-address) → report join-rate → persistViolations() (TYPED
+//        prisma.codeViolation.upsert; schema is pushed). --dry-run NEVER
 //        writes — it reports parsed counts + join-rate only (the smoke mode).
 //
-// This script is typed against raw SQL by design (the CodeViolation model is
-// not in the generated Prisma client until the orchestrator pushes the patch),
-// so it COMPILES and the dry-run RUNS today — exactly like
-// scripts/ml/export-training-data.ts.
+// After persisting, run scripts/rescore-code-violations.ts to refresh the
+// CodeViolationSummary mart that the scorer's CONDITION_FAMILY signals read.
 // ---------------------------------------------------------------------------
 
 import { prisma } from "@/lib/prisma";
@@ -26,7 +24,6 @@ import {
   CODE_ENFORCEMENT_SOURCES,
   resolveApns,
   persistViolations,
-  tableExists,
 } from "@/lib/data-sources/code-enforcement";
 
 interface Opts {
@@ -85,31 +82,24 @@ async function main(): Promise<void> {
   );
   console.log(`[ingest-code] categories: ${[...byCat.entries()].map(([k, v]) => `${k}=${v}`).join(" ")}`);
 
-  // 2. Resolve APNs (Tier-1 direct folio against Parcel) + report join-rate.
+  // 2. Resolve APNs (Tier-1 direct folio + Tier-2 unique-address) + join-rate.
   const { resolved, stats } = await resolveApns(rows);
-  const joinPct = stats.total ? ((100 * stats.directFolio) / stats.total).toFixed(1) : "0.0";
+  const linked = stats.directFolio + stats.uniqueAddress;
+  const joinPct = stats.total ? ((100 * linked) / stats.total).toFixed(1) : "0.0";
   console.log(
-    `[ingest-code] APN join-rate (direct-folio): ${stats.directFolio}/${stats.total} = ${joinPct}% ` +
-      `· unresolved: ${stats.none}`,
+    `[ingest-code] APN join-rate: ${linked}/${stats.total} = ${joinPct}% ` +
+      `(direct-folio ${stats.directFolio} · unique-address ${stats.uniqueAddress}) · unresolved: ${stats.none}`,
   );
 
-  // 3. Persist (guarded) — skipped entirely on --dry-run.
+  // 3. Persist (typed upsert) — skipped entirely on --dry-run.
   if (opts.dryRun) {
-    const exists = await tableExists("CodeViolation");
     console.log(
-      `[ingest-code] DRY-RUN — no writes. CodeViolation table ${exists ? "EXISTS" : "NOT pushed yet"}. ` +
-        `Would upsert ${resolved.length} rows (${stats.directFolio} parcel-linked).`,
+      `[ingest-code] DRY-RUN — no writes. ` +
+        `Would upsert ${resolved.length} rows (${linked} parcel-linked).`,
     );
   } else {
     const pstats = await persistViolations(resolved);
-    if (pstats.skippedNoTable) {
-      console.log(
-        `[ingest-code] persist SKIPPED — CodeViolation table not pushed yet. ` +
-          `Push prisma/schema.patch.code.prisma then re-run.`,
-      );
-    } else {
-      console.log(`[ingest-code] persisted ${pstats.written}/${pstats.attempted} rows (upsert).`);
-    }
+    console.log(`[ingest-code] persisted ${pstats.written}/${pstats.attempted} rows (upsert).`);
   }
 
   await prisma.$disconnect();
