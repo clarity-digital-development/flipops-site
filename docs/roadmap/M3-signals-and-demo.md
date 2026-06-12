@@ -83,7 +83,7 @@ sheet. Demote Buyers to a tab (wholesalers/hybrid still need it). DELETE the Cam
 ---
 
 ### M3.6 — NextAuth migration steps 5-6 (completion)
-**Status:** TODO · **Effort:** 2-3 days · **Deps:** M2.5 running stable ≥1 week
+**Status:** DONE (2026-06-12 — Clerk fully removed; auth is 100% Auth.js/NextAuth v5 Credentials. Two-phase expand-contract: (P1, `c07f2dd`) replaced client `useUser`→`useSession` (dashboard/tasks) + `ClerkProvider`→`SessionProvider` wrapper, dropped `clerkId` from `requireUser`, deleted the Clerk webhook route + `fix-clerkid`/`sync-clerk-user` scripts + `clerkId` writes (county-scraper/seed-contracts/check-users), removed the 3 `@clerk` deps + `transpilePackages`, env templates → `AUTH_*`. Deployed GREEN + sign-in verified live (`/api/auth/providers` shows the credentials provider at flipops.io, `/sign-in` + `/app` 200). (P2, `3d5f868`) dropped the `User.clerkId` column + index via `db push --accept-data-loss`. Typecheck clean throughout. **One trivial carry-over:** 6 dead `CLERK_*`/`NEXT_PUBLIC_CLERK_*` vars remain on the Railway flipops-site service — the Railway CLI has no var-delete, so this is a ~30s dashboard cleanup; they are functionally inert (no deployed code reads them). worker-bullmq had none.) · **Effort:** 2-3 days · **Deps:** M2.5 running stable ≥1 week
 **What/How:** backfill User auth fields; drop `clerkId` via `prisma db push`; delete
 webhooks/clerk route, Clerk scripts, and the 3 Clerk package deps; remove Clerk env vars
 from Railway (flipops-site + worker-bullmq) and env.sample.

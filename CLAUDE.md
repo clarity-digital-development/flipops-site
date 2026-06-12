@@ -20,7 +20,7 @@ flipper-primary persona, competitors = REsimpli + Goliath Data.
 - **Styling**: Tailwind CSS v4 (not v3 - syntax differs)
 - **UI Components**: Radix UI primitives + shadcn/ui patterns
 - **Database**: Prisma ORM with PostgreSQL (Railway) — schema namespace `flipops`
-- **Auth**: Clerk is LIVE today; NextAuth migration is decided but in progress (sequenced across M1/M2/M3 in the roadmap — do not delete Clerk code early). In API routes, `requireUser()` from `lib/auth/require-user.ts` is the ONLY sanctioned auth guard — it wraps Clerk and JIT-provisions the Prisma `User` row (no more "User not found" 404s for valid sessions). Admin routes layer `requireAdmin()` from `lib/auth/require-admin.ts`.
+- **Auth**: Auth.js (NextAuth v5) Credentials provider — email + bcrypt `passwordHash`. Clerk is FULLY REMOVED (M3.6, 2026-06-12: packages, webhook, `clerkId` column, `ClerkProvider` all gone; client uses `useSession` from `next-auth/react` under the `<SessionProvider>` in `app/components/session-provider.tsx`). NO self-serve signup — accounts are created programmatically and passwords issued via `scripts/set-user-password.ts`. In API routes, `requireUser()` from `lib/auth/require-user.ts` is the ONLY sanctioned auth guard — it resolves the Auth.js session and JIT-provisions the Prisma `User` row. Admin routes layer `requireAdmin()` from `lib/auth/require-admin.ts`. Edge-safe base config in `auth.config.ts`; Node provider in `auth.ts`.
 - **Property data**: self-scraped (FL DOR bulk + county scrapers in `lib/scrapers/`) — all third-party data vendors (REAPI/ATTOM/CoreLogic) are dead ends and their integrations have been removed
 - **Automation**: TypeScript cron jobs (lib/cron/) + BullMQ worker for scrapers
 
@@ -97,9 +97,9 @@ finally {
 
 ### Authentication
 
-Routes are protected via Clerk middleware. Check `middleware.ts` for the public route list.
+Routes are protected via Auth.js (NextAuth) middleware (`middleware.ts`, instantiated from the edge-safe `auth.config.ts`). Check `middleware.ts` for the public route list + the admin-gate-before-public-bypass ordering.
 
-For API routes requiring auth, use the canonical guard — do NOT call Clerk's `auth()` directly
+For API routes requiring auth, use the canonical guard — do NOT call Auth.js `auth()` directly
 in routes (centralizing it makes the planned NextAuth swap a 3-file change, and the guard
 JIT-provisions the Prisma `User` row from the Clerk profile):
 ```typescript
@@ -218,7 +218,7 @@ This project uses Tailwind v4, which has different syntax from v3:
 
 Key variables (partial list in `env.sample`; full set lives in `.env.local` / Railway):
 - `DATABASE_URL` - PostgreSQL connection string (Railway; schema namespace `flipops`)
-- `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` / `CLERK_SECRET_KEY` - Clerk auth (live)
+- `AUTH_SECRET` / `AUTH_URL` / `AUTH_TRUST_HOST` - Auth.js (NextAuth v5) — sessions + callback host (Clerk removed M3.6)
 - `FO_API_KEY` or `FLIPOPS_API_KEY` - Internal API authentication (service-key routes)
 - `TELNYX_API_KEY` / `TELNYX_PUBLIC_KEY` / `TELNYX_DEFAULT_SMS_FROM` / `TELNYX_DEFAULT_FROM` / `TELNYX_DEFAULT_RVM_FROM` - Dialer + SMS (Telnyx replaced Campaigns/Twilio plans)
 - `BATCHDATA_API_KEY` - BatchData API for skip tracing ($0.20/record)
