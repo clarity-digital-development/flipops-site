@@ -25,7 +25,7 @@ import { Footer } from '../../components/footer';
 import { SectionPill } from '../../components/section-pill';
 
 const features = [
-  { capability: 'Property Database', data: true, flipops: true, flipopsNote: 'CoreLogic' },
+  { capability: 'Property Database', data: true, flipops: true, flipopsNote: 'Self-scraped FL public records' },
   { capability: 'Distress Scoring', data: 'Basic filters', flipops: true, flipopsNote: 'ML-powered' },
   { capability: 'Behavioral Learning', data: false, flipops: true, flipopsNote: 'Adapts over time' },
   { capability: 'Skip Tracing', data: 'Some/Add-on', flipops: true, flipopsNote: 'Built-in' },

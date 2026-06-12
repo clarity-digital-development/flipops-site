@@ -333,7 +333,9 @@ export default function BuyersPage() {
       // 1.4x / 0.15x fabrication that looked like real data.
       arvEstimate: contract.deal?.arv ?? null,
       repairEstimate: contract.deal?.estimatedRepairCost ?? null,
-      netToSeller: Math.round(contract.purchasePrice * 0.9),
+      // Real seller-side net costs aren't modeled for these assignment listings —
+      // render '—' rather than fabricate a 0.9x-of-price figure (M3.7 integrity fix).
+      netToSeller: null,
       blastSentDate: undefined,
       daysOnMarket,
       viewCount: 0,

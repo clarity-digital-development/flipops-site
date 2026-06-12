@@ -39,7 +39,7 @@ const faqCategories: FAQCategory[] = [
       {
         question: 'Is FlipOps available nationwide?',
         answer:
-          'Yes. Our distress scoring covers all 50 states, powered by CoreLogic\'s 157M+ property database.',
+          'FlipOps currently covers Florida — all 67 counties, ~11M parcels self-scraped from public records. National coverage is on our roadmap, with more states coming.',
       },
     ],
   },
@@ -99,7 +99,7 @@ const faqCategories: FAQCategory[] = [
       {
         question: 'Where does the property data come from?',
         answer:
-          'Our property data is powered by CoreLogic, the industry\'s most comprehensive property database with 157M+ records covering all 50 states.',
+          'Our property data is self-scraped directly from Florida county appraisers, clerks of court, and the Florida Department of Revenue — no third-party data vendor. That\'s ~11M parcels across all 67 Florida counties.',
       },
       {
         question: 'Do you integrate with other tools?',

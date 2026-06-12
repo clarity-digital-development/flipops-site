@@ -305,7 +305,7 @@ export default function ARVCalculatorPage() {
                   <h2 className="text-lg font-semibold text-foreground">Want More?</h2>
                 </div>
                 <p className="text-sm text-muted-foreground leading-relaxed mb-5">
-                  FlipOps pulls real comparable sales from CoreLogic&apos;s database and calculates ARV
+                  FlipOps pulls real comparable sales from Florida county recorded-sales data and calculates ARV
                   automatically &mdash; with adjustments for condition, proximity, and recency baked in.
                 </p>
                 <Link href="/features/mao-calculator" className="text-sm font-medium text-blue-500 hover:text-blue-400 inline-flex items-center gap-1">
@@ -323,7 +323,7 @@ export default function ARVCalculatorPage() {
               Get real comps, not guesswork.
             </h2>
             <p className="text-muted-foreground mb-8">
-              FlipOps connects to CoreLogic&apos;s national MLS database to surface true comparable sales &mdash;
+              FlipOps surfaces true comparable sales from Florida county recorded-sales records &mdash;
               with automatic adjustments and confidence scoring.
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">

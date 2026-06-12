@@ -5,9 +5,9 @@ import { motion } from 'framer-motion';
 import { Database, Shield, Zap } from 'lucide-react';
 
 const trustItems = [
-  { icon: Database, text: '157M+ property database' },
+  { icon: Database, text: '11M+ Florida parcels' },
   { icon: Shield, text: 'Built by an active real estate investor' },
-  { icon: Zap, text: 'Real-time distress scoring across all 50 states' },
+  { icon: Zap, text: 'Real-time distress scoring across Florida' },
 ];
 
 /* ------------------------------------------------------------------ */

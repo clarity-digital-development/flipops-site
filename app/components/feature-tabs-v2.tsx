@@ -725,7 +725,7 @@ export function FeatureTabsV2() {
                     Distress Scoring & Lead Discovery
                   </h3>
                   <p className="text-gray-500 dark:text-gray-400 mb-6 text-sm">
-                    Score 157M+ properties across 15+ distress signals. Auto-trigger skip tracing at threshold scores.
+                    Score 11M+ Florida parcels across 15+ distress signals. Auto-trigger skip tracing at threshold scores.
                   </p>
                   <ul className="space-y-4 mb-6">
                     <li className="flex items-start gap-3">

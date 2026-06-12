@@ -157,7 +157,7 @@ export default function DemoPage() {
             </h1>
             <p className="text-lg lg:text-xl text-gray-600 dark:text-gray-400 max-w-2xl mx-auto text-center">
               Walk through the full platform — from lead scoring to property
-              management. Powered by CoreLogic data.
+              management. Built on self-scraped Florida public records.
             </p>
           </div>
         </section>

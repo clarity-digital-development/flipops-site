@@ -88,8 +88,8 @@ export const processSteps = [
 
 export const metrics = [
   {
-    value: "157M+",
-    label: "properties in national database"
+    value: "11M+",
+    label: "Florida parcels self-scraped"
   },
   {
     value: "15+",

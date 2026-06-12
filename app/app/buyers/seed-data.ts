@@ -77,7 +77,7 @@ export interface DispoListing {
   // instead of fabricated estimates.
   arvEstimate: number | null;
   repairEstimate: number | null;
-  netToSeller: number;
+  netToSeller: number | null;
   blastSentDate?: string;
   daysOnMarket: number;
   viewCount: number;
