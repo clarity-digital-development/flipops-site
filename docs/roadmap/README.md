@@ -53,10 +53,10 @@
 |---|---|---|---|---|
 | **M1** — `M1-foundations.md` | Stop the bleeding, ship the receipts | 9 | 9 | 0 — COMPLETE |
 | **M2** — `M2-coverage-and-intelligence.md` | Coverage multiplier + first model | 7 | 6 | 1 (M2.7 OPS-7) |
-| **M3** — `M3-signals-and-demo.md` | New signals, AVM, investor demo | 7 | 0 | 0 |
+| **M3** — `M3-signals-and-demo.md` | New signals, AVM, investor demo | 7 | 3 | 1 (M3.1 probate, OPS-8-gated) |
 | **OPS** — `OPERATIONS.md` | Provisioning, credentials, carry-overs | rolling | — | — |
 
-**Active month: M1.** Done: M1.1 (label pipeline — anonymous events + transactional outcomes
+**Active month: M3.** (M1 + M2 complete; M3 mid-flight.) Done: M1.1 (label pipeline — anonymous events + transactional outcomes
 + repliedAt stamping + events-health stat), M1.2 (real comps), M1.5 (cleanup + scorer
 extraction), M1.6 (requireUser sweep + JIT provisioning), M1.7 (Data Health page), M1.9
 (CLAUDE.md fix). Remaining PARTIAL work: M1.3 + M1.8 (statewide geocode and owner-occupancy
@@ -69,6 +69,7 @@ prod — fixes are code-complete).
 
 > Append-only. Newest first. Every pivot gets one line: date · what changed · why · affected items.
 
+- **2026-06-12 (M3 Wave D1+D2)** — M3.4 (Signals Timeline + auction calendar) LIVE; M3.3 AVM v1 PROMOTED + applied (1.5M ParcelValuation, underwriting ARV-prior, ZIP-aware MAO); M3.2 code-enforcement DONE (10,871 violations, CONDITION_FAMILY scored); M3.1 probate adapter + scorer v2.3 (PROBATE_OPEN/PR_APPOINTED) built, OPS-8-gated for data. D2 workflow died on a session limit mid-run; recovered + finished. Scorer now scores every summary family (tax/auction/code/probate).
 - **2026-06-11 (M2 Wave C)** — M2.1 DONE: record families across all big-6. Hillsborough 0-scrape bulk-file win (1,924 rows). +5 counties by config alone (platform-reuse proven). 10.4K Mortgage/Lien rows live across 5 counties. Captcha/SPA blockers (Miami-Dade v3, OnCore Tyler-SPA, Landmark v2) adapter-ready, gated. M2 now 6/7 — only M2.7 (DOR email) open. M3 next.
 - **2026-06-11 (M2 Wave B)** — FIRST LEARNED MODEL PROMOTED: propensity-v1 AUC 0.8281 vs 0.5155 baseline, 45,983 parcels scored live. Acclaim adapter live (2.5K mortgages + 4.4K liens, Duval+Broward). NextAuth swap complete (Clerk serverside dead). RealAuction date-pinning bug confirmed: 394 rows corrected + per-(county,date) cookie fix. Landmark captcha-blocked (OPS-8 decision).
 - **2026-06-10 (M2 Wave A)** — Civitek pivot: MyFloridaCounty ORI portal is DEAD; M2.1 retargeted to Acclaim+Landmark vendor families (small-county reuse confirmed live: Levy≡PB platform). M2.2 tax-deed DONE (29 counties, live rows). M2.7 blocked on DOR email (OPS-7, user action). RealAuction cookie-date-pinning landmine found — prod foreclosure date attribution needs verification.

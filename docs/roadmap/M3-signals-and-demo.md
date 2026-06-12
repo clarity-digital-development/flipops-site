@@ -8,7 +8,7 @@
 ---
 
 ### M3.1 — B1: Probate scrapers, top-6 metro clerks
-**Status:** TODO · **Effort:** 1-2 weeks · **Deps:** M2.1 clerk-platform experience helps
+**Status:** PARTIAL (2026-06-12 — P-MVC adapter (Orange/Pinellas/Broward) + decedent→owner fuzzy join + ProbateSummary mart (rescore-probate.ts) + scorer v2.3 LIFE_EVENT signals PROBATE_OPEN 22 / PROBATE_PR_APPOINTED 28-32 (hydrated at promote) all built + tested. reCAPTCHA-gated → registry self-activates with OPS-8 key; 0 live rows until key lands. Miami-Dade SPA + Duval/Hillsborough walled per spec.) · **Effort:** 1-2 weeks · **Deps:** M2.1 clerk-platform experience helps
 **Why:** THE gold-standard motivated-seller lead type — heirs are non-occupant and emotionally
 done. The INHERITED/DEATH_TRANSFER signals exist in the scorer and have NEVER seen real data.
 Goliath charges +$600/mo for probate lists; we ship it in core at ~$0 COGS.
@@ -26,7 +26,7 @@ Goliath charges +$600/mo for probate lists; we ship it in core at ~$0 COGS.
 ---
 
 ### M3.2 — B3: Code-enforcement violations (open-data first)
-**Status:** TODO · **Effort:** ~1 week · **Deps:** M2.2's CONDITION_FAMILY scaffolding
+**Status:** DONE (2026-06-12 — Miami-Dade ArcGIS 8,482 open violations @ 99.7% folio join + Orlando Socrata 2,403 LIVE; 10,871 CodeViolation + 3,751 CodeViolationSummary; CONDITION_FAMILY scorer wired (verified parcel 0→26). Jacksonville → Phase-2 Accela. Orlando addr-resolver still a TODO.) · **Effort:** ~1 week · **Deps:** M2.2's CONDITION_FAMILY scaffolding
 **What/How:**
 1. Phase 1 (100% green): Jacksonville + Miami-Dade + Orlando publish violation feeds as
    open data (Socrata/ArcGIS bulk) — F1-style ingest, zero scrape risk.
@@ -40,7 +40,7 @@ Goliath charges +$600/mo for probate lists; we ship it in core at ~$0 COGS.
 ---
 
 ### M3.3 — AVM v1 + ParcelValuation
-**Status:** TODO · **Effort:** 1-2 weeks · **Deps:** M1.3, M2.3, ideally M2.7 (sale depth)
+**Status:** DONE (2026-06-12 — avm-v1 PROMOTED (9.72% APE vs 11.36% baseline) applied → 1,508,390 ParcelValuation rows; underwriting ARV-prior card (range + provenance + divergence flag); ZIP liquidity → MAO holding defaults. Broward ~92% (top-up runnable); deepens with OPS-7 SDF history.) · **Effort:** 1-2 weeks · **Deps:** M1.3, M2.3, ideally M2.7 (sale depth)
 **What/How:**
 1. LightGBM on log(price) over arms-length ParcelSale joins: sqft, lot, age, beds/baths when
    present, ZIP aggregates, distance-weighted neighborhood comps, sale-date seasonality.
@@ -57,7 +57,7 @@ confidence range; MAO holding costs are ZIP-aware.
 ---
 
 ### M3.4 — Property Signals Timeline + auction calendar
-**Status:** TODO · **Effort:** ~1 week · **Deps:** none (data all exists)
+**Status:** DONE (2026-06-11 — both shipped live; timeline demo gate passed, 3 event types on a real parcel; calendar shows real upcoming sales across 10 counties.) · **Effort:** ~1 week · **Deps:** none (data all exists)
 **Why:** "Sold 2019 $180K → tax delinquent 2024 → lis pendens Mar 2026 → auction Jul 8" is
 the single most persuasive screen the data can produce.
 **What/How:**
