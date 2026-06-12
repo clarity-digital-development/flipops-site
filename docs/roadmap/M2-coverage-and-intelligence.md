@@ -125,7 +125,7 @@ on a platform that buys no ads).
 ---
 
 ### M2.7 — SDF sale-history backfill (2009-2023) + Dixie County fix
-**Status:** PARTIAL-BLOCKED (2026-06-10 — Dixie FIXED (filename double-dot regex, 3,402 rows); 2025F statewide refresh ran; multi-vintage runner ready. 2009-2023 BLOCKED on OPS-7: vintages are free-by-email from DOR (PTOTechnology@floridarevenue.com) — USER ACTION.) · **Effort:** 2-3 days (mostly runtime) · **Deps:** none
+**Status:** DONE (2026-06-12 — OPS-7 fulfilled: DOR delivered the 15 Final SDF vintages 2010F-2024F (all 67 counties) into a per-request SharePoint dropbox. `scripts/fl-dor-sdf-fetch-request.ts` staged them (statewide-per-vintage zips → 1,005 per-county CSVs in the backfill drop layout); `scripts/fl-dor-sdf-backfill.ts` ingested all of it: **1,004 county-vintages, 0 failed, 187 min**. Overlap-cap tiled each vintage to exactly its year (no double-writes). **`ParcelSale`: 1.98M → 18,748,379 rows, span now 2009-01 → 2026-02** (~10x deeper comps universe). Closes the 2009+ depth promise; feeds `/api/comps` + AVM training. Commit `5876cbf` (tooling).) · **Effort:** 2-3 days (mostly runtime) · **Deps:** none
 **Why:** ParcelSale spans only 2024-01→2026-02; the plan promised 2009+. Sale-history depth
 directly feeds AVM quality (M3.3) and time-on-market features. Dixie (12029) has zero rows.
 **What/How:** prior-vintage FL DOR SDF files (same ingester, older vintages); investigate the
