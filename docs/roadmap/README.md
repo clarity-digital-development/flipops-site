@@ -53,7 +53,7 @@
 |---|---|---|---|---|
 | **M1** — `M1-foundations.md` | Stop the bleeding, ship the receipts | 9 | 9 | 0 — COMPLETE |
 | **M2** — `M2-coverage-and-intelligence.md` | Coverage multiplier + first model | 7 | 6 | 1 (M2.7 OPS-7) |
-| **M3** — `M3-signals-and-demo.md` | New signals, AVM, investor demo | 7 | 3 | 1 (M3.1 probate, OPS-8-gated) |
+| **M3** — `M3-signals-and-demo.md` | New signals, AVM, investor demo | 7 | 4 | 1 (M3.1 probate, OPS-8-gated) |
 | **OPS** — `OPERATIONS.md` | Provisioning, credentials, carry-overs | rolling | — | — |
 
 **Active month: M3.** (M1 + M2 complete; M3 mid-flight.) Done: M1.1 (label pipeline — anonymous events + transactional outcomes
@@ -69,6 +69,7 @@ prod — fixes are code-complete).
 
 > Append-only. Newest first. Every pivot gets one line: date · what changed · why · affected items.
 
+- **2026-06-12 (M3.5 Disposition pivot)** — Buyers surface rebuilt as a flipper-PRIMARY **Disposition** workspace: new schema-backed `DispositionListing` model + `/api/disposition` CRUD + `disposition-panel.tsx` (ready-to-list from completed renos, status pipeline, prep checklist, agent handoff, list-vs-ARV via the M3.3 AVM, sale-side net sheet). Nav `Buyers`→`Disposition` (now flipper-visible); persona-aware default tab. **The broken Blast Campaigns tab + its `/api/campaigns` 404 path are deleted** (mass-blast = Dialer + `/api/buyer-blasts`). M3 now 4/7. Built via a 3-lane Workflow (lib/API/UI to a fixed contract) + adversarial code-review pass (caught a payoffAmount-null UI bug, fixed at the API source). Route slug stays `/app/buyers` (trivial later rename). Next non-gated: M3.6 (Clerk removal), M3.7 (investor package).
 - **2026-06-12 (M3 Wave D1+D2)** — M3.4 (Signals Timeline + auction calendar) LIVE; M3.3 AVM v1 PROMOTED + applied (1.5M ParcelValuation, underwriting ARV-prior, ZIP-aware MAO); M3.2 code-enforcement DONE (10,871 violations, CONDITION_FAMILY scored); M3.1 probate adapter + scorer v2.3 (PROBATE_OPEN/PR_APPOINTED) built, OPS-8-gated for data. D2 workflow died on a session limit mid-run; recovered + finished. Scorer now scores every summary family (tax/auction/code/probate).
 - **2026-06-11 (M2 Wave C)** — M2.1 DONE: record families across all big-6. Hillsborough 0-scrape bulk-file win (1,924 rows). +5 counties by config alone (platform-reuse proven). 10.4K Mortgage/Lien rows live across 5 counties. Captcha/SPA blockers (Miami-Dade v3, OnCore Tyler-SPA, Landmark v2) adapter-ready, gated. M2 now 6/7 — only M2.7 (DOR email) open. M3 next.
 - **2026-06-11 (M2 Wave B)** — FIRST LEARNED MODEL PROMOTED: propensity-v1 AUC 0.8281 vs 0.5155 baseline, 45,983 parcels scored live. Acclaim adapter live (2.5K mortgages + 4.4K liens, Duval+Broward). NextAuth swap complete (Clerk serverside dead). RealAuction date-pinning bug confirmed: 394 rows corrected + per-(county,date) cookie fix. Landmark captcha-blocked (OPS-8 decision).

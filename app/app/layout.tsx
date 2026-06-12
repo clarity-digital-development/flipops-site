@@ -11,7 +11,7 @@ import {
   MessageSquare,
   Phone,
   Calculator,
-  UserCheck,
+  Tag,
   CheckSquare,
   Briefcase,
   FileText,
@@ -90,7 +90,7 @@ const baseSidebar: SidebarEntry[] = [
     children: [
       { name: "Offers", href: "/app/offers", icon: FileText },
       { name: "Contracts", href: "/app/contracts", icon: FileSignature },
-      { name: "Buyers", href: "/app/buyers", icon: UserCheck, visibleTo: NAVIGATION_RULES['Buyers'] },
+      { name: "Disposition", href: "/app/buyers", icon: Tag, visibleTo: NAVIGATION_RULES['Disposition'] },
     ],
   },
   {

@@ -148,6 +148,13 @@ export const NAVIGATION_RULES: Record<string, InvestorType[] | undefined> = {
   'Settings': undefined,
 
   // Investor-type-specific features
+  // M3.5 — "Disposition" replaced the wholesaler-only "Buyers" surface as a
+  // flipper-PRIMARY sell-side workspace (listing prep, agent handoff,
+  // list-vs-ARV, sale-side net sheet) with the cash-buyer network demoted to a
+  // tab. Sellers of every kind see it: flippers (sell post-rehab), wholesalers
+  // (assign), and hybrids. Buy-and-hold holds — it uses Rentals instead. The
+  // legacy 'Buyers' key is retained (harmless) in case anything still reads it.
+  'Disposition': ['wholesaler', 'flipper', 'hybrid'],
   'Buyers': ['wholesaler', 'hybrid'],
   'Renovations': ['flipper', 'hybrid'],
   'Rentals': ['buy_and_hold', 'hybrid'],

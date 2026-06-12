@@ -78,6 +78,7 @@ model User {
   rentals         Rental[]
   buyerOffers     BuyerOffer[]
   campaigns       Campaign[]
+  dispositionListings DispositionListing[]      // M3.5 flipper sale workflow
 
   // New Vendor Network System relations
   userVendors           UserVendor[]              // User's private vendors
@@ -130,6 +131,7 @@ model DealSpec {
   budgetLedger    BudgetLedger?
   tasks           Task[]
   vendorJobs      VendorJob[] // Jobs assigned to vendors for this renovation
+  dispositionListings DispositionListing[] // M3.5 — listings fed from a completed renovation
 
   @@index([userId])
   @@index([propertyId])
@@ -430,6 +432,7 @@ model Property {
   contracts        Contract[]
   renovations      DealSpec[]     // Renovation projects for this property
   rentals          Rental[]       // Rental properties
+  dispositionListings DispositionListing[] // M3.5 — flipper sale workflow
   dataPoints       PropertyDataPoint[] // Per-field scraped/API provenance
 
   @@unique([userId, address, city, state, zip])
@@ -595,11 +598,72 @@ model Contract {
   rental          Rental?             // Rental property for this contract (buy-and-hold)
   buyerOffers     BuyerOffer[]        // Offers from buyers on this contract
   campaigns       Campaign[]          // Marketing campaigns for this contract
+  dispositionListings DispositionListing[] // M3.5 — sale-side listing(s) for this deal
 
   @@index([userId, status])
   @@index([propertyId])
   @@index([status])
   @@index([createdAt])
+}
+
+// M3.5 — Disposition (flipper-primary sale workflow). One row per
+// (userId, propertyId): a property that has finished acquisition/rehab and is
+// being taken to sale. Seeded from a completed renovation (DealSpec) and/or its
+// purchase Contract, then tracked prep → listed → pending → sold.
+//
+// List-vs-ARV uses ParcelValuation (the M3.3 AVM), joined by value on the
+// property's countyFips+apn at read time. arvAtList snapshots that AVM when the
+// listing is created so the variance badge stays stable as the model recomputes.
+// The sale-side net sheet (commission/closing/payoff → net proceeds) is computed
+// client-side from the stored assumptions via lib/disposition/net-sheet.ts.
+model DispositionListing {
+  id              String    @id @default(cuid())
+  userId          String    // Multi-tenant owner
+  propertyId      String    // The asset being sold
+  contractId      String?   // Purchase contract (basis for payoff / net sheet)
+  dealSpecId      String?   // The completed renovation that fed this listing
+
+  // Lifecycle: "prepping", "listed", "pending", "sold", "cancelled"
+  status          String    @default("prepping")
+
+  // Listing-agent handoff (flippers sell on MLS via an agent)
+  listAgentName       String?
+  listAgentBrokerage  String?
+  listAgentPhone      String?
+  listAgentEmail      String?
+
+  // Pricing / market
+  listPrice       Float?
+  listedAt        DateTime?
+  arvAtList       Float?    // AVM snapshot captured at create/list time
+
+  // Sale-side net-sheet assumptions
+  commissionPct   Float     @default(6)    // total agent commission, % of sale price
+  closingCostPct  Float     @default(1.5)  // seller closing costs, % of sale price
+  payoffAmount    Float?    @default(0)     // loan payoff + basis to net against
+
+  // Outcome
+  soldPrice       Float?
+  soldAt          DateTime?
+
+  // Listing-prep checklist — JSON array of { key, label, done }
+  prepChecklist   String?
+
+  notes           String?
+
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  property        Property  @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  contract        Contract? @relation(fields: [contractId], references: [id], onDelete: SetNull)
+  dealSpec        DealSpec? @relation(fields: [dealSpecId], references: [id], onDelete: SetNull)
+
+  @@unique([userId, propertyId])
+  @@index([userId, status])
+  @@index([propertyId])
+  @@index([dealSpecId])
+  @@index([status])
 }
 
 // Buyer database for wholesalers

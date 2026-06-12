@@ -71,7 +71,7 @@ the single most persuasive screen the data can produce.
 ---
 
 ### M3.5 — Buyers → Disposition pivot
-**Status:** TODO · **Effort:** ~1 week · **Deps:** none
+**Status:** DONE (2026-06-12 — schema-backed flipper Disposition surface shipped. New `DispositionListing` model (one per userId+propertyId, sources a completed `DealSpec`/`Contract`) + `/api/disposition` (GET/POST idempotent, AVM snapshot into `arvAtList`, prep-checklist seed), `/api/disposition/candidates` (completed renos with no listing yet), `/api/disposition/[id]` (PATCH/DELETE). New `app/app/buyers/disposition-panel.tsx`: ready-to-list candidates → Create Listing, status pipeline prepping→listed→pending→sold, persisted prep checklist, inline agent handoff, list-price-vs-ARV variance badge (pulls the M3.3 `ParcelValuation` AVM), and a sale-side net sheet (`lib/disposition/net-sheet.ts`, 11/11 unit tests). Nav `Buyers`→`Disposition` (now visible to flipper too, not just wholesaler/hybrid); persona-aware default tab (flipper→Disposition, wholesaler→Buyers). **Blast Campaigns tab + the `/api/campaigns` 404 path DELETED** (mass-blast lives in the Dialer + `/api/buyer-blasts`). Route slug stays `/app/buyers` for now — trivial later rename.) · **Effort:** ~1 week · **Deps:** none
 **Why:** Flippers sell on MLS via agents — the Buyers page is a wholesaler artifact; its
 Campaigns tab POSTs to a nonexistent endpoint and 404s.
 **What/How:** Rename surface to **Disposition**, flipper-primary: listing prep (fed from

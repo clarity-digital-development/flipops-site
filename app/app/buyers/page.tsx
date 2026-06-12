@@ -2,7 +2,7 @@
 "use client";
 export const dynamic = 'force-dynamic';
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   Search,
   Filter,
@@ -38,7 +38,8 @@ import {
   Sparkles,
   HandshakeIcon,
   LayoutGrid,
-  List
+  List,
+  Tag
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -56,6 +57,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { type Buyer, type BuyerPerformance, type BuyBox, type BuyerDocument, type DispoListing, buyersSeedData } from "./seed-data";
+import DispositionPanel from "./disposition-panel";
 import { exportToCSV, generateFilename, formatCurrencyForCSV, formatBooleanForCSV } from "@/lib/csv-export";
 import { EmptyState } from "@/components/ui/empty-state";
 import {
@@ -255,6 +257,11 @@ function StatChip({
 export default function BuyersPage() {
   const [mounted, setMounted] = useState(false);
   const [activeTab, setActiveTab] = useState("overview");
+  // M3.5 — persona-aware default tab. Flippers land on Disposition (their
+  // sell-side workflow), wholesalers on Buyers (their cash-buyer network);
+  // hybrid / buy-and-hold keep the Overview. Applied once, after the user's
+  // investorType loads, and only if the user hasn't already switched tabs.
+  const personaTabApplied = useRef(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedBuyer, setSelectedBuyer] = useState<string | null>(null);
   const [showMatchingDemo, setShowMatchingDemo] = useState(false);
@@ -303,39 +310,10 @@ export default function BuyersPage() {
   }>>([]);
   const [matchingLoading, setMatchingLoading] = useState(false);
 
-  // Campaigns state
-  const [apiCampaigns, setApiCampaigns] = useState<Array<{
-    id: string;
-    name: string;
-    subject: string | null;
-    message: string;
-    method: string;
-    buyerIds: string[];
-    recipientCount: number;
-    status: string;
-    sentAt: string | null;
-    openCount: number;
-    clickCount: number;
-    replyCount: number;
-    offerCount: number;
-    createdAt: string;
-    contract: {
-      id: string;
-      property: { id: string; address: string; city: string; state: string; };
-    } | null;
-  }>>([]);
-  const [campaignsLoading, setCampaignsLoading] = useState(true);
-  const [savingCampaign, setSavingCampaign] = useState(false);
-
-  // Campaign form state
-  const [campaignForm, setCampaignForm] = useState({
-    contractId: "",
-    audience: "all",
-    subject: "",
-    message: "",
-    sendEmail: true,
-    sendSms: false,
-  });
+  // M3.5 — the "Blast Campaigns" tab was removed. It POSTed to a nonexistent
+  // /api/campaigns endpoint (always 404'd) and mass-buyer-blast outreach now
+  // lives in the Dialer (Telnyx) + /api/buyer-blasts. The flipper-primary
+  // Disposition tab (components in ./disposition-panel) replaced it.
 
   // Transform contracts to DispoListing format for UI compatibility
   const listings: DispoListing[] = apiContracts.map(contract => {
@@ -444,9 +422,30 @@ export default function BuyersPage() {
       fetchBuyersOnMount();
       fetchContractsOnMount();
       fetchBuyerOffersOnMount();
-      fetchCampaignsOnMount();
+      applyPersonaDefaultTab();
     }
   }, [mounted]);
+
+  // Set the initial tab from the user's investor persona (M3.5). Fire-and-forget;
+  // failures silently leave the default Overview tab.
+  const applyPersonaDefaultTab = async () => {
+    try {
+      const res = await fetch('/api/user/profile');
+      if (!res.ok) return;
+      const data = await res.json();
+      const investorType: string | undefined = data?.user?.investorType ?? undefined;
+      if (personaTabApplied.current) return;
+      personaTabApplied.current = true;
+      if (investorType === 'flipper') {
+        setActiveTab('disposition');
+      } else if (investorType === 'wholesaler') {
+        setActiveTab('buyers');
+      }
+      // hybrid / buy_and_hold / unset → keep Overview.
+    } catch {
+      // non-fatal — Overview stays the default.
+    }
+  };
 
   const fetchBuyersOnMount = async () => {
     try {
@@ -504,25 +503,6 @@ export default function BuyersPage() {
       setApiBuyerOffers([]);
     } finally {
       setOffersLoading(false);
-    }
-  };
-
-  const fetchCampaignsOnMount = async () => {
-    try {
-      setCampaignsLoading(true);
-      const response = await fetch('/api/campaigns');
-      if (response.ok) {
-        const data = await response.json();
-        setApiCampaigns(data.campaigns || []);
-      } else {
-        console.warn('Failed to fetch campaigns');
-        setApiCampaigns([]);
-      }
-    } catch (error) {
-      console.error('Error fetching campaigns:', error);
-      setApiCampaigns([]);
-    } finally {
-      setCampaignsLoading(false);
     }
   };
 
@@ -651,79 +631,6 @@ export default function BuyersPage() {
       toast.error('Error running smart matching');
     } finally {
       setMatchingLoading(false);
-    }
-  };
-
-  // Handle Create Campaign
-  const handleCreateCampaign = async () => {
-    if (!campaignForm.contractId) {
-      toast.error("Please select a listing");
-      return;
-    }
-    if (!campaignForm.subject.trim()) {
-      toast.error("Subject is required");
-      return;
-    }
-    if (!campaignForm.message.trim()) {
-      toast.error("Message is required");
-      return;
-    }
-
-    try {
-      setSavingCampaign(true);
-
-      // Get buyer IDs based on audience selection
-      let buyerIds: string[] = [];
-      if (campaignForm.audience === "all") {
-        buyerIds = apiBuyers.map(b => b.id);
-      } else if (campaignForm.audience === "vip") {
-        buyerIds = apiBuyers.filter(b => b.reliability === "reliable").map(b => b.id);
-      } else if (campaignForm.audience === "matched") {
-        // Use smart matches if available
-        buyerIds = smartMatches.map(m => m.buyerId);
-      }
-
-      // Determine method
-      let method = "email";
-      if (campaignForm.sendEmail && campaignForm.sendSms) {
-        method = "both";
-      } else if (campaignForm.sendSms) {
-        method = "sms";
-      }
-
-      const response = await fetch('/api/campaigns', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: campaignForm.subject,
-          contractId: campaignForm.contractId,
-          subject: campaignForm.subject,
-          message: campaignForm.message,
-          method,
-          buyerIds,
-        }),
-      });
-
-      if (response.ok) {
-        toast.success('Campaign created successfully');
-        setCampaignForm({
-          contractId: "",
-          audience: "all",
-          subject: "",
-          message: "",
-          sendEmail: true,
-          sendSms: true,
-        });
-        fetchCampaignsOnMount();
-      } else {
-        const error = await response.json();
-        toast.error(error.error || 'Failed to create campaign');
-      }
-    } catch (error) {
-      console.error('Error creating campaign:', error);
-      toast.error('Error creating campaign');
-    } finally {
-      setSavingCampaign(false);
     }
   };
 
@@ -1132,8 +1039,8 @@ export default function BuyersPage() {
         <div className="bg-white dark:bg-card border-b border-gray-200 dark:border-border p-4">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Buyers & Disposition</h1>
-              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Manage your buyer network and match deals</p>
+              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Disposition</h1>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">List, hand off, and track your deals to sale — plus your cash-buyer network</p>
             </div>
             <div className="flex gap-2">
               <Button variant="outline" size="sm" onClick={() => setShowImportDialog(true)}>
@@ -1195,11 +1102,15 @@ export default function BuyersPage() {
         </div>
 
         {/* Tabs */}
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
+        <Tabs value={activeTab} onValueChange={(v) => { personaTabApplied.current = true; setActiveTab(v); }} className="flex-1 flex flex-col">
           <TabsList className="w-full justify-start rounded-none border-b border-gray-200 dark:border-border bg-gray-50 dark:bg-black px-4 h-10">
             <TabsTrigger value="overview" className="gap-2">
               <BarChart3 className="h-4 w-4" />
               Overview
+            </TabsTrigger>
+            <TabsTrigger value="disposition" className="gap-2">
+              <Tag className="h-4 w-4" />
+              Disposition
             </TabsTrigger>
             <TabsTrigger value="buyers" className="gap-2">
               <Users className="h-4 w-4" />
@@ -1212,10 +1123,6 @@ export default function BuyersPage() {
             <TabsTrigger value="matching" className="gap-2">
               <BrainCircuit className="h-4 w-4" />
               Smart Matching
-            </TabsTrigger>
-            <TabsTrigger value="campaigns" className="gap-2">
-              <Send className="h-4 w-4" />
-              Blast Campaigns
             </TabsTrigger>
             <TabsTrigger value="offers" className="gap-2">
               <HandshakeIcon className="h-4 w-4" />
@@ -1438,6 +1345,14 @@ export default function BuyersPage() {
                   )}
                 </div>
                 )}
+              </TabsContent>
+
+              {/* Disposition Tab (M3.5) — flipper-primary sell-side workflow:
+                  list prep from completed renovations, agent handoff,
+                  list-price-vs-ARV (AVM), and the sale-side net sheet.
+                  Self-contained: DispositionPanel fetches /api/disposition. */}
+              <TabsContent value="disposition" className="mt-0">
+                <DispositionPanel />
               </TabsContent>
 
               {/* Buyers Tab */}
@@ -2192,8 +2107,8 @@ export default function BuyersPage() {
                                             // assignment dialog with this
                                             // buyer pre-selected against the
                                             // currently-selected listing.
-                                            // (Mass-blast goes through the
-                                            // Blast Campaigns tab + the new
+                                            // (Mass-blast outreach now goes
+                                            // through the Dialer + the
                                             // /api/buyer-blasts pipe.)
                                             if (!selectedListing) {
                                               toast.error("No listing selected");
@@ -2239,217 +2154,6 @@ export default function BuyersPage() {
                 </div>
               </TabsContent>
 
-              {/* Campaigns Tab */}
-              <TabsContent value="campaigns" className="mt-0">
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  {/* Campaign Builder */}
-                  <Card className="h-fit">
-                    <CardHeader>
-                      <CardTitle>Create Blast Campaign</CardTitle>
-                      <CardDescription>Send your listing to multiple buyers</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-6">
-                        <div className="grid grid-cols-2 gap-4">
-                          <div className="space-y-2">
-                            <Label>Select Listing</Label>
-                            <Select
-                              value={campaignForm.contractId}
-                              onValueChange={(value) => setCampaignForm({...campaignForm, contractId: value})}
-                            >
-                              <SelectTrigger>
-                                <SelectValue placeholder="Choose a listing" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {listings.map(listing => (
-                                  <SelectItem key={listing.id} value={listing.id}>
-                                    {listing.address.split(',')[0]}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </div>
-                          <div className="space-y-2">
-                            <Label>Audience</Label>
-                            <Select
-                              value={campaignForm.audience}
-                              onValueChange={(value) => setCampaignForm({...campaignForm, audience: value})}
-                            >
-                              <SelectTrigger>
-                                <SelectValue placeholder="Select audience" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="matched">
-                                  AI Matched Buyers ({smartMatches.length})
-                                </SelectItem>
-                                <SelectItem value="vip">
-                                  VIP Buyers ({apiBuyers.filter(b => b.reliability === 'reliable').length})
-                                </SelectItem>
-                                <SelectItem value="all">
-                                  All Buyers ({apiBuyers.length})
-                                </SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </div>
-                        </div>
-
-                        <div className="space-y-2">
-                          <Label>Subject</Label>
-                          <Input
-                            placeholder="e.g., HOT DEAL: 3/2 in Riverside - 65% ARV"
-                            value={campaignForm.subject}
-                            onChange={(e) => setCampaignForm({...campaignForm, subject: e.target.value})}
-                          />
-                        </div>
-
-                        <div className="space-y-2">
-                          <Label>Message</Label>
-                          <textarea
-                            className="w-full h-32 px-3 py-2 border border-gray-200 dark:border-border rounded-md bg-white dark:bg-card text-sm resize-none"
-                            placeholder="Property details and call to action..."
-                            value={campaignForm.message}
-                            onChange={(e) => setCampaignForm({...campaignForm, message: e.target.value})}
-                          />
-                        </div>
-
-                        <div className="space-y-4">
-                          <div className="flex gap-6">
-                            <div className="flex items-center gap-2">
-                              <Checkbox
-                                id="email-campaign"
-                                checked={campaignForm.sendEmail}
-                                onCheckedChange={(checked) => setCampaignForm({...campaignForm, sendEmail: checked === true})}
-                              />
-                              <Label htmlFor="email-campaign" className="cursor-pointer">Email</Label>
-                            </div>
-                            <div className="flex items-center gap-2 opacity-50">
-                              <Checkbox
-                                id="sms-campaign"
-                                checked={false}
-                                disabled={true}
-                              />
-                              <Label htmlFor="sms-campaign" className="cursor-pointer text-gray-400">SMS <span className="text-xs">(Coming Soon)</span></Label>
-                            </div>
-                          </div>
-
-                          <Button
-                            className="w-full"
-                            onClick={handleCreateCampaign}
-                            disabled={savingCampaign}
-                          >
-                            {savingCampaign ? (
-                              <>
-                                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
-                                Creating Campaign...
-                              </>
-                            ) : (
-                              <>
-                                <Send className="h-4 w-4 mr-2" />
-                                Create Campaign
-                              </>
-                            )}
-                          </Button>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-
-                  {/* Recent Campaigns */}
-                  <Card className="h-fit">
-                    <CardHeader>
-                      <CardTitle>Recent Campaigns</CardTitle>
-                      <CardDescription>Track performance of your blast campaigns</CardDescription>
-                    </CardHeader>
-                    <CardContent className="p-0">
-                      {campaignsLoading ? (
-                        <div className="flex items-center justify-center py-12">
-                          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-                          <span className="ml-2 text-muted-foreground">Loading campaigns...</span>
-                        </div>
-                      ) : apiCampaigns.length === 0 ? (
-                        <div className="text-center py-12 px-6">
-                          <Send className="h-12 w-12 mx-auto text-gray-400 mb-2" />
-                          <p className="text-gray-500 dark:text-gray-400">No campaigns yet</p>
-                          <p className="text-sm text-gray-400 dark:text-gray-500">
-                            Create your first blast campaign to reach buyers
-                          </p>
-                        </div>
-                      ) : (
-                        <ScrollArea className="h-[450px]">
-                          <div className="space-y-3 p-6 pt-0">
-                            {apiCampaigns.map(campaign => (
-                              <div key={campaign.id} className="p-4 border border-gray-200 dark:border-border rounded-lg hover:bg-gray-50 dark:hover:bg-muted/50 transition-colors">
-                                <div className="flex items-start justify-between mb-3">
-                                  <div className="min-w-0 flex-1">
-                                    <p className="font-medium text-sm truncate">{campaign.subject || campaign.name}</p>
-                                    <p className="text-xs text-gray-500 truncate">
-                                      {campaign.contract?.property?.address || 'No listing linked'}
-                                    </p>
-                                  </div>
-                                  <div className="flex items-center gap-2 flex-shrink-0">
-                                    <Badge
-                                      variant={campaign.status === 'sent' ? 'default' : 'secondary'}
-                                      className="text-xs"
-                                    >
-                                      {campaign.status}
-                                    </Badge>
-                                    <span className="text-xs text-gray-500">
-                                      {new Date(campaign.sentAt || campaign.createdAt).toLocaleDateString()}
-                                    </span>
-                                  </div>
-                                </div>
-                                <div className="grid grid-cols-5 gap-2 text-xs">
-                                  <div>
-                                    <p className="text-gray-500">Recipients</p>
-                                    <p className="font-semibold">{campaign.recipientCount}</p>
-                                  </div>
-                                  <div>
-                                    <p className="text-gray-500">Opened</p>
-                                    <p className="font-semibold text-green-600 dark:text-green-400">
-                                      {campaign.recipientCount > 0
-                                        ? Math.round(campaign.openCount / campaign.recipientCount * 100)
-                                        : 0}%
-                                    </p>
-                                  </div>
-                                  <div>
-                                    <p className="text-gray-500">Clicked</p>
-                                    <p className="font-semibold text-blue-600 dark:text-blue-400">
-                                      {campaign.recipientCount > 0
-                                        ? Math.round(campaign.clickCount / campaign.recipientCount * 100)
-                                        : 0}%
-                                    </p>
-                                  </div>
-                                  <div>
-                                    <p className="text-gray-500">Replied</p>
-                                    <p className="font-semibold text-purple-600 dark:text-purple-400">
-                                      {campaign.replyCount}
-                                    </p>
-                                  </div>
-                                  <div>
-                                    <p className="text-gray-500">Offers</p>
-                                    <p className="font-semibold text-orange-600 dark:text-orange-400">
-                                      {campaign.offerCount}
-                                    </p>
-                                  </div>
-                                </div>
-                                <div className="flex items-center gap-2 mt-3 pt-3 border-t border-gray-200 dark:border-border">
-                                  <Badge variant="secondary" className="text-xs">
-                                    {campaign.method === 'both' ? 'Email + SMS' : campaign.method.toUpperCase()}
-                                  </Badge>
-                                  <span className="text-xs text-gray-500">
-                                    {campaign.buyerIds.length} buyers
-                                  </span>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        </ScrollArea>
-                      )}
-                    </CardContent>
-                  </Card>
-                </div>
-              </TabsContent>
-
               {/* Offers Tab */}
               <TabsContent value="offers" className="mt-0">
                 <div className="space-y-4">
@@ -2472,7 +2176,7 @@ export default function BuyersPage() {
                           </div>
                           <h3 className="text-base font-semibold mb-1">No Buyer Offers Yet</h3>
                           <p className="text-sm text-muted-foreground max-w-sm">
-                            Run a blast campaign or share your listings to start receiving offers from buyers.
+                            Share a listing or send deals to your buyers to start receiving offers.
                           </p>
                         </div>
                       ) : (
