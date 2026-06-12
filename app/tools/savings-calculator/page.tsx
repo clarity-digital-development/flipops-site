@@ -52,7 +52,7 @@ function SliderInput({ label, hint, value, min, max, step, onChange }: SliderInp
 /*  Page                                                               */
 /* ------------------------------------------------------------------ */
 
-const FLIPOPS_MONTHLY = 149;
+const FLIPOPS_MONTHLY = 99;
 
 export default function SavingsCalculatorPage() {
   const [isDarkMode, setIsDarkMode] = useState(false);
@@ -198,7 +198,7 @@ export default function SavingsCalculatorPage() {
                     </div>
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    Core plan at $149/mo. Pro plan available at $299/mo for high-volume teams.
+                    Core plan at $99/mo. Pro plan available at $299/mo for high-volume teams.
                   </p>
                 </div>
 
@@ -257,7 +257,7 @@ export default function SavingsCalculatorPage() {
                 </div>
                 <p className="text-sm text-muted-foreground leading-relaxed mb-5">
                   Data, CRM, skip tracing, outreach, underwriting, project management, and rental tracking &mdash;
-                  all in one place. Plans start at $149/month.
+                  all in one place. Plans start at $99/month.
                 </p>
                 <Link href="/pricing" className="text-sm font-medium text-teal-500 hover:text-teal-400 inline-flex items-center gap-1">
                   View pricing <ArrowRight className="w-4 h-4" />

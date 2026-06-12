@@ -15,7 +15,7 @@ import { SectionPill } from '../components/section-pill';
 const mainPlans = [
   {
     name: 'Core',
-    price: 149,
+    price: 99,
     badge: 'Best for new investors',
     highlighted: false,
     features: [
@@ -43,7 +43,7 @@ const mainPlans = [
   },
   {
     name: 'Scale',
-    price: 549,
+    price: 599,
     badge: 'Best for teams',
     highlighted: false,
     features: [
