@@ -93,7 +93,11 @@ function orderedCounties() {
 function localFileCoNo(filename: string): number | null {
   const dor = filename.match(/^(.+?)\s+(\d{1,2})\s+(?:Final|Initial|Prelim\w*)?\s*SDF\s+(\d{4})\s*\.+(?:zip|csv)$/i);
   if (dor) return Number.parseInt(dor[2], 10);
-  const co = filename.match(/co[._ -]?(\d{1,2})\b/i);
+  // `co<NO>` prefix — e.g. fl-dor-sdf-fetch-request.ts stages "co16_SDF_2024.csv".
+  // Use a negative-lookahead for a trailing digit instead of \b: an underscore
+  // immediately after the number (co16_…) is a word char, so \b never matches
+  // there and the county silently failed to map.
+  const co = filename.match(/co[._ -]?(\d{1,2})(?!\d)/i);
   if (co) return Number.parseInt(co[1], 10);
   const lower = filename.toLowerCase();
   const byName = FL_COUNTIES.find((c) => lower.includes(c.name.toLowerCase().replace(/\s+/g, " ")));
