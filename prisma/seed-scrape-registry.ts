@@ -346,7 +346,7 @@ const SEEDS: RegistrySeed[] = [
   {
     sourceKey: "probate-official-records",
     domain: "myorangeclerk.com",
-    countyFips: null, // multi-county; adapter enumerates PROBATE_MVC_COUNTIES (Orange/Pinellas/Broward)
+    countyFips: null, // multi-county; adapter enumerates PROBATE_MVC_COUNTIES (Orange/Broward — Pinellas now via the free pinellas-probate-csv source)
     state: "FL",
     scraperFn: "runProbateOfficialRecords",
     cronExpr: "0 9 * * *", // 5 AM ET daily (after code-enforcement 4 AM slot)
@@ -357,7 +357,34 @@ const SEEDS: RegistrySeed[] = [
     // Self-activating: enabled only when a captcha solver is configured, so it
     // never spins on the captcha wall (or burns solver credits) without a key.
     enabled: !!(process.env.TWOCAPTCHA_API_KEY || process.env.CAPTCHA_SOLVER_API_KEY),
-    notes: "M3.1 probate: P-MVC family (Orange/Pinellas/Broward MyClerk portals). incremental-date, one target day/run across all 3 counties; first run = today-7d. SetDisclaimer session + RVT → estate-admin case list. reCAPTCHA v2 on SEARCH SUBMIT — solver hook wired (lib/scrapers/base/captcha-solver.ts via getCaptchaSolver); PROBATE_RECAPTCHA_TOKEN one-shot override. Auto-enables when TWOCAPTCHA_API_KEY/CAPTCHA_SOLVER_API_KEY is set on the worker + this seed reruns. Feeds ProbateCase → rescore-probate matcher → ProbateSummary (LIFE_EVENT_FAMILY).",
+    notes: "M3.1 probate: P-MVC family (Orange/Broward MyClerk portals — Pinellas dropped, now served free via pinellas-probate-csv). incremental-date, one target day/run across both counties; first run = today-7d. SetDisclaimer session + RVT → estate-admin case list. reCAPTCHA v2 on SEARCH SUBMIT — solver hook wired (lib/scrapers/base/captcha-solver.ts via getCaptchaSolver); PROBATE_RECAPTCHA_TOKEN one-shot override. Auto-enables when TWOCAPTCHA_API_KEY/CAPTCHA_SOLVER_API_KEY is set on the worker + this seed reruns. Feeds ProbateCase → rescore-probate matcher → ProbateSummary (LIFE_EVENT_FAMILY).",
+  },
+
+  // -------------------------------------------------------------------------
+  // Pinellas probate daily CSV (M3.1 / OPS-8) — GREEN, captcha-free.
+  // Pinellas Clerk publishes an open IIS static index at
+  // publicfiles.mypinellasclerk.gov/download/PROBATE/NEW_ESTATE_CASE_FILINGS_DAILY/
+  // (no login, no captcha, no cookie). One CSV per business day, ~90-day
+  // rolling window, refreshed ~09:00 UTC the next business day. Supersedes the
+  // Pinellas branch of probate-official-records (captcha-gated, inferior
+  // fields). Ships enabled (GREEN, no proxy, no solver). domain falls through
+  // to the worker's domain-default queue. Post-scrape hook (auction-summary-
+  // hook.ts) runs the probate matcher + ProbateSummary refresh for 12103.
+  // -------------------------------------------------------------------------
+  {
+    sourceKey: "pinellas-probate-csv",
+    domain: "publicfiles.mypinellasclerk.gov",
+    countyFips: "12103",
+    state: "FL",
+    scraperFn: "runPinellasProbateCsv",
+    cronExpr: "30 9 * * *", // ~5:30 AM ET — after the clerk posts (~09:00 UTC)
+    strategy: "incremental-date",
+    legalRisk: "green",
+    rateLimitMs: 1000,
+    proxyMode: "none",
+    enabled: true,
+    notes:
+      "M3.1 OPS-8: Pinellas (12103) captcha-free daily-CSV probate ingester. Open IIS autoindex, HTTP 200, no auth/captcha. ~90-day rolling window. Fields incl. decedent DOB/Date-of-Death + petitioner attorney. lastHighWaterMark = ISO date of latest scraped file. Feeds ProbateCase → rescore-probate matcher → ProbateSummary (LIFE_EVENT_FAMILY). Supersedes the Pinellas branch of probate-official-records.",
   },
 ];
 

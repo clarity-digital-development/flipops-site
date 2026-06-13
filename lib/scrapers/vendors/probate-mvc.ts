@@ -102,34 +102,10 @@ export const PROBATE_MVC_COUNTIES: ProbateMvcCounty[] = [
       WebRequest: "true",
     }),
   },
-  {
-    countyFips: "12103",
-    county: "Pinellas",
-    host: "courtrecords.mypinellasclerk.gov",
-    basePath: "/MyCr",
-    searchPath: "/Cases/Search",
-    searchPostPath: "/Cases/Search",
-    recaptchaSitekey: "6LcCmw0oAAAAAD-KMLDuq6YmUBN5VD4l-5vvSM2Z",
-    useProxy: false,
-    buildCriteria: (begin, end) => ({
-      // Pinellas filters by CaseCategories (probate category) + date range.
-      // "PR" is the probate category key on the MyCr portal.
-      CaseCategories: "PR",
-      CaseType: "",
-      CaseSubTypes: "",
-      DateFrom: mdy(begin),
-      DateTo: mdy(end),
-      CaseNumber: "",
-      LastName: "",
-      FirstName: "",
-      MiddleName: "",
-      BusinessName: "",
-      PartyType: "",
-      WildCardSearch: "false",
-      IncludeAllCases: "false",
-      WebRequest: "true",
-    }),
-  },
+  // Pinellas (12103) intentionally REMOVED from the captcha adapter — it is now
+  // served by the free, captcha-free `pinellas-probate-csv` source (M3.1 / OPS-8,
+  // the publicfiles daily-CSV index). Running it through this reCAPTCHA-gated
+  // P-MVC path would waste 2captcha solver credits on data we already get for $0.
   {
     countyFips: "12011",
     county: "Broward",
@@ -797,9 +773,9 @@ function _runInlineAssertions(): void {
 
   // (g) County config sanity.
   {
-    assert("config: 3 counties", PROBATE_MVC_COUNTIES.length === 3, String(PROBATE_MVC_COUNTIES.length));
+    assert("config: 2 counties", PROBATE_MVC_COUNTIES.length === 2, String(PROBATE_MVC_COUNTIES.length));
     assert("config: orange found", findProbateMvcCounty("12095")?.county === "Orange");
-    assert("config: pinellas found", findProbateMvcCounty("12103")?.county === "Pinellas");
+    assert("config: pinellas removed (now via free CSV)", findProbateMvcCounty("12103") === undefined);
     assert("config: broward found", findProbateMvcCounty("12011")?.county === "Broward");
     const oc = findProbateMvcCounty("12095")!.buildCriteria(new Date(2026, 5, 1), new Date(2026, 5, 8));
     assert("config: orange CaseTypes estate set", oc.CaseTypes === "10,22,23,6,20", oc.CaseTypes);
@@ -840,8 +816,8 @@ function _runInlineAssertions(): void {
       // RVT mints from each real P-MVC form fixture (the load-bearing session piece).
       for (const [name, county] of [
         ["probe-orange-court.html", "Orange"],
-        ["probe-pinellas-court.html", "Pinellas"],
         ["probe-broward-court.html", "Broward"],
+        // Pinellas dropped — now served by the free pinellas-probate-csv source.
       ] as const) {
         const html = load(name);
         if (html == null) {

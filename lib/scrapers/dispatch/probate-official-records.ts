@@ -10,10 +10,11 @@ import type { RunContext, RunResult, ScraperAdapter } from "./types";
 // ---------------------------------------------------------------------------
 // Adapter: probate-official-records
 // Wraps lib/scrapers/vendors/probate-mvc.ts for the P-MVC family (Orange +
-// Pinellas + Broward). Sister adapter to landmark-official-records (records
-// family) — same incremental-date cursor + reCAPTCHA-gated persistence shape.
+// Broward — Pinellas now served free by pinellas-probate-csv). Sister adapter
+// to landmark-official-records (records family) — same incremental-date cursor
+// + reCAPTCHA-gated persistence shape.
 //
-// Strategy: incremental-date. One target day per run, swept across ALL three
+// Strategy: incremental-date. One target day per run, swept across both
 // P-MVC counties (begin=end=target). Cursor protocol:
 //   - lastHighWaterMark = ISO date of the last scraped day
 //   - first run = today-7 (probate filings post with a multi-day lag)
