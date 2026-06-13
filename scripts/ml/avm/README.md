@@ -118,30 +118,81 @@ uncertainty) when the predictions CSV omits explicit bounds.
 | `apply-avm.ts` | guarded chunked UPSERT to `ParcelValuation` (deferred) |
 | `out/` | gitignore'd artifacts (frame, model, metrics, predictions) |
 
-## Honest note on expected improvement (OPS-7)
+## AVM v2 — the SDF deep-history retrain (NEGATIVE RESULT, 2026-06-13)
 
-`ParcelSale` currently spans **2024-01 → 2025-12** — a ~2-year cross-section.
-That is fine for a value model (an AVM is cross-sectional; it does not need long
-history the way the propensity hazard does), and Miami-Dade + Broward each
-contribute ~58k arms-length sales that join a `ParcelFeature` row, so v1 trains
-on a real, sizeable frame.
+After the M2.7 SDF backfill deepened `ParcelSale` to **2009 → 2026** (~18.7M
+rows), we ran the prescribed temporal retrain to test the OPS-7 hypothesis that
+deeper history improves the AVM. **It does not.** The eval gate did its job:
+v2 was not promoted; **v1 (recency-only) remains the production model.**
 
-The known weaknesses, and how **OPS-7 (SDF sale-history backfill to ~2009)**
-fixes them:
+### What we built (kept — reusable infra)
 
-- **Thin/old comps in slow ZIPs.** The neighborhood-comp feature uses a ±90-day
-  window; in low-turnover ZIPs few comps fall in-window, so the model leans on
-  the ZIP aggregate instead. Deeper history → more in-window comps → tighter
-  per-ZIP APE, especially in the long tail of small ZIPs.
-- **No time-adjustment / seasonality depth.** With only 2 years, `saleMonth`
-  captures intra-year seasonality but not multi-year price trend. Backfilled
-  history lets a future version add a proper time-of-sale price index
-  (HPI-style) and report APE on a true out-of-time holdout, not just grouped
-  out-of-parcel.
-- **Tail coverage.** Unusual property types and luxury/teardown segments are
-  sparsely sampled in 2 years; more history shrinks their variance.
+- `export-avm-training.ts --since YYYY-MM-DD` windows the frame; the comp pool
+  is now a **once-per-county indexed staging table** (`flipops."_AvmCompPool"`)
+  instead of a per-page re-`MATERIALIZE` — ~**50× faster** (485k rows in ~6 min
+  vs the old ~3 h/county). `--comp-months N` switches the neighborhood-comp
+  window from the legacy **±90d symmetric** to a **trailing-N-month** window
+  (leakage-safe + direction-matched to serving).
+- `train_avm.py --temporal` adds a per-county **HPI monthly $/sqft index** (built
+  from train rows only), **time-adjusts** price + comp $/sqft to an as-of month,
+  and evaluates on an **out-of-time + out-of-parcel** holdout. `--adjust`,
+  `--recency-months N`, `--min-month-n N` select the arm. Index math is
+  unit-tested in `--self-test`.
+- `compare_holdout.py` / `probe-temporal.ts` — per-ZIP tail diff + volume probe.
 
-Expected effect when OPS-7 lands: a modest but real median-APE improvement
-(comps deepen, time-trend becomes learnable) — **re-run steps 1–4 and let the
-eval gate decide whether v2 promotes over v1.** Do not hand-wave a number;
-the gate is the source of truth.
+### The experiment (3 arms, identical holdout)
+
+Metros 12086 + 12011, window 2019+, out-of-time + out-of-parcel holdout =
+arms-length sales on/after **2025-06** whose parcel is unseen in train
+(**n = 11,396**, large enough that median-APE noise is «1%). Leak-free frame
+(trailing-18mo comps, matching the serving exporter exactly).
+
+| Arm | Recipe | Out-of-time median APE |
+|-----|--------|------------------------|
+| **C — control** | recency 24mo, no adjustment (= v1's recipe) | **0.1262 (best)** |
+| B — naive | full 2019+ history, no adjustment | 0.1269 |
+| A — v2-adjusted | full 2019+ history, HPI time-adjusted | 0.1320 |
+| baseline | assessed-ratio (`assessed / r`) | ~0.3215 |
+
+**Findings.** (1) Recency-only wins; deeper history adds noise, not signal — the
+recent 24mo cross-section already covers the present-value surface. (2) HPI
+time-adjustment **hurts** (a county-level index applies one factor across
+segments that appreciated differently → multiplicative noise on old rows). (3)
+The earlier "deep history helps thin ZIPs" signal was a **leakage artifact** of
+the legacy **±90d symmetric** comp window (a near-cutoff train row's window
+reached forward into holdout sales); on the leak-free frame the thin-ZIP edge
+vanishes. (4) The assessed-ratio baseline collapses to ~32% on this holdout
+because out-of-parcel selection favors long-held, **homestead-capped** parcels
+whose assessed value badly understates market — a real Save-Our-Homes effect.
+
+### Honest accuracy number
+
+v1's headline **9.72% median APE is the grouped-by-parcel holdout** (random
+parcels, same period — *interpolation* accuracy). The **out-of-time forward**
+accuracy — value a sale we couldn't have seen, on a parcel we've never seen — is
+**~12.6%**. Both are legitimate and both are reported by commercial AVMs; the
+out-of-time figure is the conservative, DD-proof one. Prefer it (or present
+both) in any external accuracy claim.
+
+### Known limitation this surfaced (v1, not introduced by v2)
+
+v1 trains the comp feature on a **±90d symmetric** window but is *served* against
+the predict exporter's **trailing-18mo** window — a real train/serve direction
+skew. Arm **C** (recency-24mo + trailing-18mo comps) is the skew-fixed model and
+is drop-in (same 16-feature list; serving pipeline already trailing-18mo). It is
+**ready** if/when a deliberate AVM refresh re-scores `ParcelValuation`; deferred
+on its own to avoid churning 1.5M live valuations for an unmeasured-magnitude
+gain.
+
+### Reproduce
+
+```bash
+export DATABASE_URL=$(grep '^DATABASE_URL=' .env.local | sed 's/^DATABASE_URL=//; s/^"//; s/"$//')
+npx tsx scripts/ml/avm/export-avm-training.ts --metros 12086,12011 \
+  --since 2019-01-01 --comp-months 18 --batch 8000 --out scripts/ml/avm/out/avm-frame-v2c.csv
+P=.venv-ml/Scripts/python
+$P scripts/ml/avm/train_avm.py --temporal --adjust          --train ...avm-frame-v2c.csv --holdout-since 2025-06 --out-dir ...model-v2c-adjusted
+$P scripts/ml/avm/train_avm.py --temporal                   --train ...avm-frame-v2c.csv --holdout-since 2025-06 --out-dir ...model-v2c-naive
+$P scripts/ml/avm/train_avm.py --temporal --recency-months 24 --train ...avm-frame-v2c.csv --holdout-since 2025-06 --out-dir ...model-v2c-control
+$P scripts/ml/avm/compare_holdout.py --a ...control/holdout-eval.csv --a-label control --b ...adjusted/holdout-eval.csv --b-label v2adj
+```

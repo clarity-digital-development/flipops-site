@@ -91,6 +91,15 @@ interface ExportOpts {
   out: string;
   batchSize: number; // sale rows per keyset page
   limit?: number;
+  // AVM v2 (temporal retrain): lower bound on saleDate (YYYY-MM-DD). Restricts
+  // the frame to a recent window so (a) export volume stays tractable and (b)
+  // the HPI time-adjustment factors stay reliable (deep post-crash sales need
+  // 2-3x adjustment and shift composition). Undefined → full history (v1 behavior).
+  since?: string;
+  // AVM v2: trailing comp window in MONTHS (comps strictly before each subject
+  // sale). Opt-in leakage-safe + serving-direction-matched replacement for the
+  // legacy ±90d symmetric window. Undefined → legacy ±90d (v1 behavior).
+  compMonths?: number;
 }
 
 const CSV_COLUMNS: (keyof AvmFrameRow)[] = [
@@ -131,6 +140,42 @@ function csvEscape(v: unknown): string {
 // count down (PG 32767 cap — OPERATIONS.md).
 const QUAL_IN = ARMS_LENGTH_QUAL_CODES.map((c) => `'${c}'`).join(", ");
 
+// Validated, inlined saleDate floor for the subject-sale window (--since).
+// `since` is regex-checked to YYYY-MM-DD in parseArgs before it ever reaches
+// here, so inlining (like QUAL_IN / SALE_FLOOR) is safe and keeps the bound-var
+// count down (PG 32767 cap — OPERATIONS.md).
+function subjectSinceClause(since?: string): string {
+  return since ? `AND s."saleDate" >= '${since}'::date` : "";
+}
+// The comp pool floor sits BELOW --since by the comp lookback so the earliest
+// subject sales in the window still find their full comp set. Legacy (±90d
+// symmetric) needs 90d below; trailing --comp-months N needs N months below.
+function compSinceClause(since?: string, compMonths?: number): string {
+  if (!since) return "";
+  const below =
+    compMonths && compMonths > 0
+      ? `interval '${compMonths} months'`
+      : `interval '90 days'`;
+  return `AND s."saleDate" >= ('${since}'::date - ${below})`;
+}
+
+// Per-subject neighborhood-comp date window for the lateral.
+//  * Legacy (compMonths undefined): SYMMETRIC ±90d around the subject sale —
+//    matches v1 exactly, but its look-AHEAD half leaks out-of-time holdout
+//    sales into near-cutoff training rows' comp feature.
+//  * Trailing (--comp-months N): comps STRICTLY BEFORE the subject sale, within
+//    the prior N months. Leakage-safe (no future comp can enter a training
+//    row) AND direction-matched to the serving exporter (export-predict-
+//    features.ts trailing window), removing the train/serve direction skew.
+function compWindowClause(compMonths?: number): string {
+  if (compMonths && compMonths > 0) {
+    return `AND c.sale_date >= pg."saleDate" - interval '${compMonths} months'
+            AND c.sale_date <  pg."saleDate"`;
+  }
+  return `AND c.sale_date BETWEEN pg."saleDate" - interval '90 days'
+                          AND pg."saleDate" + interval '90 days'`;
+}
+
 /**
  * Keyset page bounds on ParcelSale.id within a county's arms-length sales.
  * $1=countyFips, $2=idCursor ('' for first page), $3=batchSize.
@@ -138,7 +183,8 @@ const QUAL_IN = ARMS_LENGTH_QUAL_CODES.map((c) => `'${c}'`).join(", ");
  * the page fail the downstream ParcelFeature join (advance-on-empty, like the
  * propensity exporter).
  */
-const PAGE_BOUNDS_SQL = `
+function pageBoundsSql(since?: string): string {
+  return `
   SELECT MAX(id) AS "pageEnd", COUNT(*)::int AS "pageCount"
   FROM (
     SELECT s.id
@@ -146,11 +192,13 @@ const PAGE_BOUNDS_SQL = `
     WHERE s."countyFips" = $1
       AND s."qualCode" IN (${QUAL_IN})
       AND COALESCE(s."salePrice", 0) >= ${SALE_FLOOR}
+      ${subjectSinceClause(since)}
       AND s.id > $2
     ORDER BY s.id
     LIMIT $3
   ) page
 `;
+}
 
 /**
  * Per-page frame query. $1=countyFips, $2=idCursor (exclusive), $3=pageEnd
@@ -167,32 +215,51 @@ const PAGE_BOUNDS_SQL = `
 // MATERIALIZE the county's arms-length comp pool ONCE (county_comps CTE — a few
 // ×10⁴ rows that fit in memory), then the LATERAL scans that small in-memory set.
 // MATERIALIZED forces the CTE to be computed once, not inlined per reference.
-const FRAME_SQL = `
-WITH county_comps AS MATERIALIZED (
-  SELECT s."apn"        AS apn,
-         s."saleDate"   AS sale_date,
-         s."salePrice"  AS sale_price,
-         cf."situsZip"  AS zip,
-         cf."latitude"  AS lat,
-         cf."longitude" AS lng,
-         (s."salePrice" / NULLIF(cf."squareFeet", 0)) AS ppsf
-  FROM flipops."ParcelSale" s
-  JOIN flipops."ParcelFeature" cf
-    ON cf."countyFips" = s."countyFips" AND cf."apn" = s."apn"
-  WHERE s."countyFips" = $1
-    AND s."qualCode" IN (${QUAL_IN})
-    AND COALESCE(s."salePrice", 0) >= ${SALE_FLOOR}
-    AND COALESCE(cf."squareFeet", 0) > 0
-    AND s."saleDate" IS NOT NULL
-    AND cf."situsZip" IS NOT NULL
-),
-page AS (
+// Throwaway, indexed staging table for the county's arms-length comp pool.
+// Built ONCE per county (buildPoolDdl) instead of re-MATERIALIZED per keyset
+// page — the index on (zip, sale_date) turns each subject's ±90d same-ZIP comp
+// lookup from a 250k-row seq-scan into a fast index-range scan (the per-page
+// re-materialize was ~159s/4k-row page → ~3h/county on the full history).
+// Dropped in a finally; a transient scratch table, never a Prisma-managed model.
+const POOL_TABLE = `flipops."_AvmCompPool"`;
+
+/** DDL to (re)build + index the county comp pool. $1 = countyFips. */
+function buildPoolDdl(since?: string, compMonths?: number): string[] {
+  return [
+    `DROP TABLE IF EXISTS ${POOL_TABLE}`,
+    `CREATE TABLE ${POOL_TABLE} AS
+       SELECT s."apn"        AS apn,
+              s."saleDate"   AS sale_date,
+              s."salePrice"  AS sale_price,
+              cf."situsZip"  AS zip,
+              cf."latitude"  AS lat,
+              cf."longitude" AS lng,
+              (s."salePrice" / NULLIF(cf."squareFeet", 0)) AS ppsf
+       FROM flipops."ParcelSale" s
+       JOIN flipops."ParcelFeature" cf
+         ON cf."countyFips" = s."countyFips" AND cf."apn" = s."apn"
+       WHERE s."countyFips" = $1
+         AND s."qualCode" IN (${QUAL_IN})
+         AND COALESCE(s."salePrice", 0) >= ${SALE_FLOOR}
+         AND COALESCE(cf."squareFeet", 0) > 0
+         AND s."saleDate" IS NOT NULL
+         ${compSinceClause(since, compMonths)}
+         AND cf."situsZip" IS NOT NULL`,
+    `CREATE INDEX ON ${POOL_TABLE} (zip, sale_date)`,
+    `ANALYZE ${POOL_TABLE}`,
+  ];
+}
+
+function frameSql(since?: string, compMonths?: number): string {
+  return `
+WITH page AS (
   SELECT s.id AS sale_id, s."countyFips", s."apn", s."saleDate", s."salePrice",
          s."saleMonth"
   FROM flipops."ParcelSale" s
   WHERE s."countyFips" = $1
     AND s."qualCode" IN (${QUAL_IN})
     AND COALESCE(s."salePrice", 0) >= ${SALE_FLOOR}
+    ${subjectSinceClause(since)}
     AND s.id > $2
     AND s.id <= $3
 )
@@ -241,18 +308,18 @@ LEFT JOIN LATERAL (
                power(f."longitude" - c.lng, 2)))
         ELSE 1.0
       END AS w
-    FROM county_comps c
+    FROM ${POOL_TABLE} c
     WHERE c.zip = f."situsZip"
       AND f."situsZip" IS NOT NULL
       AND c.apn <> pg."apn"                          -- leakage guard
       AND pg."saleDate" IS NOT NULL
-      AND c.sale_date BETWEEN pg."saleDate" - interval '90 days'
-                          AND pg."saleDate" + interval '90 days'
+      ${compWindowClause(compMonths)}
     LIMIT 200                                        -- cap per-sale comp fan-out
   ) comp
 ) nb ON true
 ORDER BY pg.sale_id
 `;
+}
 
 async function exportCounty(
   countyFips: string,
@@ -260,30 +327,47 @@ async function exportCounty(
   stream: fs.WriteStream,
   written: { rows: number; withComps: number },
 ): Promise<void> {
-  let cursor = "";
-  for (;;) {
-    const [bounds] = await prisma.$queryRawUnsafe<
-      Array<{ pageEnd: string | null; pageCount: number }>
-    >(PAGE_BOUNDS_SQL, countyFips, cursor, opts.batchSize);
-    if (!bounds || bounds.pageCount === 0 || bounds.pageEnd === null) break;
+  // Build the indexed comp pool ONCE for this county (then page against it).
+  const poolStart = Date.now();
+  for (const ddl of buildPoolDdl(opts.since, opts.compMonths)) {
+    await prisma.$executeRawUnsafe(ddl, countyFips);
+  }
+  const [poolN] = await prisma.$queryRawUnsafe<Array<{ n: bigint }>>(
+    `SELECT COUNT(*)::bigint AS n FROM ${POOL_TABLE}`,
+  );
+  console.log(
+    `[avm-export] ${countyFips} comp pool built: ${poolN.n} rows in ${((Date.now() - poolStart) / 1000).toFixed(1)}s`,
+  );
 
-    const rows = await prisma.$queryRawUnsafe<AvmFrameRow[]>(
-      FRAME_SQL,
-      countyFips,
-      cursor,
-      bounds.pageEnd,
-    );
-    for (const r of rows) {
-      stream.write(CSV_COLUMNS.map((c) => csvEscape(r[c])).join(",") + "\n");
-      written.rows += 1;
-      if ((r.neighborhoodCompCount ?? 0) > 0) written.withComps += 1;
-      if (opts.limit && written.rows >= opts.limit) return;
+  try {
+    let cursor = "";
+    for (;;) {
+      const [bounds] = await prisma.$queryRawUnsafe<
+        Array<{ pageEnd: string | null; pageCount: number }>
+      >(pageBoundsSql(opts.since), countyFips, cursor, opts.batchSize);
+      if (!bounds || bounds.pageCount === 0 || bounds.pageEnd === null) break;
+
+      const rows = await prisma.$queryRawUnsafe<AvmFrameRow[]>(
+        frameSql(opts.since, opts.compMonths),
+        countyFips,
+        cursor,
+        bounds.pageEnd,
+      );
+      for (const r of rows) {
+        stream.write(CSV_COLUMNS.map((c) => csvEscape(r[c])).join(",") + "\n");
+        written.rows += 1;
+        if ((r.neighborhoodCompCount ?? 0) > 0) written.withComps += 1;
+        if (opts.limit && written.rows >= opts.limit) return;
+      }
+      cursor = bounds.pageEnd;
+      console.log(
+        `[avm-export] ${countyFips} … cursor=${cursor} (+${bounds.pageCount} sales, ` +
+          `+${rows.length} joined) total=${written.rows} withComps=${written.withComps}`,
+      );
     }
-    cursor = bounds.pageEnd;
-    console.log(
-      `[avm-export] ${countyFips} … cursor=${cursor} (+${bounds.pageCount} sales, ` +
-        `+${rows.length} joined) total=${written.rows} withComps=${written.withComps}`,
-    );
+  } finally {
+    // Drop the scratch pool even on early-return (--limit) or error.
+    await prisma.$executeRawUnsafe(`DROP TABLE IF EXISTS ${POOL_TABLE}`);
   }
 }
 
@@ -300,6 +384,8 @@ function parseArgs(argv: string[]): ExportOpts {
     out: get("--out") ?? path.join("scripts", "ml", "avm", "out", "avm-frame.csv"),
     batchSize: Number(get("--batch") ?? 1500),
     limit: get("--limit") ? Number(get("--limit")) : undefined,
+    since: get("--since"),
+    compMonths: get("--comp-months") ? Number(get("--comp-months")) : undefined,
   };
 }
 
@@ -308,13 +394,21 @@ async function main(): Promise<void> {
   if (opts.metros.some((m) => !/^\d{5}$/.test(m))) {
     throw new Error(`--metros must be 5-digit FIPS codes, got: ${opts.metros.join(",")}`);
   }
+  if (opts.since && !/^\d{4}-\d{2}-\d{2}$/.test(opts.since)) {
+    throw new Error(`--since must be YYYY-MM-DD, got: ${opts.since}`);
+  }
+  if (opts.compMonths !== undefined && !(opts.compMonths > 0 && opts.compMonths <= 60)) {
+    throw new Error(`--comp-months must be 1..60, got: ${opts.compMonths}`);
+  }
   fs.mkdirSync(path.dirname(opts.out), { recursive: true });
   const stream = fs.createWriteStream(opts.out);
   stream.write(CSV_COLUMNS.join(",") + "\n");
 
   console.log(
     `[avm-export] metros=${opts.metros.join(",")} qualCodes=${ARMS_LENGTH_QUAL_CODES.join("/")} ` +
-      `saleFloor=${SALE_FLOOR} batch=${opts.batchSize} → ${opts.out}`,
+      `saleFloor=${SALE_FLOOR} since=${opts.since ?? "(all history)"} ` +
+      `comps=${opts.compMonths ? `trailing-${opts.compMonths}mo` : "±90d (legacy)"} ` +
+      `batch=${opts.batchSize} → ${opts.out}`,
   );
 
   const written = { rows: 0, withComps: 0 };
