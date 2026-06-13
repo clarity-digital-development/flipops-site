@@ -447,6 +447,23 @@ def train_temporal(args: argparse.Namespace) -> None:
     if df.empty:
         sys.exit("[avm-train] no usable rows (salePrice>0 + parseable saleDate)")
 
+    # Segmentation experiment: restrict to specific DOR property-type codes
+    # (propertyType is a stable parcel attribute, so the out-of-parcel holdout
+    # stays consistent — a condo's prior sales are all condo sales).
+    if args.property_types:
+        # pandas reads DOR codes like "004" as int 4 (leading zeros stripped) or
+        # float "4.0" when NaNs are present; normalize both sides by stripping
+        # leading zeros (and a trailing .0) so "004"/"4"/"4.0" all match.
+        def _norm(s):
+            return (s.astype("string").str.replace(r"\.0$", "", regex=True)
+                    .str.lstrip("0").replace("", "0"))
+        want = {(t.strip().lstrip("0") or "0") for t in args.property_types.split(",") if t.strip()}
+        before = len(df)
+        df = df[_norm(df["propertyType"]).isin(want)].reset_index(drop=True)
+        print(f"[avm-train] property-type filter {sorted(want)}: {before} -> {len(df)} rows")
+        if df.empty:
+            sys.exit("[avm-train] no rows after --property-types filter")
+
     # Feature preprocessing — identical to train() so there is zero skew, plus
     # _ym is excluded from the model feature set (it is split bookkeeping).
     non_feature = set(NON_FEATURE_COLS) | {"_ym"}
@@ -631,6 +648,7 @@ def train_temporal(args: argparse.Namespace) -> None:
             "asOfYm": as_of_ym,
             "asOfLabel": f"{as_of_ym // 12}-{as_of_ym % 12 + 1:02d}",
             "untrustedRowsDropped": n_untrusted_dropped,
+            "propertyTypes": sorted(args.property_types.split(",")) if args.property_types else None,
             "indexByCounty": index_summary,
         },
     }
@@ -878,6 +896,12 @@ def main() -> None:
         default=40,
         help="min arms-length sales for a county-month to anchor the HPI index "
         "(thin/bad months are interpolated AND their train rows dropped). Temporal only.",
+    )
+    ap.add_argument(
+        "--property-types",
+        help="comma list of DOR propertyType codes to restrict BOTH train and "
+        "holdout (e.g. '001' for single-family, '004' for condo). The segmentation "
+        "experiment: a within-segment model vs the blended model. Temporal only.",
     )
     ap.add_argument(
         "--self-test",
