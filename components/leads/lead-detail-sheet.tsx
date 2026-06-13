@@ -77,6 +77,14 @@ export interface DetailLead {
   scheduledCount?: number | null;
   pastAuctionCount?: number | null;
   dataSource?: string | null;
+  // M3.D — probate lead detail (sourced from ProbateSummary via the UNION)
+  decedentName?: string | null;
+  personalRepresentative?: string | null;
+  dateOfDeath?: string | Date | null;
+  prAppointedAt?: string | Date | null;
+  probateCaseNumber?: string | null;
+  caseTypeCode?: string | null;
+  caseCount?: number | null;
   // M2.6 — provenance receipts (source key + per-signal capture dates from
   // the /api/properties UNION; null when the branch has no receipt).
   signalSource?: string | null;
@@ -190,6 +198,8 @@ const SOURCE_LABELS: Record<string, string> = {
   "realauction-fl-foreclosures": "RealAuction calendar",
   "parcel-auction-bridge": "RealAuction calendar",
   "parcel-zip-pull": "FL parcel records",
+  "parcel-probate-bridge": "Clerk probate records",
+  "probate-clerk": "Clerk probate records",
 };
 
 function sourceLabel(key?: string | null): string | null {
@@ -257,6 +267,10 @@ function buildProvenanceChips(lead: DetailLead): ProvenanceChip[] {
     chips.push({ signal: "Vacant", source: fallbackSource, capturedAt: null });
   }
 
+  if (lead.dataSource === "parcel-probate-bridge" && fallbackSource) {
+    chips.push({ signal: "Probate", source: fallbackSource, capturedAt: null });
+  }
+
   return chips;
 }
 
@@ -282,6 +296,14 @@ function formatAuctionDate(d?: string | Date | null): {
   else if (diffDays > 0) rel = `in ${diffDays} days`;
   else rel = `${Math.abs(diffDays)} days ago`;
   return { abs, rel };
+}
+
+// M3.D — absolute short date for probate detail rows (date of death, PR appt).
+function formatDateShort(d?: string | Date | null): string | null {
+  if (!d) return null;
+  const date = typeof d === "string" ? new Date(d) : d;
+  if (isNaN(date.getTime())) return null;
+  return date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }
 
 export function LeadDetailSheet({
@@ -584,6 +606,44 @@ export function LeadDetailSheet({
                       icon={Scale}
                       label="Judgment Amount"
                       value={formatCurrency(lead.judgmentAmount)}
+                    />
+                  )}
+
+                  {/* M3.D — probate lead detail rows */}
+                  {lead.dataSource === "parcel-probate-bridge" && lead.decedentName && (
+                    <DetailCell
+                      icon={Scale}
+                      label="Decedent"
+                      value={lead.decedentName}
+                      valueClassName="text-purple-600 dark:text-purple-400"
+                    />
+                  )}
+                  {lead.dataSource === "parcel-probate-bridge" && lead.dateOfDeath && (
+                    <DetailCell
+                      icon={Calendar}
+                      label="Date of Death"
+                      value={formatDateShort(lead.dateOfDeath) ?? "—"}
+                    />
+                  )}
+                  {lead.dataSource === "parcel-probate-bridge" && lead.prAppointedAt && (
+                    <DetailCell
+                      icon={Calendar}
+                      label="PR Appointed"
+                      value={formatDateShort(lead.prAppointedAt) ?? "—"}
+                    />
+                  )}
+                  {lead.dataSource === "parcel-probate-bridge" && lead.personalRepresentative && (
+                    <DetailCell
+                      icon={UserCheck}
+                      label="Personal Rep"
+                      value={lead.personalRepresentative}
+                    />
+                  )}
+                  {lead.dataSource === "parcel-probate-bridge" && lead.probateCaseNumber && (
+                    <DetailCell
+                      icon={Layers}
+                      label="Case Number"
+                      value={lead.probateCaseNumber}
                     />
                   )}
                 </div>

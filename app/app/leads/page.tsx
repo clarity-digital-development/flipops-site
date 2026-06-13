@@ -14,7 +14,7 @@ import { type Property } from "./seed-data";
 import { trackLeadEvent, trackLeadsViewed } from "@/lib/behavior/client";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Button } from "@/components/ui/button";
-import { Clock, Gavel, Home, Search } from "lucide-react";
+import { Clock, Gavel, Home, Search, Scale } from "lucide-react";
 
 // ---------------------------------------------------------------------------
 // Leads page — map-first redesign.
@@ -122,12 +122,17 @@ export default function LeadsPage() {
             p.nextAuctionDate !== null &&
             new Date(p.nextAuctionDate).getTime() >= now);
 
+        // Probate (M3.1): a property qualifies when it was surfaced from the
+        // ProbateSummary bridge (an owner matched to an open estate case).
+        const probateMatch = p.dataSource === "parcel-probate-bridge";
+
         const matchesAny =
           (distress.has("foreclosure") && p.foreclosure) ||
           (distress.has("preForeclosure") && p.preForeclosure) ||
           (distress.has("taxDelinquent") && p.taxDelinquent) ||
           (distress.has("vacant") && p.vacant) ||
-          (distress.has("auctionScheduled") && auctionScheduledMatch);
+          (distress.has("auctionScheduled") && auctionScheduledMatch) ||
+          (distress.has("probate") && probateMatch);
         if (!matchesAny) return false;
       }
       return true;
@@ -154,6 +159,10 @@ export default function LeadsPage() {
           new Date(p.nextAuctionDate).getTime() >= now),
     ).length;
   }, [filtered]);
+  const probateCount = useMemo(
+    () => filtered.filter((p) => p.dataSource === "parcel-probate-bridge").length,
+    [filtered],
+  );
 
   const selected = filtered.find((p) => p.id === selectedId) ?? null;
 
@@ -456,8 +465,8 @@ export default function LeadsPage() {
         onClear={handleClearFilters}
       />
 
-      {/* Option A — exposure / virtual / auction headline */}
-      {(totalTaxExposure > 0 || virtualCount > 0 || auctionScheduledCount > 0) && (
+      {/* Option A — exposure / virtual / auction / probate headline */}
+      {(totalTaxExposure > 0 || virtualCount > 0 || auctionScheduledCount > 0 || probateCount > 0) && (
         <div className="flex-shrink-0 flex flex-wrap items-center gap-3 border-b border-border bg-card px-4 py-2 text-xs">
           {totalTaxExposure > 0 && (
             <div className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-1 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300">
@@ -477,6 +486,13 @@ export default function LeadsPage() {
               <Gavel className="h-3 w-3" />
               <span className="font-semibold tabular-nums">{auctionScheduledCount}</span>
               <span>{auctionScheduledCount === 1 ? "auction scheduled" : "auctions scheduled"}</span>
+            </div>
+          )}
+          {probateCount > 0 && (
+            <div className="inline-flex items-center gap-1.5 rounded-full bg-purple-50 px-2.5 py-1 text-purple-700 dark:bg-purple-950/60 dark:text-purple-300">
+              <Scale className="h-3 w-3" />
+              <span className="font-semibold tabular-nums">{probateCount}</span>
+              <span>{probateCount === 1 ? "probate estate" : "probate estates"}</span>
             </div>
           )}
           {virtualCount > 0 && (
