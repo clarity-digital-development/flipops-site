@@ -256,7 +256,7 @@ export async function refreshProbateSummary(
     INSERT INTO flipops."ProbateSummary" (
       "id", "countyFips", "apn",
       "caseCount", "primaryCaseNumber", "decedentName", "personalRepresentative",
-      "caseTypeCode", "filedAt", "prAppointedAt", "status", "matchConfidence",
+      "caseTypeCode", "filedAt", "prAppointedAt", "dateOfDeath", "status", "matchConfidence",
       "score", "grade", "motivation", "firstCapturedAt", "updatedAt"
     )
     SELECT
@@ -270,6 +270,7 @@ export async function refreshProbateSummary(
       sub."caseTypeCode",
       sub."filedAt",
       sub."prAppointedAt",
+      sub."dateOfDeath",
       sub."status",
       sub."matchConfidence",
       LEAST(100, GREATEST(0,
@@ -353,6 +354,7 @@ export async function refreshProbateSummary(
         (ARRAY_AGG(pc."caseTypeCode" ORDER BY pc."prAppointedAt" DESC NULLS LAST, pc."filedAt" DESC NULLS LAST))[1] AS "caseTypeCode",
         MIN(pc."filedAt")                                                    AS "filedAt",
         MAX(pc."prAppointedAt")                                              AS "prAppointedAt",
+        MAX(pc."decedentDateOfDeath")                                        AS "dateOfDeath",
         (ARRAY_AGG(pc."status" ORDER BY pc."prAppointedAt" DESC NULLS LAST, pc."filedAt" DESC NULLS LAST))[1] AS "status",
         MAX(pc."matchConfidence")                                           AS "matchConfidence",
         MIN(pc."capturedAt")                                                 AS "firstCapturedAt"
@@ -373,6 +375,7 @@ export async function refreshProbateSummary(
       "caseTypeCode"           = EXCLUDED."caseTypeCode",
       "filedAt"                = EXCLUDED."filedAt",
       "prAppointedAt"          = EXCLUDED."prAppointedAt",
+      "dateOfDeath"            = EXCLUDED."dateOfDeath",
       "status"                 = EXCLUDED."status",
       "matchConfidence"        = EXCLUDED."matchConfidence",
       "score"                  = EXCLUDED."score",

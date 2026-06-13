@@ -2272,6 +2272,13 @@ model ProbateCase {
   status                 String?                 // "OPEN" | "CLOSED" | portal status string
   prAppointedAt          DateTime?               // letters-of-administration / PR appointment date (peak-motivation signal)
 
+  // Decedent vitals + petitioner's counsel — carried by feeds that publish them
+  // (Pinellas publicfiles daily CSV); NULL for feeds/portals that don't.
+  decedentDob            DateTime?               // decedent's date of birth
+  decedentDateOfDeath    DateTime?               // decedent's date of death — dates the peak-motivation window better than filing date
+  attorneyName           String?                 // petitioner's attorney (assembled "FIRST MIDDLE LAST")
+  attorneyAddress        String?                 // petitioner's attorney mailing address (free-text, as printed)
+
   // Fuzzy parcel link (NOT an FK — see header). Array of matched Parcel.apn
   // within countyFips; matchConfidence is the BEST match's score 0..1.
   matchedParcelApns      String[] @default([])
@@ -2287,6 +2294,7 @@ model ProbateCase {
   @@unique([countyFips, caseNumber])
   @@index([countyFips])
   @@index([filedAt])
+  @@index([decedentDateOfDeath])                // peak-motivation window driver — sort/filter by death recency
   @@index([caseTypeCode])
   @@index([decedentNameNormalized])             // decedent-name → Parcel.ownerName fuzzy-join driver
   @@index([source])
@@ -2318,6 +2326,7 @@ model ProbateSummary {
   caseTypeCode       String?
   filedAt            DateTime?                    // earliest matched filing
   prAppointedAt      DateTime?                    // PR appointment (peak window)
+  dateOfDeath        DateTime?                    // decedent's date of death (latest across matched cases) — peak-window driver
   status             String?
   matchConfidence    Float?                       // best-match confidence carried up for UI/filtering
 
@@ -2334,6 +2343,7 @@ model ProbateSummary {
   @@index([score(sort: Desc)])
   @@index([countyFips, score(sort: Desc)])
   @@index([prAppointedAt])
+  @@index([dateOfDeath])
   @@index([matchConfidence(sort: Desc)])
 }
 
