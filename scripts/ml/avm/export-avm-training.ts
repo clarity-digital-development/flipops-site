@@ -64,6 +64,11 @@ interface AvmFrameRow {
   squareFeet: number | null;
   lotSize: number | null;
   ageYears: number | null;
+  // -- Phase 0: additional NAL building fields (LEFT JOIN Parcel) --
+  effectiveAgeYears: number | null;   // saleYear - EFF_YR_BLT (renovation-aware age)
+  improvementQuality: number | null;  // IMP_QUAL 1-6 (condition proxy)
+  specialFeatureValue: number | null; // SPEC_FEAT_VAL $ lump (pool/dock/extras)
+  numResUnits: number | null;         // NO_RES_UNTS
   propertyType: string | null; // categorical
   ownerOccupied: boolean | null;
   outOfStateOwner: boolean | null;
@@ -111,6 +116,10 @@ const CSV_COLUMNS: (keyof AvmFrameRow)[] = [
   "squareFeet",
   "lotSize",
   "ageYears",
+  "effectiveAgeYears",
+  "improvementQuality",
+  "specialFeatureValue",
+  "numResUnits",
   "propertyType",
   "ownerOccupied",
   "outOfStateOwner",
@@ -272,6 +281,12 @@ SELECT
   f."squareFeet"::int                      AS "squareFeet",
   f."lotSize"::float                       AS "lotSize",
   f."ageYears"::int                        AS "ageYears",
+  (CASE WHEN pcl."effectiveYearBuilt" BETWEEN 1800 AND 2100
+        THEN EXTRACT(YEAR FROM pg."saleDate")::int - pcl."effectiveYearBuilt"
+        ELSE NULL END)::int                  AS "effectiveAgeYears",
+  pcl."improvementQuality"::int            AS "improvementQuality",
+  pcl."specialFeatureValue"::float         AS "specialFeatureValue",
+  pcl."numResUnits"::int                   AS "numResUnits",
   f."propertyType"                         AS "propertyType",
   f."ownerOccupied"                        AS "ownerOccupied",
   f."outOfStateOwner"                      AS "outOfStateOwner",
@@ -290,6 +305,8 @@ SELECT
 FROM page pg
 JOIN flipops."ParcelFeature" f
   ON f."countyFips" = pg."countyFips" AND f."apn" = pg."apn"
+LEFT JOIN flipops."Parcel" pcl
+  ON pcl."countyFips" = pg."countyFips" AND pcl."apn" = pg."apn"
 LEFT JOIN LATERAL (
   SELECT
     -- Inverse-distance-weighted mean $/sqft when coords exist on both subject

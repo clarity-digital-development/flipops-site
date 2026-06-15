@@ -178,6 +178,10 @@ export function nalRowToParcelRecord(
     yearBuilt: int(row["ACT_YR_BLT"]),
     squareFeet: num(row["TOT_LVG_AREA"]),
     lotSize: num(row["LND_SQFOOT"]),
+    effectiveYearBuilt: int(row["EFF_YR_BLT"]),
+    improvementQuality: int(row["IMP_QUAL"]),
+    specialFeatureValue: num(row["SPEC_FEAT_VAL"]),
+    numResUnits: int(row["NO_RES_UNTS"]),
     lastSalePrice: num(row["SALE_PRC1"]),
     lastSaleYear: int(row["SALE_YR1"]),
     latitude: null,  // NAL has no geometry — FloridaGIO ingester joins this in

@@ -1816,6 +1816,13 @@ model Parcel {
   squareFeet          Int?                   // TOT_LVG_AR
   lotSize             Float?                 // LND_SQFOOT
 
+  // Additional NAL building fields (Phase 0 — free, statewide; AVM + UI).
+  // Already in the DOR NAL file we ingest; captured 2026-06-13.
+  effectiveYearBuilt  Int?                   // EFF_YR_BLT — renovation-aware age
+  improvementQuality  Int?                   // IMP_QUAL (1-6 Marshall&Swift grade) — condition proxy
+  specialFeatureValue Float?                 // SPEC_FEAT_VAL — $ lump for pool/dock/extra features
+  numResUnits         Int?                   // NO_RES_UNTS — residential units
+
   // Last sale (from roll)
   lastSalePrice       Float?                 // SALE_PRC1
   lastSaleYear        Int?                   // SALE_YR1

@@ -30,6 +30,10 @@ export interface ParcelRecord {
   yearBuilt?: number | null;
   squareFeet?: number | null;
   lotSize?: number | null;
+  effectiveYearBuilt?: number | null;
+  improvementQuality?: number | null;
+  specialFeatureValue?: number | null;
+  numResUnits?: number | null;
   lastSalePrice?: number | null;
   lastSaleYear?: number | null;
   latitude?: number | null;
@@ -196,6 +200,7 @@ export abstract class BulkIngester {
       "situsAddress", "situsCity", "situsState", "situsZip",
       "marketValue", "assessedValue", "landValue",
       "propertyType", "yearBuilt", "squareFeet", "lotSize",
+      "effectiveYearBuilt", "improvementQuality", "specialFeatureValue", "numResUnits",
       "lastSalePrice", "lastSaleYear",
       "latitude", "longitude",
       "source", "dataVintage", "fetchedAt",
@@ -215,6 +220,7 @@ export abstract class BulkIngester {
         r.situsAddress ?? null, r.situsCity ?? null, r.situsState ?? null, r.situsZip ?? null,
         r.marketValue ?? null, r.assessedValue ?? null, r.landValue ?? null,
         r.propertyType ?? null, r.yearBuilt ?? null, r.squareFeet ?? null, r.lotSize ?? null,
+        r.effectiveYearBuilt ?? null, r.improvementQuality ?? null, r.specialFeatureValue ?? null, r.numResUnits ?? null,
         r.lastSalePrice ?? null, r.lastSaleYear ?? null,
         r.latitude ?? null, r.longitude ?? null,
         source, vintage, now,
