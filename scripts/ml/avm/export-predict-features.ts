@@ -24,9 +24,11 @@
 //     is "value it as of this month". Constant per run; a categorical the
 //     booster already saw.
 //
-// Everything else is read straight off ParcelFeature (the frozen silver mart —
-// same columns the training exporter pulled), so there is zero train/serve skew
-// on the 14 non-computed features.
+// Everything else is read straight off ParcelFeature (the frozen silver mart),
+// plus the 4 Phase-0 NAL building fields LEFT JOINed from Parcel — effectiveAgeYears
+// (computed AS-OF-NOW: currentYear - EFF_YR_BLT, the serving analog of training's
+// saleYear - EFF_YR_BLT), improvementQuality, specialFeatureValue, numResUnits — in
+// the SAME names/units the training exporter pulls, so there is zero train/serve skew.
 //
 // SCOPE: parcels that can be valued — squareFeet > 0 (the model leans on $/sqft;
 // a 0-sqft land parcel has no living-area signal and the comp $/sqft is
@@ -63,6 +65,10 @@ const CSV_COLUMNS = [
   "squareFeet",
   "lotSize",
   "ageYears",
+  "effectiveAgeYears",
+  "improvementQuality",
+  "specialFeatureValue",
+  "numResUnits",
   "propertyType",
   "ownerOccupied",
   "outOfStateOwner",
@@ -138,6 +144,12 @@ SELECT
   f."squareFeet"::int                      AS "squareFeet",
   f."lotSize"::float                       AS "lotSize",
   f."ageYears"::int                        AS "ageYears",
+  (CASE WHEN pcl."effectiveYearBuilt" BETWEEN 1800 AND 2100
+        THEN EXTRACT(YEAR FROM NOW())::int - pcl."effectiveYearBuilt"
+        ELSE NULL END)::int                  AS "effectiveAgeYears",
+  pcl."improvementQuality"::int            AS "improvementQuality",
+  pcl."specialFeatureValue"::float         AS "specialFeatureValue",
+  pcl."numResUnits"::int                   AS "numResUnits",
   f."propertyType"                         AS "propertyType",
   f."ownerOccupied"                        AS "ownerOccupied",
   f."outOfStateOwner"                      AS "outOfStateOwner",
@@ -152,6 +164,8 @@ SELECT
   COALESCE(nb.nb_count, 0)                 AS "neighborhoodCompCount",
   $4::int                                  AS "saleMonth"
 FROM flipops."ParcelFeature" f
+LEFT JOIN flipops."Parcel" pcl
+  ON pcl."countyFips" = f."countyFips" AND pcl."apn" = f."apn"
 LEFT JOIN LATERAL (
   SELECT
     (SUM(comp.ppsf * comp.w) / NULLIF(SUM(comp.w), 0))::float AS nb_ppsf,
