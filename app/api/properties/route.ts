@@ -425,7 +425,9 @@ export async function GET(request: NextRequest) {
         NULL::timestamp                                  AS pr_appointed_at,
         NULL::text                                       AS probate_case_number,
         NULL::text                                       AS case_type_code,
-        NULL::int                                        AS case_count
+        NULL::int                                        AS case_count,
+        NULL::text                                       AS attorney_name,
+        NULL::text                                       AS attorney_address
       FROM flipops."TaxDelinquencySummary" s
       LEFT JOIN flipops."Parcel" par
         ON par."countyFips" = s."countyFips" AND par."apn" = s."apn"
@@ -546,7 +548,9 @@ export async function GET(request: NextRequest) {
         NULL::timestamp                                   AS pr_appointed_at,
         NULL::text                                        AS probate_case_number,
         NULL::text                                        AS case_type_code,
-        NULL::int                                         AS case_count
+        NULL::int                                         AS case_count,
+        NULL::text                                        AS attorney_name,
+        NULL::text                                        AS attorney_address
       FROM flipops."AuctionSummary" s
       INNER JOIN flipops."Parcel" par
         ON par."countyFips" = s."countyFips" AND par."apn" = s."apn"

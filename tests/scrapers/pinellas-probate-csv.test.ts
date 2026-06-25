@@ -66,6 +66,15 @@ describe("parseProbateCsvRow", () => {
     expect(r.uniformCaseNumber).toBe("522026CP000099XXESPR");
   });
 
+  it("rejects a row shifted by a comma in the decedent name (no corrupted attorney/DoD)", () => {
+    // Decedent last name "SMITH, JR" carries an unquoted comma, shifting every
+    // column right by one — "JR" lands in the DOB slot. Pre-guard this silently
+    // produced a wrong attorney name + lost Date of Death; now it must reject.
+    const shifted =
+      "PR,FORMAL ADMINISTRATION,26-000200-ES,IN RE: THE ESTATE OF JOHN SMITH,06/01/2026,JOHN,Q,SMITH, JR,03/01/1950,05/01/2026,PETITIONER,JANE,,DOE,BOB,,LAW,123 MAIN ST FL,522026CP000200XXESPR";
+    expect(parseProbateCsvRow(shifted)).toBeNull();
+  });
+
   it("rejects the header row and blanks", () => {
     expect(parseProbateCsvRow(HEADER)).toBeNull();
     expect(parseProbateCsvRow("")).toBeNull();

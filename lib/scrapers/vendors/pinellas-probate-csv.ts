@@ -135,6 +135,19 @@ export function parseProbateCsvRow(line: string): PinellasProbateRow | null {
   const decedentLast = at(dateIdx + 3);
   const dob = at(dateIdx + 4);
   const dateOfDeath = at(dateIdx + 5);
+
+  // Shift / mis-anchor guard. A correctly-aligned row ALWAYS has DOB (+4) and
+  // Date of Death (+5) that are empty or MM/DD/YYYY. A comma inside a
+  // decedent-name field ("SMITH, JR") — or a decoy date inside the Title — shifts
+  // every column right, landing a name fragment in these date slots and silently
+  // corrupting decedent name, DoD, AND attorney (and poisoning the owner-name
+  // fuzzy matcher). Reject rather than persist wrong data. NOTE: a comma inside
+  // the ATTORNEY name only shifts the address tail and is NOT caught here — that
+  // rarer firm/suffix case needs a right-anchor parse (tracked follow-up).
+  if ((dob && !DATE_RE.test(dob)) || (dateOfDeath && !DATE_RE.test(dateOfDeath))) {
+    return null;
+  }
+
   const repType = at(dateIdx + 6);
   const repFirst = at(dateIdx + 7);
   const repMiddle = at(dateIdx + 8);
