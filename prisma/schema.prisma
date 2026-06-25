@@ -2330,6 +2330,8 @@ model ProbateSummary {
   primaryCaseNumber  String?                      // most-recent / highest-confidence case
   decedentName       String?
   personalRepresentative String?
+  attorneyName       String?                      // petitioner's attorney (carried from the primary matched ProbateCase) — probate detail only
+  attorneyAddress    String?                      // petitioner's attorney address (free-text) — probate detail only
   caseTypeCode       String?
   filedAt            DateTime?                    // earliest matched filing
   prAppointedAt      DateTime?                    // PR appointment (peak window)

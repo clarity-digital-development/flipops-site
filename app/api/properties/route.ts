@@ -121,6 +121,8 @@ interface LeadRow {
   probateCaseNumber: string | null;
   caseTypeCode: string | null;
   caseCount: number | null;
+  attorneyName: string | null;
+  attorneyAddress: string | null;
 }
 
 const MAX_LIMIT = 500;
@@ -333,7 +335,9 @@ export async function GET(request: NextRequest) {
         NULL::timestamp                   AS pr_appointed_at,
         NULL::text                        AS probate_case_number,
         NULL::text                        AS case_type_code,
-        NULL::int                         AS case_count
+        NULL::int                         AS case_count,
+        NULL::text                        AS attorney_name,
+        NULL::text                        AS attorney_address
       FROM flipops."Property" p
       WHERE p."userId" = ${userId}
         AND ${distressMineSql}
@@ -650,7 +654,9 @@ export async function GET(request: NextRequest) {
         s."prAppointedAt"                                 AS pr_appointed_at,
         s."primaryCaseNumber"                             AS probate_case_number,
         s."caseTypeCode"                                  AS case_type_code,
-        s."caseCount"                                     AS case_count
+        s."caseCount"                                     AS case_count,
+        s."attorneyName"                                  AS attorney_name,
+        s."attorneyAddress"                               AS attorney_address
       FROM flipops."ProbateSummary" s
       INNER JOIN flipops."Parcel" par
         ON par."countyFips" = s."countyFips" AND par."apn" = s."apn"
@@ -796,6 +802,8 @@ export async function GET(request: NextRequest) {
       probateCaseNumber: (r.probate_case_number as string | null) ?? null,
       caseTypeCode: (r.case_type_code as string | null) ?? null,
       caseCount: (r.case_count as number | null) ?? null,
+      attorneyName: (r.attorney_name as string | null) ?? null,
+      attorneyAddress: (r.attorney_address as string | null) ?? null,
     }));
 
     // Counts — for the demo stats bar. Cheap single-row queries.

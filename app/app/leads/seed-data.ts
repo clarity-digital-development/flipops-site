@@ -89,6 +89,8 @@ export interface Property {
   probateCaseNumber?: string | null;
   caseTypeCode?: string | null;
   caseCount?: number | null;
+  attorneyName?: string | null;
+  attorneyAddress?: string | null;
 
   // === M2.6 — provenance/freshness receipts ===
   /** Per-branch source key from the /api/properties UNION: the Property

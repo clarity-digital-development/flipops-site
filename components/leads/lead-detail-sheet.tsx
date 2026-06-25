@@ -85,6 +85,8 @@ export interface DetailLead {
   probateCaseNumber?: string | null;
   caseTypeCode?: string | null;
   caseCount?: number | null;
+  attorneyName?: string | null;
+  attorneyAddress?: string | null;
   // M2.6 — provenance receipts (source key + per-signal capture dates from
   // the /api/properties UNION; null when the branch has no receipt).
   signalSource?: string | null;
@@ -644,6 +646,20 @@ export function LeadDetailSheet({
                       icon={Layers}
                       label="Case Number"
                       value={lead.probateCaseNumber}
+                    />
+                  )}
+                  {lead.dataSource === "parcel-probate-bridge" && lead.attorneyName && (
+                    <DetailCell
+                      icon={User}
+                      label="Estate Attorney"
+                      value={lead.attorneyName}
+                    />
+                  )}
+                  {lead.dataSource === "parcel-probate-bridge" && lead.attorneyAddress && (
+                    <DetailCell
+                      icon={MapPin}
+                      label="Attorney Address"
+                      value={lead.attorneyAddress}
                     />
                   )}
                 </div>

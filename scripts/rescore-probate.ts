@@ -256,6 +256,7 @@ export async function refreshProbateSummary(
     INSERT INTO flipops."ProbateSummary" (
       "id", "countyFips", "apn",
       "caseCount", "primaryCaseNumber", "decedentName", "personalRepresentative",
+      "attorneyName", "attorneyAddress",
       "caseTypeCode", "filedAt", "prAppointedAt", "dateOfDeath", "status", "matchConfidence",
       "score", "grade", "motivation", "firstCapturedAt", "updatedAt"
     )
@@ -267,6 +268,8 @@ export async function refreshProbateSummary(
       sub."primaryCaseNumber",
       sub."decedentName",
       sub."personalRepresentative",
+      sub."attorneyName",
+      sub."attorneyAddress",
       sub."caseTypeCode",
       sub."filedAt",
       sub."prAppointedAt",
@@ -351,6 +354,8 @@ export async function refreshProbateSummary(
         (ARRAY_AGG(pc."caseNumber" ORDER BY pc."prAppointedAt" DESC NULLS LAST, pc."filedAt" DESC NULLS LAST))[1] AS "primaryCaseNumber",
         (ARRAY_AGG(pc."decedentName" ORDER BY pc."prAppointedAt" DESC NULLS LAST, pc."filedAt" DESC NULLS LAST))[1] AS "decedentName",
         (ARRAY_AGG(pc."personalRepresentative" ORDER BY pc."prAppointedAt" DESC NULLS LAST, pc."filedAt" DESC NULLS LAST))[1] AS "personalRepresentative",
+        (ARRAY_AGG(pc."attorneyName" ORDER BY pc."prAppointedAt" DESC NULLS LAST, pc."filedAt" DESC NULLS LAST))[1] AS "attorneyName",
+        (ARRAY_AGG(pc."attorneyAddress" ORDER BY pc."prAppointedAt" DESC NULLS LAST, pc."filedAt" DESC NULLS LAST))[1] AS "attorneyAddress",
         (ARRAY_AGG(pc."caseTypeCode" ORDER BY pc."prAppointedAt" DESC NULLS LAST, pc."filedAt" DESC NULLS LAST))[1] AS "caseTypeCode",
         MIN(pc."filedAt")                                                    AS "filedAt",
         MAX(pc."prAppointedAt")                                              AS "prAppointedAt",
@@ -372,6 +377,8 @@ export async function refreshProbateSummary(
       "primaryCaseNumber"      = EXCLUDED."primaryCaseNumber",
       "decedentName"           = EXCLUDED."decedentName",
       "personalRepresentative" = EXCLUDED."personalRepresentative",
+      "attorneyName"           = EXCLUDED."attorneyName",
+      "attorneyAddress"        = EXCLUDED."attorneyAddress",
       "caseTypeCode"           = EXCLUDED."caseTypeCode",
       "filedAt"                = EXCLUDED."filedAt",
       "prAppointedAt"          = EXCLUDED."prAppointedAt",
