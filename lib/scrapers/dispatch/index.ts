@@ -12,6 +12,7 @@ import { runMiamiDadeTaxDelinquent } from "./miami-dade-tax-delinquent";
 import { runOnCoreOfficialRecords } from "./oncore-official-records";
 import { runOrangeTaxDelinquent } from "./orange-tax-delinquent";
 import { runPalmBeachTaxDelinquent } from "./palm-beach-tax-delinquent";
+import { runPinellasProbateCsv } from "./pinellas-probate-csv";
 import { runProbateOfficialRecords } from "./probate-official-records";
 import { runRealAuction } from "./realauction-fl-foreclosures";
 import { runRealTaxDeedFl } from "./realtaxdeed-fl-tax-deeds";
@@ -44,7 +45,8 @@ export const DISPATCH: Record<string, ScraperAdapter> = {
   "miami-dade-tax-delinquent":   runMiamiDadeTaxDelinquent, // Phase 4 adds HEAD-check on PDF Last-Modified
   "palm-beach-tax-delinquent":   runPalmBeachTaxDelinquent, // incremental-date via FPN date-range params
   "code-enforcement":            runCodeEnforcement,        // M3.2 GREEN open-data: Miami-Dade ArcGIS + Orlando Socrata → CodeViolation(+Summary)
-  "probate-official-records":    runProbateOfficialRecords, // M3.1 yellow: P-MVC family (Orange/Pinellas/Broward) incremental-date, reCAPTCHA-gated persist
+  "probate-official-records":    runProbateOfficialRecords, // M3.1 yellow: P-MVC family (Orange/Broward — Pinellas now via pinellas-probate-csv) incremental-date, reCAPTCHA-gated persist
+  "pinellas-probate-csv":        runPinellasProbateCsv,     // M3.1 GREEN: Pinellas (12103) captcha-free daily-CSV probate ingester (supersedes the Pinellas P-MVC branch)
 };
 
 export function resolveAdapter(sourceKey: string): ScraperAdapter | null {

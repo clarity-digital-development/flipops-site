@@ -1,6 +1,6 @@
 "use client";
 
-import { MapPin, Phone, Mail, Flame, Users, Receipt, Sparkles, Gavel } from "lucide-react";
+import { MapPin, Phone, Mail, Flame, Users, Receipt, Sparkles, Gavel, Scale } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
@@ -73,6 +73,9 @@ export interface ListLead {
   nextAuctionDate?: string | Date | null;
   pastAuctionCount?: number | null;
   dataSource?: string | null;
+  // M3.D — probate-bridge display
+  decedentName?: string | null;
+  dateOfDeath?: string | Date | null;
 }
 
 interface LeadListPanelProps {
@@ -283,7 +286,16 @@ export function LeadListPanel({
                       Auction
                     </span>
                   )}
-                  {chips.length === 0 && !lead.virtual && !lead.nextAuctionDate && lead.dataSource !== "parcel-auction-bridge" && (
+                  {lead.dataSource === "parcel-probate-bridge" && (
+                    <span
+                      className="inline-flex items-center gap-0.5 rounded-full bg-purple-100 px-1.5 py-0.5 text-[10px] font-semibold text-purple-700 dark:bg-purple-950 dark:text-purple-300"
+                      title="Probate estate filing for this property."
+                    >
+                      <Scale className="h-2.5 w-2.5" />
+                      Probate
+                    </span>
+                  )}
+                  {chips.length === 0 && !lead.virtual && !lead.nextAuctionDate && lead.dataSource !== "parcel-auction-bridge" && lead.dataSource !== "parcel-probate-bridge" && (
                     <span className="text-[10px] text-muted-foreground">
                       No distress flags
                     </span>
@@ -323,6 +335,19 @@ export function LeadListPanel({
                   </div>
                 );
               })()}
+
+              {/* M3.D — probate secondary line */}
+              {lead.dataSource === "parcel-probate-bridge" && lead.decedentName && (
+                <div className="mt-0.5 flex items-center gap-1 text-[10px] text-purple-600 dark:text-purple-400 tabular-nums">
+                  <Scale className="h-3 w-3" />
+                  <span>Estate of {lead.decedentName}</span>
+                  {lead.dateOfDeath && (
+                    <span className="text-muted-foreground">
+                      · d. {new Date(lead.dateOfDeath).toLocaleDateString("en-US", { month: "short", year: "numeric" })}
+                    </span>
+                  )}
+                </div>
+              )}
             </button>
           );
         })}

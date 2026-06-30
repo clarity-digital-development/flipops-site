@@ -78,6 +78,20 @@ export interface Property {
   scheduledCount?: number | null;
   pastAuctionCount?: number | null;
 
+  // === M3.D — probate surfacing fields ===
+  /** Populated by /api/properties UNION when dataSource is
+   * parcel-probate-bridge. Sourced from the ProbateSummary materialized
+   * aggregate (per countyFips+apn). Live UNION endpoint only, never seeded. */
+  decedentName?: string | null;
+  personalRepresentative?: string | null;
+  dateOfDeath?: string | null;
+  prAppointedAt?: string | null;
+  probateCaseNumber?: string | null;
+  caseTypeCode?: string | null;
+  caseCount?: number | null;
+  attorneyName?: string | null;
+  attorneyAddress?: string | null;
+
   // === M2.6 — provenance/freshness receipts ===
   /** Per-branch source key from the /api/properties UNION: the Property
    * row's dataSource (mine), 'county-tax-roll' (tax-virtual), or

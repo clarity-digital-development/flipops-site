@@ -1161,45 +1161,36 @@ All homepage sections use a premium "3D floating card" treatment (Apple/Linear a
 - Don't bypass auth by only checking `if (expectedKey && key !== expectedKey)` - always verify key exists
 - Don't add files to root - use appropriate directories (scripts/, docs/, tests/)
 
-## gstack (REQUIRED — global install)
+## Workflow (tworkflow — the governing process)
 
-**Before doing ANY work, verify gstack is installed:**
+**tworkflow is the canonical AI-agent workflow for this repo**
+(https://github.com/clarity-digital-development/tworkflow, checked out at `~/tworkflow`).
+The loop: **Context → Plan → Implement → Review → QA → Ship → Retro** — every phase produces a
+written artifact a human reads, with a 40% context-budget rule. Adopted as governing 2026-06-13.
 
-```bash
-test -d ~/.claude/skills/gstack/bin && echo "GSTACK_OK" || echo "GSTACK_MISSING"
-```
+- **`dev-workflow` skill** walks the loop. Invoke it for any non-trivial (multi-file or
+  behavior-changing) change: write a `docs/plans/<YYYY-MM-DD>-<slug>.md` plan (problem, non-goals,
+  premises verified ✅/❌ against the actual code, alternatives, design, failure modes, test plan,
+  ordered steps) and get explicit approval BEFORE writing code; implement in plan-step commits on a
+  branch; review in three fresh-context lenses (correctness · security · plan-conformance); QA
+  (visual screenshots at 375/768/1440 for any UI change); ship; retro. **Trivial** fixes (typos,
+  copy, dep bumps) and **single-file** changes skip the loop.
+- **`context-checkpoint` skill** watches the budget. Check at every phase boundary; past 40%, reset
+  (clear + reseed from the plan + a SESSION-HANDOFF) at the next clean boundary, not mid-edit.
+- Both are installed at `~/.claude/skills/` (personal — all projects).
 
-If GSTACK_MISSING: STOP. Do not proceed. Tell the user:
-
-> gstack is required for all AI-assisted work in this repo.
-> Install it:
-> ```bash
-> git clone --depth 1 https://github.com/garrytan/gstack.git ~/.claude/skills/gstack
-> cd ~/.claude/skills/gstack && ./setup --team
-> ```
-> Then restart your AI coding tool.
-
-Do not skip skills, ignore gstack errors, or work around missing gstack.
-
-Using gstack skills: After install, skills like /qa, /ship, /review, /investigate,
-and /browse are available. Use /browse for all web browsing.
-Use ~/.claude/skills/gstack/... for gstack file paths (the global path).
+**gstack is OPTIONAL tooling, not required** (the earlier "gstack REQUIRED — STOP if missing" mandate
+is retired as of 2026-06-13). **tworkflow is simply our own version of the same gstack-style loop —
+same philosophy, not a competing framework; don't re-litigate the two.** gstack's utilities stay
+available where genuinely useful, but the governing *loop and discipline* come from tworkflow. Never
+block work on gstack being installed.
 
 ## Skill routing
 
-When the user's request matches an available skill, invoke it via the Skill tool. When in doubt, invoke the skill.
-
-Key routing rules:
-- Product ideas/brainstorming → invoke /office-hours
-- Strategy/scope → invoke /plan-ceo-review
-- Architecture → invoke /plan-eng-review
-- Design system/plan review → invoke /design-consultation or /plan-design-review
-- Full review pipeline → invoke /autoplan
-- Bugs/errors → invoke /investigate
-- QA/testing site behavior → invoke /qa or /qa-only
-- Code review/diff check → invoke /review
-- Visual polish → invoke /design-review
-- Ship/deploy/PR → invoke /ship or /land-and-deploy
-- Save progress → invoke /context-save
-- Resume context → invoke /context-restore
-- Author a backlog-ready spec/issue → invoke /spec
+For any non-trivial change, invoke the **`dev-workflow`** skill and let it route the phases.
+Otherwise, when a request clearly matches a skill, invoke it. Optional utilities by task:
+- Headless web browsing / dogfooding → `/browse` (gstack)
+- QA / visual-testing a running app → dev-workflow's QA phase (`qa-screenshots.js`), or `/qa` (gstack)
+- Debugging a bug/error → `/investigate` (gstack) or systematic-debugging
+- Pull data from a page → `/scrape` (gstack) or the firecrawl skills
+These are tools, not the process — the process is tworkflow's loop.

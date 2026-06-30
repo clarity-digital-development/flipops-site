@@ -112,6 +112,17 @@ interface LeadRow {
   // invariant #1). NULL = never scored by a model (honest absence).
   propensity12mo: number | null;
   propensityModel: string | null;
+  // Probate-virtual specific (sourced from ProbateSummary when
+  // dataSource === 'parcel-probate-bridge', else null on all other branches).
+  decedentName: string | null;
+  personalRepresentative: string | null;
+  dateOfDeath: string | null;
+  prAppointedAt: string | null;
+  probateCaseNumber: string | null;
+  caseTypeCode: string | null;
+  caseCount: number | null;
+  attorneyName: string | null;
+  attorneyAddress: string | null;
 }
 
 const MAX_LIMIT = 500;
@@ -195,6 +206,11 @@ export async function GET(request: NextRequest) {
       distress.length === 0 ||
       distress.includes('foreclosure') ||
       distress.includes('preForeclosure');
+    // Probate is a motivation signal (estate/death trigger), not a property-
+    // condition flag. It surfaces when no distress filter is active OR the
+    // explicit 'probate' chip is selected.
+    const probatePassesDistress =
+      distress.length === 0 || distress.includes('probate');
 
     const cursorMineSql = cursor
       ? Prisma.sql`AND (COALESCE(p."score", 0), p."id") < (${cursor.score}, ${cursor.id})`
@@ -204,6 +220,9 @@ export async function GET(request: NextRequest) {
       : Prisma.empty;
     const cursorAuctionSql = cursor
       ? Prisma.sql`AND (COALESCE(s."score", 0), ('virt-fc-' || s."countyFips" || '-' || s."apn")) < (${cursor.score}, ${cursor.id})`
+      : Prisma.empty;
+    const cursorProbateSql = cursor
+      ? Prisma.sql`AND (COALESCE(s."score", 0), ('virt-pr-' || s."countyFips" || '-' || s."apn")) < (${cursor.score}, ${cursor.id})`
       : Prisma.empty;
 
     const zipMineSql = zipFilter
@@ -234,6 +253,16 @@ export async function GET(request: NextRequest) {
     const scoreMinAuctionSql =
       scoreMin > 0 ? Prisma.sql`AND COALESCE(s."score", 0) >= ${scoreMin}` : Prisma.empty;
     const zipAuctionSql = zipFilter
+      ? Prisma.sql`AND COALESCE(par."situsZip", '') = ${zipFilter}`
+      : Prisma.empty;
+
+    // Probate-virtual filter pushdown. Probate has no tax-owed dimension, so a
+    // taxOwedMin filter excludes the branch entirely (mirrors the auction rule).
+    const taxOwedProbateSql =
+      taxOwedMin > 0 ? Prisma.sql`AND FALSE` : Prisma.empty;
+    const scoreMinProbateSql =
+      scoreMin > 0 ? Prisma.sql`AND COALESCE(s."score", 0) >= ${scoreMin}` : Prisma.empty;
+    const zipProbateSql = zipFilter
       ? Prisma.sql`AND COALESCE(par."situsZip", '') = ${zipFilter}`
       : Prisma.empty;
 
@@ -299,7 +328,16 @@ export async function GET(request: NextRequest) {
         -- M2.4: model propensity lives on TaxDelinquencySummary (virtual
         -- branches only) — NULL-padded here for UNION shape stability.
         NULL::float                       AS propensity12mo,
-        NULL::text                        AS propensity_model
+        NULL::text                        AS propensity_model,
+        NULL::text                        AS decedent_name,
+        NULL::text                        AS personal_representative,
+        NULL::timestamp                   AS date_of_death,
+        NULL::timestamp                   AS pr_appointed_at,
+        NULL::text                        AS probate_case_number,
+        NULL::text                        AS case_type_code,
+        NULL::int                         AS case_count,
+        NULL::text                        AS attorney_name,
+        NULL::text                        AS attorney_address
       FROM flipops."Property" p
       WHERE p."userId" = ${userId}
         AND ${distressMineSql}
@@ -380,7 +418,16 @@ export async function GET(request: NextRequest) {
         s."propensity12mo"::float                        AS propensity12mo,
         (SELECT 'v' || mv."version"
            FROM flipops."ModelVersion" mv
-          WHERE mv."id" = s."propensityModelVersionId")  AS propensity_model
+          WHERE mv."id" = s."propensityModelVersionId")  AS propensity_model,
+        NULL::text                                       AS decedent_name,
+        NULL::text                                       AS personal_representative,
+        NULL::timestamp                                  AS date_of_death,
+        NULL::timestamp                                  AS pr_appointed_at,
+        NULL::text                                       AS probate_case_number,
+        NULL::text                                       AS case_type_code,
+        NULL::int                                        AS case_count,
+        NULL::text                                       AS attorney_name,
+        NULL::text                                       AS attorney_address
       FROM flipops."TaxDelinquencySummary" s
       LEFT JOIN flipops."Parcel" par
         ON par."countyFips" = s."countyFips" AND par."apn" = s."apn"
@@ -494,7 +541,16 @@ export async function GET(request: NextRequest) {
            JOIN flipops."ModelVersion" mv
              ON mv."id" = tds."propensityModelVersionId"
           WHERE tds."countyFips" = s."countyFips"
-            AND tds."apn" = s."apn")                      AS propensity_model
+            AND tds."apn" = s."apn")                      AS propensity_model,
+        NULL::text                                        AS decedent_name,
+        NULL::text                                        AS personal_representative,
+        NULL::timestamp                                   AS date_of_death,
+        NULL::timestamp                                   AS pr_appointed_at,
+        NULL::text                                        AS probate_case_number,
+        NULL::text                                        AS case_type_code,
+        NULL::int                                         AS case_count,
+        NULL::text                                        AS attorney_name,
+        NULL::text                                        AS attorney_address
       FROM flipops."AuctionSummary" s
       INNER JOIN flipops."Parcel" par
         ON par."countyFips" = s."countyFips" AND par."apn" = s."apn"
@@ -511,10 +567,127 @@ export async function GET(request: NextRequest) {
         ${taxOwedAuctionSql}
     `;
 
+    // -------------------- Probate-virtual branch (M3.1) --------------------
+    // ProbateSummary materialized aggregate (decedent → owner fuzzy match,
+    // built by scripts/rescore-probate.ts) joined to Parcel. Surfaces parcels
+    // whose owner matched an open estate case (LIFE_EVENT_FAMILY motivation —
+    // an heir who just inherited the property). INNER JOIN requires Parcel
+    // enrichment so the lead card has an address. dataSource keys the UI badge.
+    //
+    // Cross-branch: yields to a SCHEDULED foreclosure auction on the same
+    // parcel (same HG1 rule as tax-virtual) — auction is the harder clock.
+    // Tax-delinquent and probate co-exist (independent motivation signals);
+    // a parcel that is both surfaces from both branches with its own score.
+    const probateQuery = Prisma.sql`
+      SELECT
+        ('virt-pr-' || s."countyFips" || '-' || s."apn") AS id,
+        TRUE                                              AS virtual,
+        s."apn"                                           AS apn,
+        s."countyFips"                                    AS county_fips,
+        FALSE                                             AS partial,
+        COALESCE(par."situsAddress", '(address pending)') AS address,
+        COALESCE(par."situsCity", '')                     AS city,
+        COALESCE(par."state", 'FL')                       AS state,
+        par."situsZip"                                    AS zip,
+        NULL                                              AS county,
+        par."propertyType"                                AS property_type,
+        par."bedrooms"                                    AS bedrooms,
+        par."bathrooms"                                   AS bathrooms,
+        par."squareFeet"                                  AS square_feet,
+        par."lotSize"                                     AS lot_size,
+        par."yearBuilt"                                   AS year_built,
+        par."assessedValue"::float                        AS assessed_value,
+        par."marketValue"::float                          AS estimated_value,
+        par."lastSaleDate"::text                          AS last_sale_date,
+        par."lastSalePrice"::float                        AS last_sale_price,
+        NULL                                              AS listing_date,
+        NULL::int                                         AS days_on_market,
+        COALESCE(s."score", 20)                           AS score,
+        s."grade"                                         AS grade,
+        s."motivation"                                    AS motivation,
+        NULL::text                                        AS score_breakdown,
+        'parcel-probate-bridge'                           AS data_source,
+        COALESCE(par."ownerName", '(unknown owner)')      AS owner_name,
+        FALSE                                             AS enriched,
+        NULL::text                                        AS phone_numbers,
+        NULL::text                                        AS emails,
+        FALSE                                             AS foreclosure,
+        FALSE                                             AS pre_foreclosure,
+        -- Surface tax-delinquent secondary badge when both signals exist.
+        (EXISTS (
+          SELECT 1 FROM flipops."TaxDelinquencySummary" tds
+          WHERE tds."countyFips" = s."countyFips" AND tds."apn" = s."apn"
+        ))                                                AS tax_delinquent,
+        FALSE                                             AS vacant,
+        FALSE                                             AS bankruptcy,
+        FALSE                                             AS absentee_owner,
+        NULL::text                                        AS metadata,
+        s."firstCapturedAt"::text                         AS created_at,
+        NULL::float                                       AS tax_delinquent_amount,
+        NULL::int                                         AS tax_delinquent_years_count,
+        NULL::int                                         AS tax_delinquent_earliest_year,
+        NULL::int                                         AS tax_delinquent_latest_year,
+        par."latitude"::float                             AS latitude,
+        par."longitude"::float                            AS longitude,
+        NULL::timestamp                                   AS next_auction_date,
+        NULL::float                                       AS opening_bid,
+        NULL::float                                       AS judgment_amount,
+        NULL::text                                        AS last_case_number,
+        NULL::int                                         AS scheduled_count,
+        NULL::int                                         AS past_auction_count,
+        -- M2.6 provenance: probate rows come from the clerk estate-filing feed.
+        'probate-clerk'                                   AS signal_source,
+        (SELECT tds."computedAt"::text
+           FROM flipops."TaxDelinquencySummary" tds
+          WHERE tds."countyFips" = s."countyFips"
+            AND tds."apn" = s."apn")                      AS tax_signal_captured_at,
+        NULL::text                                        AS auction_signal_captured_at,
+        (SELECT tds."propensity12mo"::float
+           FROM flipops."TaxDelinquencySummary" tds
+          WHERE tds."countyFips" = s."countyFips"
+            AND tds."apn" = s."apn")                      AS propensity12mo,
+        (SELECT 'v' || mv."version"
+           FROM flipops."TaxDelinquencySummary" tds
+           JOIN flipops."ModelVersion" mv
+             ON mv."id" = tds."propensityModelVersionId"
+          WHERE tds."countyFips" = s."countyFips"
+            AND tds."apn" = s."apn")                      AS propensity_model,
+        s."decedentName"                                  AS decedent_name,
+        s."personalRepresentative"                        AS personal_representative,
+        s."dateOfDeath"                                   AS date_of_death,
+        s."prAppointedAt"                                 AS pr_appointed_at,
+        s."primaryCaseNumber"                             AS probate_case_number,
+        s."caseTypeCode"                                  AS case_type_code,
+        s."caseCount"                                     AS case_count,
+        s."attorneyName"                                  AS attorney_name,
+        s."attorneyAddress"                               AS attorney_address
+      FROM flipops."ProbateSummary" s
+      INNER JOIN flipops."Parcel" par
+        ON par."countyFips" = s."countyFips" AND par."apn" = s."apn"
+      WHERE s."score" IS NOT NULL
+        AND NOT EXISTS (
+          SELECT 1 FROM flipops."Property" pp
+          WHERE pp."userId" = ${userId}
+            AND pp."countyFips" = s."countyFips"
+            AND pp."apn" = s."apn"
+        )
+        AND NOT EXISTS (
+          SELECT 1 FROM flipops."AuctionSummary" auc
+          WHERE auc."countyFips" = s."countyFips"
+            AND auc."apn" = s."apn"
+            AND auc."nextAuctionDate" IS NOT NULL
+        )
+        ${cursorProbateSql}
+        ${zipProbateSql}
+        ${scoreMinProbateSql}
+        ${taxOwedProbateSql}
+    `;
+
     const branches: Prisma.Sql[] = [];
     if (wantMine) branches.push(mineQuery);
     if (wantVirtual && virtualPassesDistress) branches.push(virtualQuery);
     if (wantVirtual && auctionPassesDistress) branches.push(auctionQuery);
+    if (wantVirtual && probatePassesDistress) branches.push(probateQuery);
 
     let unionSql: Prisma.Sql;
     if (branches.length === 0) {
@@ -618,6 +791,23 @@ export async function GET(request: NextRequest) {
       // M2.4 Layer-1 propensity (+ model label) — virtual branches only.
       propensity12mo: (r.propensity12mo as number | null) ?? null,
       propensityModel: (r.propensity_model as string | null) ?? null,
+      // M3.1 probate wire-up: ProbateSummary fields surface on the
+      // parcel-probate-bridge branch; NULL on mine/tax/auction branches.
+      decedentName: (r.decedent_name as string | null) ?? null,
+      personalRepresentative: (r.personal_representative as string | null) ?? null,
+      dateOfDeath:
+        r.date_of_death != null
+          ? new Date(r.date_of_death as string | Date).toISOString()
+          : null,
+      prAppointedAt:
+        r.pr_appointed_at != null
+          ? new Date(r.pr_appointed_at as string | Date).toISOString()
+          : null,
+      probateCaseNumber: (r.probate_case_number as string | null) ?? null,
+      caseTypeCode: (r.case_type_code as string | null) ?? null,
+      caseCount: (r.case_count as number | null) ?? null,
+      attorneyName: (r.attorney_name as string | null) ?? null,
+      attorneyAddress: (r.attorney_address as string | null) ?? null,
     }));
 
     // Counts — for the demo stats bar. Cheap single-row queries.
@@ -626,6 +816,7 @@ export async function GET(request: NextRequest) {
       source,
       virtualPassesDistress,
       auctionPassesDistress,
+      probatePassesDistress,
       {
         zipFilter,
         scoreMin,
@@ -646,16 +837,21 @@ async function getCounts(
   source: 'all' | 'mine' | 'virtual',
   virtualPassesDistress: boolean,
   auctionPassesDistress: boolean,
+  probatePassesDistress: boolean,
   filters: { zipFilter: string | null; scoreMin: number; taxOwedMin: number; distress: string[] },
-): Promise<{ total: number; mine: number; virtual: number; auction: number }> {
+): Promise<{ total: number; mine: number; virtual: number; auction: number; probate: number }> {
   const wantMine = source === 'all' || source === 'mine';
   const wantVirtual = (source === 'all' || source === 'virtual') && virtualPassesDistress;
   const wantAuction =
     (source === 'all' || source === 'virtual') &&
     auctionPassesDistress &&
     filters.taxOwedMin === 0; // auction branch has no tax-owed dimension
+  const wantProbate =
+    (source === 'all' || source === 'virtual') &&
+    probatePassesDistress &&
+    filters.taxOwedMin === 0; // probate branch has no tax-owed dimension
 
-  const [mineCount, virtualCount, auctionCount] = await Promise.all([
+  const [mineCount, virtualCount, auctionCount, probateCount] = await Promise.all([
     wantMine
       ? prisma.$queryRaw<[{ n: bigint }]>`
           SELECT COUNT(*)::bigint AS n FROM flipops."Property" p
@@ -703,10 +899,33 @@ async function getCounts(
             ${filters.scoreMin > 0 ? Prisma.sql`AND COALESCE(s."score", 0) >= ${filters.scoreMin}` : Prisma.empty}
         `
       : Promise.resolve([{ n: BigInt(0) }] as [{ n: bigint }]),
+    wantProbate
+      ? prisma.$queryRaw<[{ n: bigint }]>`
+          SELECT COUNT(*)::bigint AS n FROM flipops."ProbateSummary" s
+          INNER JOIN flipops."Parcel" par
+            ON par."countyFips" = s."countyFips" AND par."apn" = s."apn"
+          WHERE s."score" IS NOT NULL
+            AND NOT EXISTS (
+              SELECT 1 FROM flipops."Property" pp
+              WHERE pp."userId" = ${userId}
+                AND pp."countyFips" = s."countyFips"
+                AND pp."apn" = s."apn"
+            )
+            AND NOT EXISTS (
+              SELECT 1 FROM flipops."AuctionSummary" auc
+              WHERE auc."countyFips" = s."countyFips"
+                AND auc."apn" = s."apn"
+                AND auc."nextAuctionDate" IS NOT NULL
+            )
+            ${filters.zipFilter ? Prisma.sql`AND COALESCE(par."situsZip", '') = ${filters.zipFilter}` : Prisma.empty}
+            ${filters.scoreMin > 0 ? Prisma.sql`AND COALESCE(s."score", 0) >= ${filters.scoreMin}` : Prisma.empty}
+        `
+      : Promise.resolve([{ n: BigInt(0) }] as [{ n: bigint }]),
   ]);
 
   const mine = Number(mineCount[0].n);
   const virtual = Number(virtualCount[0].n);
   const auction = Number(auctionCount[0].n);
-  return { total: mine + virtual + auction, mine, virtual, auction };
+  const probate = Number(probateCount[0].n);
+  return { total: mine + virtual + auction + probate, mine, virtual, auction, probate };
 }

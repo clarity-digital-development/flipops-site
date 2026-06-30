@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import {
   handleScrapeCompleted,
   AUCTION_SUMMARY_REFRESH_SOURCE_KEYS,
+  PROBATE_REFRESH_COUNTIES,
 } from "@/lib/cron/auction-summary-hook";
 
 // ---------------------------------------------------------------------------
@@ -92,5 +93,82 @@ describe("handleScrapeCompleted", () => {
     expect(AUCTION_SUMMARY_REFRESH_SOURCE_KEYS.size).toBe(2);
     expect(AUCTION_SUMMARY_REFRESH_SOURCE_KEYS.has("realauction-fl-foreclosures")).toBe(true);
     expect(AUCTION_SUMMARY_REFRESH_SOURCE_KEYS.has("realtaxdeed-fl-tax-deeds")).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// M3.1 — probate post-scrape rescore path (added with the probate lead wire-up).
+// Mirrors the auction-path guarantees: county-scoped dispatch, non-probate keys
+// skipped, errors logged-not-propagated, and Pinellas excluded from the captcha
+// adapter's rescore set (it's served by the free pinellas-probate-csv source).
+// ---------------------------------------------------------------------------
+describe("handleScrapeCompleted — probate path", () => {
+  it("runs probate rescore for pinellas-probate-csv scoped to Pinellas (12103)", async () => {
+    const refreshProbate = vi
+      .fn()
+      .mockResolvedValue("12103: match EXACT=126 STRONG=15 NONE=629 → summary rows=159");
+    const log = vi.fn();
+
+    await handleScrapeCompleted(
+      { data: { sourceKey: "pinellas-probate-csv" } },
+      { refresh: vi.fn(), refreshProbate, log, error: vi.fn() },
+    );
+
+    expect(refreshProbate).toHaveBeenCalledTimes(1);
+    expect(refreshProbate).toHaveBeenCalledWith(["12103"]);
+    expect(log).toHaveBeenCalledWith(
+      expect.stringContaining("ProbateSummary refreshed after pinellas-probate-csv"),
+    );
+  });
+
+  it("runs probate rescore for probate-official-records scoped to Orange+Broward (Pinellas excluded)", async () => {
+    const refreshProbate = vi.fn().mockResolvedValue("ok");
+
+    await handleScrapeCompleted(
+      { data: { sourceKey: "probate-official-records" } },
+      { refresh: vi.fn(), refreshProbate, log: vi.fn(), error: vi.fn() },
+    );
+
+    expect(refreshProbate).toHaveBeenCalledWith(["12095", "12011"]);
+    expect(refreshProbate.mock.calls[0][0]).not.toContain("12103");
+  });
+
+  it("does NOT run probate rescore for a non-probate sourceKey", async () => {
+    const refreshProbate = vi.fn();
+
+    await handleScrapeCompleted(
+      { data: { sourceKey: "realauction-fl-foreclosures" } },
+      {
+        refresh: vi.fn().mockResolvedValue({ rowsAffected: 0, durationMs: 1 }),
+        refreshProbate,
+        log: vi.fn(),
+        error: vi.fn(),
+      },
+    );
+
+    expect(refreshProbate).not.toHaveBeenCalled();
+  });
+
+  it("logs but does NOT propagate when the probate rescore throws", async () => {
+    const refreshProbate = vi.fn().mockRejectedValue(new Error("match query timeout"));
+    const error = vi.fn();
+
+    await expect(
+      handleScrapeCompleted(
+        { data: { sourceKey: "pinellas-probate-csv" } },
+        { refresh: vi.fn(), refreshProbate, log: vi.fn(), error },
+      ),
+    ).resolves.toBeUndefined();
+
+    expect(error).toHaveBeenCalledWith(
+      expect.stringContaining("Probate rescore failed after pinellas-probate-csv"),
+      "match query timeout",
+    );
+  });
+
+  it("sanity: probate refresh map excludes Pinellas from the captcha adapter (regression guard)", () => {
+    expect(PROBATE_REFRESH_COUNTIES["pinellas-probate-csv"]).toEqual(["12103"]);
+    expect(PROBATE_REFRESH_COUNTIES["probate-official-records"]).toEqual(["12095", "12011"]);
+    expect(PROBATE_REFRESH_COUNTIES["probate-official-records"]).not.toContain("12103");
   });
 });

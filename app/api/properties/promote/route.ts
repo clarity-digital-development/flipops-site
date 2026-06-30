@@ -222,10 +222,23 @@ export async function POST(request: NextRequest) {
           signals: distressScore.signals,
         }),
         scoredAt: new Date(),
-        dataSource: auctionSummary ? 'parcel-auction-bridge' : 'parcel-lien-bridge',
+        // Bridge identity priority: scheduled auction > tax-delinquent > probate.
+        // Keeps a promoted probate-only lead tagged 'parcel-probate-bridge' so
+        // the leads UI keeps its Probate badge after the first action (M3.1).
+        dataSource: auctionSummary
+          ? 'parcel-auction-bridge'
+          : summary
+            ? 'parcel-lien-bridge'
+            : probateSummary
+              ? 'parcel-probate-bridge'
+              : 'parcel-lien-bridge',
         sourceId: auctionSummary
           ? `virt-fc-${countyFips}-${apn}`
-          : `virt-${countyFips}-${apn}`,
+          : summary
+            ? `virt-${countyFips}-${apn}`
+            : probateSummary
+              ? `virt-pr-${countyFips}-${apn}`
+              : `virt-${countyFips}-${apn}`,
       },
       update: {
         // Merge in the bridge fields if a Property happened to exist at this
