@@ -113,6 +113,13 @@ async function main() {
   let totalUpdated = 0;
   const allCounties = new Set<string>();
   for (const d of dirs) {
+    // Each NAL file is one county — when targeting a subset, skip non-target
+    // files WITHOUT streaming them (the dir name carries the DOR CO_NO).
+    if (targets.size) {
+      const m = d.match(/co(\d+)$/i);
+      const fips = m ? flCountyByCoNo(Number(m[1]))?.fips : undefined;
+      if (!fips || !targets.has(fips)) continue;
+    }
     const csvPath = findCsv(path.join(RAW_DIR, d));
     if (!csvPath) continue;
     const { scanned, updated, counties } = await ingestFile(csvPath, targets);
